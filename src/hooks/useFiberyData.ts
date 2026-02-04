@@ -221,6 +221,17 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Pers
     done: t.done
   })).sort((a, b) => new Date(b.doneDate || 0).getTime() - new Date(a.doneDate || 0).getTime()));
 
+  // Debug: Log Jess's pending tasks with dueDate
+  const jessPending = tasks.filter(t => 
+    t.assignee?.name?.includes('Jess') && 
+    !t.done
+  );
+  console.log('[Capacity] Jess pending tasks:', jessPending.map(t => ({
+    name: t.name,
+    dueDate: t.dueDate,
+    done: t.done
+  })));
+
   // Get week boundaries for last 5 weeks
   const weeks = [
     getWeekBoundaries(today, 1), // Week -1 (last week)
