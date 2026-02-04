@@ -16,33 +16,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  ReferenceLine,
-  Legend,
-} from "recharts";
 import { useClientMonthsData, processClientMonths } from "@/hooks/useFiberyData";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-
-// Color palette for clients
-const COLORS = [
-  "hsl(18, 100%, 60%)",
-  "hsl(32, 95%, 55%)",
-  "hsl(45, 93%, 47%)",
-  "hsl(195, 90%, 55%)",
-  "hsl(280, 80%, 60%)",
-  "hsl(340, 82%, 60%)",
-  "hsl(160, 70%, 50%)",
-  "hsl(220, 70%, 60%)",
-];
+import { ClientSmallMultiples } from "./ClientSmallMultiples";
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-US", {
@@ -61,7 +38,11 @@ export function ClientEconomics() {
     return (
       <div className="space-y-6">
         <SectionHeader title="Client Economics" />
-        <Skeleton className="h-80" />
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-52" />
+          ))}
+        </div>
         <Skeleton className="h-96" />
       </div>
     );
@@ -89,9 +70,6 @@ export function ClientEconomics() {
       ? tableData
       : tableData.filter((item) => item.client === clientFilter);
 
-  // Get clients for chart (limited to avoid clutter)
-  const chartClients = clients.slice(0, 8);
-
   return (
     <div className="space-y-6">
       <SectionHeader title="Client Economics">
@@ -110,71 +88,29 @@ export function ClientEconomics() {
         </Select>
       </SectionHeader>
 
-      {/* Line Chart */}
-      <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
-        <CardContent className="p-6">
-          <h3 className="mb-4 text-sm font-medium text-muted-foreground">
-            Cost per Deliverable Over Time
-          </h3>
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke="hsl(217, 33%, 18%)"
-                  vertical={false}
-                />
-                <XAxis
-                  dataKey="month"
-                  tick={{ fill: "hsl(215, 20%, 55%)", fontSize: 12 }}
-                  tickLine={false}
-                  axisLine={{ stroke: "hsl(217, 33%, 18%)" }}
-                />
-                <YAxis
-                  tick={{ fill: "hsl(215, 20%, 55%)", fontSize: 12 }}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(value) => `$${value}`}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "hsl(222, 47%, 10%)",
-                    border: "1px solid hsl(217, 33%, 18%)",
-                    borderRadius: "8px",
-                    padding: "12px",
-                  }}
-                  labelStyle={{ color: "hsl(210, 40%, 96%)", fontWeight: 600 }}
-                  formatter={(value: number) => [formatCurrency(value), "Cost/Del"]}
-                />
-                <Legend wrapperStyle={{ paddingTop: "20px" }} iconType="circle" />
-                <ReferenceLine
-                  y={1000}
-                  stroke="hsl(142, 76%, 45%)"
-                  strokeDasharray="5 5"
-                  label={{ value: "$1k", fill: "hsl(142, 76%, 45%)", fontSize: 10 }}
-                />
-                <ReferenceLine
-                  y={2000}
-                  stroke="hsl(0, 84%, 60%)"
-                  strokeDasharray="5 5"
-                  label={{ value: "$2k", fill: "hsl(0, 84%, 60%)", fontSize: 10 }}
-                />
-                {chartClients.map((client, index) => (
-                  <Line
-                    key={client}
-                    type="monotone"
-                    dataKey={client}
-                    stroke={COLORS[index % COLORS.length]}
-                    strokeWidth={2}
-                    dot={{ r: 3, fill: COLORS[index % COLORS.length] }}
-                    activeDot={{ r: 5 }}
-                  />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Legend */}
+      <div className="flex flex-wrap items-center gap-4 text-sm">
+        <span className="text-muted-foreground">$/Deliverable target:</span>
+        <div className="flex items-center gap-2">
+          <div className="h-3 w-3 rounded-sm bg-success" />
+          <span className="text-muted-foreground">&lt;$1,000 (over-resourced)</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="h-3 w-3 rounded-sm" style={{ backgroundColor: "hsl(215, 20%, 55%)" }} />
+          <span className="text-muted-foreground">$1,000-$2,000 (target)</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="h-3 w-3 rounded-sm bg-destructive" />
+          <span className="text-muted-foreground">&gt;$2,000 (under-resourced)</span>
+        </div>
+      </div>
+
+      {/* Small Multiples Bar Charts */}
+      <ClientSmallMultiples 
+        chartData={chartData} 
+        tableData={tableData} 
+        clients={clients} 
+      />
 
       {/* Data Table */}
       <Card className="border-border/50 bg-card/50 backdrop-blur-sm overflow-hidden">
