@@ -19,16 +19,22 @@ serve(async (req) => {
 
     const { endpoint, query } = await req.json()
 
+    console.log('Received request with endpoint:', endpoint)
+    console.log('Query:', query)
+
     if (!endpoint || !query) {
       throw new Error('Missing endpoint or query parameter')
     }
 
     // Determine the Fibery URL based on endpoint type
-    const url = endpoint === 'stats'
-      ? 'https://fireteam.fibery.io/api/graphql/space/Stats'
-      : 'https://fireteam.fibery.io/api/graphql/space/Projects'
+    let url: string
+    if (endpoint === 'stats') {
+      url = 'https://fireteam.fibery.io/api/graphql/space/Stats'
+    } else {
+      url = 'https://fireteam.fibery.io/api/graphql/space/Projects'
+    }
 
-    console.log(`Proxying request to: ${url}`)
+    console.log('Proxying request to:', url)
 
     const response = await fetch(url, {
       method: 'POST',
@@ -39,13 +45,17 @@ serve(async (req) => {
       body: JSON.stringify({ query })
     })
 
+    const responseText = await response.text()
+    console.log('Fibery response status:', response.status)
+    console.log('Fibery response body:', responseText)
+
     if (!response.ok) {
-      const errorText = await response.text()
-      console.error(`Fibery API error [${response.status}]:`, errorText)
+      console.error(`Fibery API error [${response.status}]:`, responseText)
       throw new Error(`Fibery API error: ${response.status}`)
     }
 
-    const data = await response.json()
+    const data = JSON.parse(responseText)
+    console.log('Parsed data:', JSON.stringify(data, null, 2))
 
     return new Response(JSON.stringify(data), {
       headers: {
