@@ -10,9 +10,31 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useTasksData, processTasksForCapacity } from "@/hooks/useFiberyData";
+import { useTasksData, processTasksForCapacity, TaskTypeRow } from "@/hooks/useFiberyData";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+
+function DataCell({ value, highlight = false }: { value: number; highlight?: boolean }) {
+  return (
+    <TableCell 
+      className={cn(
+        "text-center font-mono text-sm",
+        highlight && value > 0 && "text-warning",
+        value === 0 && "text-muted-foreground/50"
+      )}
+    >
+      {value}
+    </TableCell>
+  );
+}
+
+function AvgCell({ value }: { value: number }) {
+  return (
+    <TableCell className="text-center font-mono text-sm">
+      {value.toFixed(1)}
+    </TableCell>
+  );
+}
 
 export function TeamCapacity() {
   const [roleFilter, setRoleFilter] = useState("all");
@@ -43,14 +65,6 @@ export function TeamCapacity() {
   const tasks = data?.findProjectSpecificTasks || [];
   const teamData = processTasksForCapacity(tasks, roleFilter);
 
-  const getCellStyle = (value: number, type: "assigned") => {
-    if (type === "assigned") {
-      if (value > 10) return "bg-destructive/20 text-destructive";
-      if (value > 5) return "bg-warning/20 text-warning";
-    }
-    return "";
-  };
-
   return (
     <div className="space-y-6">
       <SectionHeader title="Team Capacity">
@@ -75,45 +89,93 @@ export function TeamCapacity() {
             <Table>
               <TableHeader>
                 <TableRow className="border-border/50 hover:bg-transparent">
-                  <TableHead className="text-muted-foreground font-semibold">Person</TableHead>
-                  <TableHead className="text-center text-muted-foreground font-semibold">
-                    Done (7 days)
-                  </TableHead>
-                  <TableHead className="text-center text-muted-foreground font-semibold">
-                    Done (30 days)
-                  </TableHead>
-                  <TableHead className="text-center text-muted-foreground font-semibold">
-                    Due (7 days)
-                  </TableHead>
-                  <TableHead className="text-center text-muted-foreground font-semibold">
-                    Due (30 days)
-                  </TableHead>
+                  <TableHead className="text-muted-foreground font-semibold w-40">Person</TableHead>
+                  <TableHead className="text-muted-foreground font-semibold w-48">Task Type</TableHead>
+                  <TableHead className="text-center text-muted-foreground font-semibold w-20">30d Avg</TableHead>
+                  <TableHead className="text-center text-muted-foreground font-semibold w-14">W-5</TableHead>
+                  <TableHead className="text-center text-muted-foreground font-semibold w-14">W-4</TableHead>
+                  <TableHead className="text-center text-muted-foreground font-semibold w-14">W-3</TableHead>
+                  <TableHead className="text-center text-muted-foreground font-semibold w-14">W-2</TableHead>
+                  <TableHead className="text-center text-muted-foreground font-semibold w-14">W-1</TableHead>
+                  <TableHead className="text-center text-muted-foreground font-semibold w-20">Due 7d</TableHead>
+                  <TableHead className="text-center text-muted-foreground font-semibold w-20">Due 30d</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {teamData.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                       No team members found
                     </TableCell>
                   </TableRow>
                 ) : (
-                  teamData.map((person) => (
-                    <TableRow key={person.name} className="border-border/50">
-                      <TableCell className="font-medium">{person.name}</TableCell>
-                      <TableCell className="text-center font-mono">
-                        {person.completedLastWeek}
-                      </TableCell>
-                      <TableCell className="text-center font-mono">
-                        {person.completedLastMonth}
-                      </TableCell>
-                      <TableCell className={cn("text-center font-mono", getCellStyle(person.assignedThisWeek, "assigned"))}>
-                        {person.assignedThisWeek}
-                      </TableCell>
-                      <TableCell className={cn("text-center font-mono", getCellStyle(person.assignedThisMonth, "assigned"))}>
-                        {person.assignedThisMonth}
-                      </TableCell>
-                    </TableRow>
+                  teamData.map((person, personIndex) => (
+                    <>
+                      {/* Person header row */}
+                      <TableRow 
+                        key={`${person.name}-header`} 
+                        className={cn(
+                          "border-border/50 bg-muted/30",
+                          personIndex > 0 && "border-t-2 border-t-border"
+                        )}
+                      >
+                        <TableCell className="font-semibold text-foreground" colSpan={10}>
+                          {person.name}
+                        </TableCell>
+                      </TableRow>
+                      
+                      {/* Task type rows */}
+                      {person.taskTypes.map((row) => (
+                        <TableRow 
+                          key={`${person.name}-${row.taskType}`} 
+                          className="border-border/30 hover:bg-muted/20"
+                        >
+                          <TableCell></TableCell>
+                          <TableCell className="text-sm text-foreground/80">{row.taskType}</TableCell>
+                          <AvgCell value={row.avg30Day} />
+                          <DataCell value={row.weekMinus5} />
+                          <DataCell value={row.weekMinus4} />
+                          <DataCell value={row.weekMinus3} />
+                          <DataCell value={row.weekMinus2} />
+                          <DataCell value={row.weekMinus1} />
+                          <DataCell value={row.due7Days} highlight />
+                          <DataCell value={row.due30Days} highlight />
+                        </TableRow>
+                      ))}
+                      
+                      {/* Subtotal row */}
+                      <TableRow 
+                        key={`${person.name}-subtotal`} 
+                        className="border-border/50 bg-primary/5"
+                      >
+                        <TableCell></TableCell>
+                        <TableCell className="font-semibold text-sm text-primary">Subtotal</TableCell>
+                        <TableCell className="text-center font-mono text-sm font-semibold text-primary">
+                          {person.subtotal.avg30Day.toFixed(1)}
+                        </TableCell>
+                        <TableCell className="text-center font-mono text-sm font-semibold">
+                          {person.subtotal.weekMinus5}
+                        </TableCell>
+                        <TableCell className="text-center font-mono text-sm font-semibold">
+                          {person.subtotal.weekMinus4}
+                        </TableCell>
+                        <TableCell className="text-center font-mono text-sm font-semibold">
+                          {person.subtotal.weekMinus3}
+                        </TableCell>
+                        <TableCell className="text-center font-mono text-sm font-semibold">
+                          {person.subtotal.weekMinus2}
+                        </TableCell>
+                        <TableCell className="text-center font-mono text-sm font-semibold">
+                          {person.subtotal.weekMinus1}
+                        </TableCell>
+                        <TableCell className="text-center font-mono text-sm font-semibold text-warning">
+                          {person.subtotal.due7Days}
+                        </TableCell>
+                        <TableCell className="text-center font-mono text-sm font-semibold text-warning">
+                          {person.subtotal.due30Days}
+                        </TableCell>
+                      </TableRow>
+                    </>
                   ))
                 )}
               </TableBody>
