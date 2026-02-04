@@ -10,17 +10,17 @@ import {
   ReferenceArea,
 } from "recharts";
 
-interface WeeklyData {
-  week: string;
-  weekLabel: string;
+interface MonthlyData {
+  month: string;
+  monthLabel: string;
   costPerDeliverable: number;
   deliverables: number;
-  fee: number;
+  fireTeamSpend: number;
 }
 
-interface ClientWeeklyChartProps {
+interface ClientMonthlyChartProps {
   clientName: string;
-  data: WeeklyData[];
+  data: MonthlyData[];
 }
 
 function formatCurrency(value: number): string {
@@ -32,14 +32,14 @@ function formatCurrency(value: number): string {
   }).format(value);
 }
 
-export function ClientWeeklyChart({ clientName, data }: ClientWeeklyChartProps) {
+export function ClientMonthlyChart({ clientName, data }: ClientMonthlyChartProps) {
   if (data.length === 0) {
     return null;
   }
 
-  // Calculate max value for Y axis
+  // Calculate max value for Y axis - should be in $1k-$30k range typically
   const maxValue = Math.max(...data.map((d) => d.costPerDeliverable), 2500);
-  const yAxisMax = Math.ceil(maxValue / 500) * 500;
+  const yAxisMax = Math.ceil(maxValue / 1000) * 1000 + 1000;
 
   return (
     <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
@@ -49,7 +49,7 @@ export function ClientWeeklyChart({ clientName, data }: ClientWeeklyChartProps) 
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={data}
-              margin={{ top: 20, right: 30, left: 60, bottom: 60 }}
+              margin={{ top: 20, right: 30, left: 60, bottom: 40 }}
             >
               <CartesianGrid
                 strokeDasharray="3 3"
@@ -71,20 +71,19 @@ export function ClientWeeklyChart({ clientName, data }: ClientWeeklyChartProps) 
                 }}
               />
               <XAxis
-                dataKey="weekLabel"
-                tick={{ fill: "hsl(215, 20%, 55%)", fontSize: 10 }}
+                dataKey="monthLabel"
+                tick={{ fill: "hsl(215, 20%, 55%)", fontSize: 11 }}
                 tickLine={false}
                 axisLine={{ stroke: "hsl(217, 33%, 18%)" }}
                 angle={-45}
                 textAnchor="end"
-                height={60}
-                interval={0}
+                height={50}
               />
               <YAxis
                 tick={{ fill: "hsl(215, 20%, 55%)", fontSize: 11 }}
                 tickLine={false}
                 axisLine={false}
-                tickFormatter={(value) => `$${(value / 1000).toFixed(1)}k`}
+                tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
                 domain={[0, yAxisMax]}
                 width={50}
               />
@@ -97,19 +96,14 @@ export function ClientWeeklyChart({ clientName, data }: ClientWeeklyChartProps) 
                   fontSize: "13px",
                 }}
                 labelStyle={{ color: "hsl(210, 40%, 96%)", fontWeight: 600, marginBottom: 4 }}
-                formatter={(value: number, name: string) => {
-                  if (name === "costPerDeliverable") {
-                    return [formatCurrency(value), "$/Deliverable"];
-                  }
-                  return [value, name];
-                }}
-                labelFormatter={(label) => `Week of ${label}`}
+                formatter={(value: number) => [formatCurrency(value), "$/Deliverable"]}
+                labelFormatter={(label) => label}
               />
               <Bar
                 dataKey="costPerDeliverable"
                 fill="hsl(25, 95%, 53%)"
                 radius={[4, 4, 0, 0]}
-                maxBarSize={40}
+                maxBarSize={50}
               />
             </BarChart>
           </ResponsiveContainer>
