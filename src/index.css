@@ -10,73 +10,73 @@
 
 @layer base {
   :root {
-    /* Dark theme by default */
-    --background: 222 47% 6%;
-    --foreground: 210 40% 96%;
+    /* FireTeam Dark theme */
+    --background: 0 0% 11%;
+    --foreground: 0 0% 89%;
 
-    --card: 222 47% 8%;
-    --card-foreground: 210 40% 96%;
+    --card: 0 0% 14%;
+    --card-foreground: 0 0% 89%;
 
-    --popover: 222 47% 10%;
-    --popover-foreground: 210 40% 96%;
+    --popover: 0 0% 16%;
+    --popover-foreground: 0 0% 89%;
 
-    /* Fire Orange - Primary brand color */
-    --primary: 18 100% 60%;
-    --primary-foreground: 222 47% 6%;
+    /* Coral - Primary brand color */
+    --primary: 358 58% 56%;
+    --primary-foreground: 0 0% 100%;
 
-    /* Cool slate secondary */
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 40% 96%;
+    /* Gold secondary */
+    --secondary: 38 100% 78%;
+    --secondary-foreground: 0 0% 11%;
 
-    --muted: 217 33% 14%;
-    --muted-foreground: 215 20% 55%;
+    --muted: 0 0% 18%;
+    --muted-foreground: 234 28% 66%;
 
-    --accent: 18 80% 20%;
-    --accent-foreground: 18 100% 70%;
+    --accent: 358 58% 25%;
+    --accent-foreground: 358 58% 70%;
 
     --destructive: 0 84% 60%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 100%;
 
     /* Status colors */
-    --success: 142 76% 45%;
-    --success-foreground: 142 76% 15%;
-    --warning: 38 92% 50%;
-    --warning-foreground: 38 92% 15%;
+    --success: 148 58% 72%;
+    --success-foreground: 148 58% 20%;
+    --warning: 38 100% 78%;
+    --warning-foreground: 38 100% 20%;
 
-    --border: 217 33% 18%;
-    --input: 217 33% 15%;
-    --ring: 18 100% 60%;
+    --border: 0 0% 22%;
+    --input: 0 0% 18%;
+    --ring: 358 58% 56%;
 
     --radius: 0.75rem;
 
-    /* Chart colors - Fire gradient palette */
-    --chart-1: 18 100% 60%;
-    --chart-2: 32 95% 55%;
-    --chart-3: 45 93% 47%;
-    --chart-4: 195 90% 55%;
-    --chart-5: 280 80% 60%;
-    --chart-6: 340 82% 60%;
+    /* Chart colors - FireTeam palette */
+    --chart-1: 22 77% 70%;
+    --chart-2: 38 100% 78%;
+    --chart-3: 148 58% 72%;
+    --chart-4: 358 58% 56%;
+    --chart-5: 234 28% 66%;
+    --chart-6: 280 60% 65%;
 
     /* Sidebar */
-    --sidebar-background: 222 47% 5%;
-    --sidebar-foreground: 210 40% 96%;
-    --sidebar-primary: 18 100% 60%;
-    --sidebar-primary-foreground: 222 47% 6%;
-    --sidebar-accent: 217 33% 12%;
-    --sidebar-accent-foreground: 210 40% 96%;
-    --sidebar-border: 217 33% 15%;
-    --sidebar-ring: 18 100% 60%;
+    --sidebar-background: 0 0% 9%;
+    --sidebar-foreground: 0 0% 89%;
+    --sidebar-primary: 358 58% 56%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 15%;
+    --sidebar-accent-foreground: 0 0% 89%;
+    --sidebar-border: 0 0% 20%;
+    --sidebar-ring: 358 58% 56%;
 
     /* Gradients */
-    --gradient-fire: linear-gradient(135deg, hsl(18 100% 60%), hsl(32 95% 55%), hsl(45 93% 47%));
-    --gradient-subtle: linear-gradient(135deg, hsl(222 47% 10%), hsl(222 47% 8%));
-    --gradient-glow: radial-gradient(ellipse at center, hsl(18 100% 60% / 0.15), transparent 70%);
+    --gradient-fire: linear-gradient(135deg, hsl(358 58% 56%), hsl(22 77% 70%), hsl(38 100% 78%));
+    --gradient-subtle: linear-gradient(135deg, hsl(0 0% 14%), hsl(0 0% 11%));
+    --gradient-glow: radial-gradient(ellipse at center, hsl(358 58% 56% / 0.15), transparent 70%);
 
     /* Shadows */
-    --shadow-sm: 0 1px 2px hsl(222 47% 4% / 0.5);
-    --shadow-md: 0 4px 6px -1px hsl(222 47% 4% / 0.5), 0 2px 4px -2px hsl(222 47% 4% / 0.5);
-    --shadow-lg: 0 10px 15px -3px hsl(222 47% 4% / 0.5), 0 4px 6px -4px hsl(222 47% 4% / 0.5);
-    --shadow-glow: 0 0 20px hsl(18 100% 60% / 0.3);
+    --shadow-sm: 0 1px 2px hsl(0 0% 5% / 0.5);
+    --shadow-md: 0 4px 6px -1px hsl(0 0% 5% / 0.5), 0 2px 4px -2px hsl(0 0% 5% / 0.5);
+    --shadow-lg: 0 10px 15px -3px hsl(0 0% 5% / 0.5), 0 4px 6px -4px hsl(0 0% 5% / 0.5);
+    --shadow-glow: 0 0 20px hsl(358 58% 56% / 0.3);
   }
 
   .dark {
