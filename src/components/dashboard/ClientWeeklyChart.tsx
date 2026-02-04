@@ -67,30 +67,30 @@ export function ClientMonthlyChart({ clientName, data }: ClientMonthlyChartProps
             >
               <CartesianGrid
                 strokeDasharray="3 3"
-                stroke="hsl(217, 33%, 18%)"
+                stroke="hsl(0, 0%, 22%)"
                 vertical={false}
               />
-              {/* Target range band: $1,000 - $2,000 - semi-transparent green */}
+              {/* Target range band: $1,000 - $2,000 - mint green */}
               <ReferenceArea
                 y1={1000}
                 y2={2000}
-                fill="hsl(142, 76%, 36%)"
-                fillOpacity={0.25}
-                stroke="hsl(142, 76%, 45%)"
-                strokeOpacity={0.4}
+                fill="hsl(148, 58%, 72%)"
+                fillOpacity={0.2}
+                stroke="hsl(148, 58%, 72%)"
+                strokeOpacity={0.5}
                 strokeDasharray="4 2"
               />
               <XAxis
                 dataKey="monthLabel"
-                tick={{ fill: "hsl(215, 20%, 55%)", fontSize: 11 }}
+                tick={{ fill: "hsl(234, 28%, 66%)", fontSize: 11 }}
                 tickLine={false}
-                axisLine={{ stroke: "hsl(217, 33%, 18%)" }}
+                axisLine={{ stroke: "hsl(0, 0%, 22%)" }}
                 angle={-45}
                 textAnchor="end"
                 height={50}
               />
               <YAxis
-                tick={{ fill: "hsl(215, 20%, 55%)", fontSize: 11 }}
+                tick={{ fill: "hsl(234, 28%, 66%)", fontSize: 11 }}
                 tickLine={false}
                 axisLine={false}
                 tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
@@ -100,19 +100,19 @@ export function ClientMonthlyChart({ clientName, data }: ClientMonthlyChartProps
               />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: "hsl(222, 47%, 10%)",
-                  border: "1px solid hsl(217, 33%, 18%)",
+                  backgroundColor: "hsl(0, 0%, 16%)",
+                  border: "1px solid hsl(0, 0%, 22%)",
                   borderRadius: "8px",
                   padding: "12px",
                   fontSize: "13px",
                 }}
-                labelStyle={{ color: "hsl(210, 40%, 96%)", fontWeight: 600, marginBottom: 4 }}
+                labelStyle={{ color: "hsl(0, 0%, 89%)", fontWeight: 600, marginBottom: 4 }}
                 formatter={(value: number) => [formatCurrency(value), "$/Deliverable"]}
                 labelFormatter={(label) => label}
               />
               <Bar
                 dataKey="costPerDeliverable"
-                fill="hsl(25, 95%, 53%)"
+                fill="hsl(22, 77%, 70%)"
                 radius={[4, 4, 0, 0]}
                 maxBarSize={50}
               />
@@ -121,11 +121,11 @@ export function ClientMonthlyChart({ clientName, data }: ClientMonthlyChartProps
         </div>
         <div className="mt-3 flex items-center justify-center gap-6 text-xs text-muted-foreground">
           <div className="flex items-center gap-2">
-            <div className="h-4 w-8 rounded-sm bg-[hsl(142,76%,36%)]/25 border border-[hsl(142,76%,45%)]/40 border-dashed" />
+            <div className="h-4 w-8 rounded-sm bg-success/20 border border-success/50 border-dashed" />
             <span>Target zone ($1k-$2k/deliverable)</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="h-4 w-4 rounded-sm bg-[hsl(25,95%,53%)]" />
+            <div className="h-4 w-4 rounded-sm bg-chart-1" />
             <span>Actual $/Deliverable</span>
           </div>
         </div>
