@@ -168,22 +168,19 @@ function getWeekBoundaries(referenceDate: Date, weeksAgo: number) {
   return { start: weekStart, end: weekEnd };
 }
 
-// Extract task type from task name (first part before any specific details)
-function extractTaskType(taskName: string): string {
-  // Common patterns: "Write Brief - Project Name" or "Review Creative for Client"
-  // Take the first meaningful chunk
-  const cleanName = taskName.trim();
-  
-  // Try splitting by common separators
-  const separators = [' - ', ' – ', ' for ', ' | ', ':'];
-  for (const sep of separators) {
-    if (cleanName.includes(sep)) {
-      return cleanName.split(sep)[0].trim();
-    }
-  }
-  
-  // If no separator, return the full name (but limit length)
-  return cleanName.length > 30 ? cleanName.substring(0, 30) + '...' : cleanName;
+// Categorize task by name keywords
+function getTaskCategory(taskName: string): string {
+  const name = taskName?.toLowerCase() || '';
+  if (name.includes('brief')) return 'Brief Work';
+  if (name.includes('review')) return 'Review';
+  if (name.includes('edit video') || name.includes('video edit')) return 'Video Editing';
+  if (name.includes('design') || name.includes('static')) return 'Design';
+  if (name.includes('upload')) return 'Upload';
+  if (name.includes('approval') || name.includes('approve')) return 'Approvals';
+  if (name.includes('assign')) return 'Assignments';
+  if (name.includes('footage') || name.includes('pull')) return 'Footage/Assets';
+  if (name.includes('revision')) return 'Revisions';
+  return 'Other';
 }
 
 export interface TaskTypeRow {
@@ -260,7 +257,7 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Pers
     const assigneeName = task.assignee?.name;
     if (!assigneeName) return;
 
-    const taskType = extractTaskType(task.name);
+    const taskType = getTaskCategory(task.name);
 
     if (!personData[assigneeName]) {
       personData[assigneeName] = {};
