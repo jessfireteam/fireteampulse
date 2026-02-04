@@ -237,19 +237,32 @@ export function processTasksForCapacity(
       }
     }
 
-    // Assigned (not done) tasks - check dueDate
-    if (!task.done && task.dueDate) {
+    // Assigned (not done) tasks - check dueDate is in the future
+    if (task.done === false && task.dueDate) {
       const dueDate = new Date(task.dueDate);
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       
+      // Due in next 7 days (from today onwards)
       if (dueDate >= todayStart && dueDate <= next7Days) {
         assigneeData[assigneeName].assignedThisWeek++;
       }
+      // Due in next 30 days (from today onwards)
       if (dueDate >= todayStart && dueDate <= next30Days) {
         assigneeData[assigneeName].assignedThisMonth++;
       }
     }
   });
+
+  // Debug: count tasks that are not done and have dueDates
+  const pendingWithDueDate = filteredTasks.filter(t => t.done === false && t.dueDate);
+  console.log('[Capacity] Pending tasks with dueDate:', pendingWithDueDate.length);
+  if (pendingWithDueDate.length > 0) {
+    console.log('[Capacity] Sample pending dueDates:', pendingWithDueDate.slice(0, 10).map(t => ({ 
+      dueDate: t.dueDate, 
+      done: t.done,
+      assignee: t.assignee?.name 
+    })));
+  }
 
   console.log('[Capacity] Tasks matched via project association:', debugCountFromProjects);
   console.log('[Capacity] Assignee data:', JSON.stringify(assigneeData, null, 2));
