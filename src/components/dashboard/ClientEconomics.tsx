@@ -16,11 +16,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useClientMonthsData, useProjectsData, processClientMonths } from "@/hooks/useFiberyData";
+import { useClientMonthsData, processClientMonths } from "@/hooks/useFiberyData";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { ClientWeeklyChart } from "./ClientWeeklyChart";
-import { startOfWeek, format, parseISO, subMonths } from "date-fns";
+import { ClientMonthlyChart } from "./ClientWeeklyChart";
+import { format, parseISO } from "date-fns";
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-US", {
@@ -31,134 +31,88 @@ function formatCurrency(value: number): string {
   }).format(value);
 }
 
-// Process projects into weekly $/deliverable per client
-function processProjectsForWeeklyEconomics(
-  projects: Array<{
-    id: string;
-    name: string;
-    doneDate: string | null;
-    client: { name: string } | null;
-  }>,
-  clientMonthFees: Map<string, number> // Map of "ClientName-YYYY-MM" -> fireTeamSpend
+// Process table data into monthly chart data per client
+function processForMonthlyCharts(
+  tableData: Array<{
+    client: string;
+    month: string;
+    costPerDeliverable: number | null;
+    actualDeliverables: number;
+    fireTeamSpend: number;
+  }>
 ) {
-  const now = new Date();
-  const sixMonthsAgo = subMonths(now, 6);
-
-  // Group projects by client and week
-  const clientWeeklyData: Record<
-    string,
-    Record<string, { deliverables: number; week: string }>
-  > = {};
-
-  projects.forEach((project) => {
-    if (!project.doneDate || !project.client?.name) return;
-
-    const doneDate = parseISO(project.doneDate);
-    if (doneDate < sixMonthsAgo || doneDate > now) return;
-
-    const clientName = project.client.name;
-    const weekStart = startOfWeek(doneDate, { weekStartsOn: 1 });
-    const weekKey = format(weekStart, "yyyy-MM-dd");
-
-    if (!clientWeeklyData[clientName]) {
-      clientWeeklyData[clientName] = {};
-    }
-    if (!clientWeeklyData[clientName][weekKey]) {
-      clientWeeklyData[clientName][weekKey] = { deliverables: 0, week: weekKey };
-    }
-    clientWeeklyData[clientName][weekKey].deliverables++;
-  });
-
-  // Calculate weekly fee by distributing monthly fee across weeks
-  // For simplicity, we'll divide monthly fee by 4.33 (avg weeks per month)
-  const result: Record<
+  const clientData: Record<
     string,
     Array<{
-      week: string;
-      weekLabel: string;
+      month: string;
+      monthLabel: string;
       costPerDeliverable: number;
       deliverables: number;
-      fee: number;
+      fireTeamSpend: number;
     }>
   > = {};
 
-  Object.entries(clientWeeklyData).forEach(([clientName, weeks]) => {
-    const weeklyArray = Object.entries(weeks)
-      .map(([weekKey, data]) => {
-        // Get the month for this week to find the fee
-        const weekDate = parseISO(weekKey);
-        const monthKey = `${clientName}-${format(weekDate, "yyyy-MM")}`;
-        const monthlyFee = clientMonthFees.get(monthKey) || 0;
-        const weeklyFee = monthlyFee / 4.33; // Approximate weeks per month
+  tableData.forEach((item) => {
+    if (!item.month || item.costPerDeliverable === null || item.costPerDeliverable === 0) return;
 
-        const costPerDeliverable =
-          data.deliverables > 0 ? weeklyFee / data.deliverables : 0;
-
-        return {
-          week: weekKey,
-          weekLabel: format(weekDate, "MMM d"),
-          costPerDeliverable,
-          deliverables: data.deliverables,
-          fee: weeklyFee,
-        };
-      })
-      .filter((d) => d.deliverables > 0)
-      .sort((a, b) => a.week.localeCompare(b.week));
-
-    if (weeklyArray.length > 0) {
-      result[clientName] = weeklyArray;
+    const clientName = item.client;
+    if (!clientData[clientName]) {
+      clientData[clientName] = [];
     }
+
+    // Parse month for label
+    let monthLabel = item.month;
+    try {
+      monthLabel = format(parseISO(`${item.month}-01`), "MMM yy");
+    } catch {
+      // Keep original if parsing fails
+    }
+
+    clientData[clientName].push({
+      month: item.month,
+      monthLabel,
+      costPerDeliverable: item.costPerDeliverable,
+      deliverables: item.actualDeliverables,
+      fireTeamSpend: item.fireTeamSpend,
+    });
   });
 
-  return result;
+  // Sort each client's data chronologically
+  Object.keys(clientData).forEach((client) => {
+    clientData[client].sort((a, b) => a.month.localeCompare(b.month));
+  });
+
+  return clientData;
 }
 
 export function ClientEconomics() {
   const [clientFilter, setClientFilter] = useState<string>("top5");
-  const { data: clientMonthsData, isLoading: loadingMonths, error: errorMonths } = useClientMonthsData();
-  const { data: projectsData, isLoading: loadingProjects, error: errorProjects } = useProjectsData();
-
-  const isLoading = loadingMonths || loadingProjects;
-  const error = errorMonths || errorProjects;
+  const { data: clientMonthsData, isLoading, error } = useClientMonthsData();
 
   // Process data
-  const { tableData, clients: allClients, clientMonthFees } = useMemo(() => {
+  const { tableData, clients: allClients } = useMemo(() => {
     if (!clientMonthsData?.findClientMonths) {
-      return { tableData: [], clients: [], clientMonthFees: new Map<string, number>() };
+      return { tableData: [], clients: [] };
     }
-
-    const processed = processClientMonths(clientMonthsData.findClientMonths);
-    
-    // Build a map of client-month -> fireTeamSpend
-    const feeMap = new Map<string, number>();
-    processed.tableData.forEach((item) => {
-      const key = `${item.client}-${item.month}`;
-      feeMap.set(key, item.fireTeamSpend);
-    });
-
-    return {
-      tableData: processed.tableData,
-      clients: processed.clients,
-      clientMonthFees: feeMap,
-    };
+    return processClientMonths(clientMonthsData.findClientMonths);
   }, [clientMonthsData]);
 
-  // Process weekly economics
-  const weeklyEconomics = useMemo(() => {
-    if (!projectsData?.findProjects) return {};
-    return processProjectsForWeeklyEconomics(projectsData.findProjects, clientMonthFees);
-  }, [projectsData, clientMonthFees]);
+  // Process for monthly charts - uses the SAME data as the table
+  const monthlyChartData = useMemo(() => {
+    return processForMonthlyCharts(tableData);
+  }, [tableData]);
 
-  // Get clients sorted by total deliverables (top 5)
+  // Get clients sorted by total deliverables
   const sortedClients = useMemo(() => {
-    return Object.entries(weeklyEconomics)
+    return Object.entries(monthlyChartData)
       .map(([client, data]) => ({
         client,
+        dataPoints: data.length,
         totalDeliverables: data.reduce((sum, d) => sum + d.deliverables, 0),
         data,
       }))
       .sort((a, b) => b.totalDeliverables - a.totalDeliverables);
-  }, [weeklyEconomics]);
+  }, [monthlyChartData]);
 
   // Filter clients for display
   const displayClients = useMemo(() => {
@@ -209,7 +163,7 @@ export function ClientEconomics() {
 
   return (
     <div className="space-y-6">
-      <SectionHeader title="Client Economics (Weekly)">
+      <SectionHeader title="Client Economics (Monthly $/Deliverable)">
         <Select value={clientFilter} onValueChange={setClientFilter}>
           <SelectTrigger className="w-48 bg-secondary/50 border-border/50">
             <SelectValue placeholder="Filter by client" />
@@ -232,13 +186,13 @@ export function ClientEconomics() {
           <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
             <CardContent className="p-6">
               <p className="text-center text-muted-foreground">
-                No weekly data available for selected clients
+                No data available for selected clients
               </p>
             </CardContent>
           </Card>
         ) : (
           displayClients.map(({ client, data }) => (
-            <ClientWeeklyChart key={client} clientName={client} data={data} />
+            <ClientMonthlyChart key={client} clientName={client} data={data} />
           ))
         )}
       </div>

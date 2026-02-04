@@ -142,39 +142,34 @@ export function processProjectsForHeartbeat(projects: Project[]) {
 }
 
 // Process tasks data for Team Capacity
-export function processTasksForCapacity(tasks: Task[], roleFilter: string) {
-  // Use a fixed "today" date for consistency - Feb 4, 2026
+// Alternative approach: Count tasks from recently completed projects
+export function processTasksForCapacity(
+  tasks: Task[], 
+  roleFilter: string,
+  projects?: Project[]
+) {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-  const lastWeekStart = subDays(today, 7);
-  const lastMonthStart = subDays(today, 30);
-  const nextWeekEnd = addDays(today, 7);
-  const nextMonthEnd = addDays(today, 30);
+  const last7Days = subDays(today, 7);
+  const last30Days = subDays(today, 30);
+  const next7Days = addDays(today, 7);
+  const next30Days = addDays(today, 30);
 
   console.log('[Capacity] ========== DEBUG START ==========');
   console.log('[Capacity] Total tasks from API:', tasks.length);
   console.log('[Capacity] Today:', today.toISOString());
-  console.log('[Capacity] Last week range:', lastWeekStart.toISOString(), 'to', today.toISOString());
-  console.log('[Capacity] Last month range:', lastMonthStart.toISOString(), 'to', today.toISOString());
 
-  // Log ALL task dates for debugging
-  const completedTasks = tasks.filter(t => t.done);
-  const tasksWithDoneDate = completedTasks.filter(t => t.doneDate);
-  
-  console.log('[Capacity] Tasks marked done:', completedTasks.length);
-  console.log('[Capacity] Tasks with doneDate:', tasksWithDoneDate.length);
-  
-  if (tasksWithDoneDate.length > 0) {
-    // Log first 20 done dates to see the format
-    console.log('[Capacity] Sample doneDates (raw):', tasksWithDoneDate.slice(0, 20).map(t => t.doneDate));
-    
-    // Test parsing
-    const sampleTask = tasksWithDoneDate[0];
-    console.log('[Capacity] Parsing test for:', sampleTask.doneDate);
-    const parsedDate = new Date(sampleTask.doneDate!);
-    console.log('[Capacity] Parsed with new Date():', parsedDate.toISOString());
-    const parsedISO = parseISO(sampleTask.doneDate!);
-    console.log('[Capacity] Parsed with parseISO():', parsedISO.toISOString());
+  // Find recently completed projects (last 30 days)
+  let recentProjectNames = new Set<string>();
+  if (projects && projects.length > 0) {
+    const recentProjects = projects.filter((p) => {
+      if (!p.doneDate) return false;
+      const doneDate = new Date(p.doneDate);
+      return doneDate >= last30Days && doneDate <= today;
+    });
+    recentProjectNames = new Set(recentProjects.map((p) => p.name));
+    console.log('[Capacity] Recently completed projects (30 days):', recentProjects.length);
+    console.log('[Capacity] Sample recent project names:', Array.from(recentProjectNames).slice(0, 5));
   }
 
   // Filter by role if specified
@@ -202,8 +197,7 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string) {
     }
   > = {};
 
-  let debugCountLastWeek = 0;
-  let debugCountLastMonth = 0;
+  let debugCountFromProjects = 0;
 
   filteredTasks.forEach((task) => {
     const assigneeName = task.assignee?.name || "Unassigned";
@@ -217,63 +211,58 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string) {
       };
     }
 
-    // Completed tasks - use new Date() for parsing ISO strings
-    if (task.done && task.doneDate) {
-      try {
+    // Approach 1: If task is done AND belongs to a recently completed project
+    if (task.done && task.project?.name && recentProjectNames.has(task.project.name)) {
+      // Check if the project was completed in last 7 or 30 days
+      // We already know it's in recentProjectNames (last 30 days)
+      assigneeData[assigneeName].completedLastMonth++;
+      debugCountFromProjects++;
+      
+      // For last 7 days, we'd need project doneDate - approximate by checking task doneDate if available
+      if (task.doneDate) {
         const doneDate = new Date(task.doneDate);
-        
-        // Check if completed in last 7 days
-        const inLastWeek = doneDate >= lastWeekStart && doneDate <= today;
-        if (inLastWeek) {
+        if (doneDate >= last7Days && doneDate <= today) {
           assigneeData[assigneeName].completedLastWeek++;
-          debugCountLastWeek++;
         }
-        
-        // Check if completed in last 30 days
-        const inLastMonth = doneDate >= lastMonthStart && doneDate <= today;
-        if (inLastMonth) {
-          assigneeData[assigneeName].completedLastMonth++;
-          debugCountLastMonth++;
-        }
-      } catch (e) {
-        console.error('[Capacity] Error parsing doneDate:', task.doneDate, e);
+      }
+    }
+    // Approach 2: Also count tasks with doneDate directly (fallback)
+    else if (task.done && task.doneDate) {
+      const doneDate = new Date(task.doneDate);
+      if (doneDate >= last7Days && doneDate <= today) {
+        assigneeData[assigneeName].completedLastWeek++;
+      }
+      if (doneDate >= last30Days && doneDate <= today) {
+        assigneeData[assigneeName].completedLastMonth++;
       }
     }
 
     // Assigned (not done) tasks - check dueDate
     if (!task.done && task.dueDate) {
-      try {
-        const dueDate = new Date(task.dueDate);
-        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        
-        // Check if due today or in next 7 days
-        if (dueDate >= todayStart && dueDate <= nextWeekEnd) {
-          assigneeData[assigneeName].assignedThisWeek++;
-        }
-        
-        // Check if due today or in next 30 days
-        if (dueDate >= todayStart && dueDate <= nextMonthEnd) {
-          assigneeData[assigneeName].assignedThisMonth++;
-        }
-      } catch (e) {
-        console.error('[Capacity] Error parsing dueDate:', task.dueDate, e);
+      const dueDate = new Date(task.dueDate);
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      
+      if (dueDate >= todayStart && dueDate <= next7Days) {
+        assigneeData[assigneeName].assignedThisWeek++;
+      }
+      if (dueDate >= todayStart && dueDate <= next30Days) {
+        assigneeData[assigneeName].assignedThisMonth++;
       }
     }
   });
 
-  console.log('[Capacity] Total matched last week:', debugCountLastWeek);
-  console.log('[Capacity] Total matched last month:', debugCountLastMonth);
+  console.log('[Capacity] Tasks matched via project association:', debugCountFromProjects);
   console.log('[Capacity] Assignee data:', JSON.stringify(assigneeData, null, 2));
   console.log('[Capacity] ========== DEBUG END ==========');
 
-  // Convert to array and sort
+  // Convert to array and sort by total activity
   return Object.entries(assigneeData)
     .filter(([name]) => name !== "Unassigned")
     .map(([name, data]) => ({
       name,
       ...data,
     }))
-    .sort((a, b) => b.assignedThisWeek - a.assignedThisWeek);
+    .sort((a, b) => (b.completedLastMonth + b.assignedThisMonth) - (a.completedLastMonth + a.assignedThisMonth));
 }
 
 // Process client months for Client Economics
