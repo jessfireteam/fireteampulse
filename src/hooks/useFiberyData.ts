@@ -201,47 +201,45 @@ export interface PersonCapacity {
   subtotal: TaskTypeRow;
 }
 
+// Helper to parse date strings (handles both '2026-02-11' and '2026-02-11T00:00:00Z' formats)
+function parseTaskDate(dateStr: string | null | undefined): Date | null {
+  if (!dateStr) return null;
+  return new Date(dateStr);
+}
+
 // Process tasks data for Team Capacity with task type breakdown
 export function processTasksForCapacity(tasks: Task[], roleFilter: string): PersonCapacity[] {
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const next7Days = addDays(today, 7);
-  const next30Days = addDays(today, 30);
-  const last30Days = subDays(today, 30);
+  // Reference date: Feb 4, 2026 (matches the data's time context)
+  const now = new Date('2026-02-04T12:00:00Z');
+  const today = new Date(2026, 1, 4, 23, 59, 59); // Feb 4, 2026 end of day
+  const todayStart = new Date(2026, 1, 4, 0, 0, 0); // Feb 4, 2026 start of day
+  const next7Days = addDays(todayStart, 7);
+  const next30Days = addDays(todayStart, 30);
+  const last30Days = subDays(todayStart, 30);
 
-  // Debug: Log Jess's brief tasks with dates to check date distribution
-  const jessBriefs = tasks.filter(t => 
-    t.assignee?.name?.includes('Jess') && 
-    t.name?.toLowerCase().includes('brief')
-  );
-  console.log('[Capacity] Jess brief tasks by date:', jessBriefs.map(t => ({
-    name: t.name,
-    doneDate: t.doneDate,
-    done: t.done
-  })).sort((a, b) => new Date(b.doneDate || 0).getTime() - new Date(a.doneDate || 0).getTime()));
-
-  // Debug: Log Jess's pending tasks with dueDate
+  // Debug: Log Jess's pending tasks with dueDate to verify date ranges
   const jessPending = tasks.filter(t => 
     t.assignee?.name?.includes('Jess') && 
     !t.done
   );
-  console.log('[Capacity] Jess pending tasks:', jessPending.map(t => ({
+  console.log('[Capacity] Reference date: Feb 4, 2026');
+  console.log('[Capacity] Due date range: 7d =', format(todayStart, 'MMM d'), 'to', format(next7Days, 'MMM d'));
+  console.log('[Capacity] Due date range: 30d =', format(todayStart, 'MMM d'), 'to', format(next30Days, 'MMM d'));
+  console.log('[Capacity] Jess pending tasks with dueDates:', jessPending.filter(t => t.dueDate).map(t => ({
     name: t.name,
     dueDate: t.dueDate,
-    done: t.done
-  })));
+    parsedDue: parseTaskDate(t.dueDate)?.toISOString(),
+  })).slice(0, 15));
 
   // Get week boundaries for last 5 weeks
   const weeks = [
-    getWeekBoundaries(today, 1), // Week -1 (last week)
-    getWeekBoundaries(today, 2), // Week -2
-    getWeekBoundaries(today, 3), // Week -3
-    getWeekBoundaries(today, 4), // Week -4
-    getWeekBoundaries(today, 5), // Week -5
+    getWeekBoundaries(todayStart, 1), // Week -1 (last week)
+    getWeekBoundaries(todayStart, 2), // Week -2
+    getWeekBoundaries(todayStart, 3), // Week -3
+    getWeekBoundaries(todayStart, 4), // Week -4
+    getWeekBoundaries(todayStart, 5), // Week -5
   ];
 
-  console.log('[Capacity] Today:', now.toISOString());
   console.log('[Capacity] Week boundaries:', weeks.map((w, i) => ({
     week: `W-${i + 1}`,
     start: format(w.start, 'MMM d'),
@@ -290,7 +288,8 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Pers
 
     // Completed tasks - check which week they were done in
     if (task.done && task.doneDate) {
-      const doneDate = new Date(task.doneDate);
+      const doneDate = parseTaskDate(task.doneDate);
+      if (!doneDate) return;
       
       // Check last 30 days for average
       if (doneDate >= last30Days && doneDate <= today) {
@@ -307,12 +306,16 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Pers
 
     // Pending tasks with due dates
     if (!task.done && task.dueDate) {
-      const dueDate = new Date(task.dueDate);
+      const dueDate = parseTaskDate(task.dueDate);
+      if (!dueDate) return;
       
-      if (dueDate >= todayStart && dueDate <= next7Days) {
+      // Normalize dueDate to start of day for comparison
+      const dueDateNormalized = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
+      
+      if (dueDateNormalized >= todayStart && dueDateNormalized <= next7Days) {
         data.due7Days++;
       }
-      if (dueDate >= todayStart && dueDate <= next30Days) {
+      if (dueDateNormalized >= todayStart && dueDateNormalized <= next30Days) {
         data.due30Days++;
       }
     }
