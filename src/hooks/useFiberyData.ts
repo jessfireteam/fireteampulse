@@ -213,6 +213,13 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Pers
   const next30Days = addDays(today, 30);
   const last30Days = subDays(today, 30);
 
+  // Debug: Log all unique task names for Jess to investigate brief naming
+  const jessTasks = tasks.filter(t => t.assignee?.name?.includes('Jess'));
+  const jessTaskNames = [...new Set(jessTasks.map(t => t.name))];
+  console.log('[Capacity] Jess task names:', jessTaskNames);
+  console.log('[Capacity] Jess tasks with "brief":', jessTasks.filter(t => t.name?.toLowerCase().includes('brief')).length);
+  console.log('[Capacity] Jess brief task examples:', jessTasks.filter(t => t.name?.toLowerCase().includes('brief')).slice(0, 10).map(t => t.name));
+
   // Get week boundaries for last 5 weeks
   const weeks = [
     getWeekBoundaries(today, 1), // Week -1 (last week)
@@ -314,12 +321,13 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Pers
           due7Days: data.due7Days,
           due30Days: data.due30Days,
         }))
-        .filter(row => 
-          // Only include task types with some activity
-          row.avg30Day > 0 || row.due7Days > 0 || row.due30Days > 0 ||
-          row.weekMinus1 > 0 || row.weekMinus2 > 0 || row.weekMinus3 > 0 ||
-          row.weekMinus4 > 0 || row.weekMinus5 > 0
-        )
+        .filter(row => {
+          // Calculate total across all weeks
+          const totalWeeks = row.weekMinus1 + row.weekMinus2 + row.weekMinus3 + 
+                            row.weekMinus4 + row.weekMinus5;
+          // Filter out low-volume task types (less than 3 total across all weeks)
+          return totalWeeks >= 3 || row.due7Days >= 3 || row.due30Days >= 3;
+        })
         .sort((a, b) => b.avg30Day - a.avg30Day);
 
       // Calculate subtotal
