@@ -1,31 +1,34 @@
 import { supabase } from "@/integrations/supabase/client";
 
-interface FiberyResponse<T> {
-  data?: T;
-  errors?: Array<{ message: string }>;
-}
-
 export async function queryFibery<T>(
   endpoint: 'projects' | 'stats',
   query: string
 ): Promise<T> {
+  console.log(`[Fibery] Calling endpoint: ${endpoint}`);
+  console.log(`[Fibery] Query:`, query);
+
   const { data, error } = await supabase.functions.invoke('fibery-proxy', {
     body: { endpoint, query }
   });
 
+  console.log(`[Fibery] Raw response:`, data);
+
   if (error) {
-    console.error('Fibery proxy error:', error);
+    console.error('[Fibery] Proxy error:', error);
     throw new Error(`Failed to fetch from Fibery: ${error.message}`);
   }
 
   if (data.error) {
+    console.error('[Fibery] API error:', data.error);
     throw new Error(data.error);
   }
 
   if (data.errors && data.errors.length > 0) {
+    console.error('[Fibery] GraphQL errors:', data.errors);
     throw new Error(data.errors[0].message);
   }
 
+  console.log(`[Fibery] Parsed data:`, data.data);
   return data.data as T;
 }
 

@@ -22,6 +22,8 @@ import {
   parseISO,
   format,
   addDays,
+  isAfter,
+  isBefore,
 } from "date-fns";
 
 // Hook for Projects data
@@ -59,12 +61,22 @@ export function processProjectsForHeartbeat(projects: Project[]) {
   const now = new Date();
   const sixMonthsAgo = subMonths(now, 6);
 
+  console.log('[Heartbeat] Processing projects, total count:', projects.length);
+  console.log('[Heartbeat] Current date:', now.toISOString());
+  console.log('[Heartbeat] Six months ago:', sixMonthsAgo.toISOString());
+
   // Filter to last 6 months
   const recentProjects = projects.filter((p) => {
     if (!p.doneDate) return false;
     const date = parseISO(p.doneDate);
-    return date >= sixMonthsAgo && date <= now;
+    const isRecent = date >= sixMonthsAgo && date <= now;
+    return isRecent;
   });
+
+  console.log('[Heartbeat] Recent projects (last 6 months):', recentProjects.length);
+  if (recentProjects.length > 0) {
+    console.log('[Heartbeat] Sample project doneDates:', recentProjects.slice(0, 5).map(p => p.doneDate));
+  }
 
   // Group by week and client
   const weeklyData: Record<string, Record<string, number>> = {};
@@ -93,15 +105,23 @@ export function processProjectsForHeartbeat(projects: Project[]) {
       ...clientCounts,
     }));
 
-  // Calculate KPIs
+  // Calculate KPIs - use current month
   const thisMonthStart = startOfMonth(now);
   const thisMonthEnd = endOfMonth(now);
+
+  console.log('[Heartbeat] This month range:', thisMonthStart.toISOString(), 'to', thisMonthEnd.toISOString());
 
   const projectsThisMonth = recentProjects.filter((p) => {
     if (!p.doneDate) return false;
     const date = parseISO(p.doneDate);
-    return isWithinInterval(date, { start: thisMonthStart, end: thisMonthEnd });
+    const inMonth = isWithinInterval(date, { start: thisMonthStart, end: thisMonthEnd });
+    return inMonth;
   });
+
+  console.log('[Heartbeat] Projects this month:', projectsThisMonth.length);
+  if (projectsThisMonth.length > 0) {
+    console.log('[Heartbeat] This month project dates:', projectsThisMonth.map(p => p.doneDate));
+  }
 
   const activeClients = new Set(
     projectsThisMonth.map((p) => p.client?.name).filter(Boolean)
@@ -129,6 +149,22 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string) {
   const nextWeekEnd = addDays(now, 7);
   const nextMonthEnd = addDays(now, 30);
 
+  console.log('[Capacity] Processing tasks, total count:', tasks.length);
+  console.log('[Capacity] Current date:', now.toISOString());
+  console.log('[Capacity] Last week start:', lastWeekStart.toISOString());
+  console.log('[Capacity] Last month start:', lastMonthStart.toISOString());
+
+  // Log sample task dates
+  const completedTasks = tasks.filter(t => t.done && t.doneDate);
+  console.log('[Capacity] Total completed tasks with doneDate:', completedTasks.length);
+  if (completedTasks.length > 0) {
+    console.log('[Capacity] Sample completed task doneDates:', completedTasks.slice(0, 10).map(t => ({ 
+      name: t.name, 
+      doneDate: t.doneDate,
+      assignee: t.assignee?.name 
+    })));
+  }
+
   // Filter by role if specified
   let filteredTasks = tasks;
   if (roleFilter === "video") {
@@ -140,6 +176,8 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string) {
       t.taskTemplateRole?.name?.includes("Graphic Designer (GD)")
     );
   }
+
+  console.log('[Capacity] Filtered tasks count:', filteredTasks.length);
 
   // Group by assignee
   const assigneeData: Record<
@@ -164,28 +202,46 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string) {
       };
     }
 
-    // Completed tasks
+    // Completed tasks - check if doneDate is within the range
     if (task.done && task.doneDate) {
-      const doneDate = parseISO(task.doneDate);
-      if (doneDate >= lastWeekStart && doneDate <= now) {
-        assigneeData[assigneeName].completedLastWeek++;
-      }
-      if (doneDate >= lastMonthStart && doneDate <= now) {
-        assigneeData[assigneeName].completedLastMonth++;
+      try {
+        const doneDate = parseISO(task.doneDate);
+        
+        // Check if completed in last 7 days
+        if (isAfter(doneDate, lastWeekStart) && isBefore(doneDate, now)) {
+          assigneeData[assigneeName].completedLastWeek++;
+        }
+        
+        // Check if completed in last 30 days
+        if (isAfter(doneDate, lastMonthStart) && isBefore(doneDate, now)) {
+          assigneeData[assigneeName].completedLastMonth++;
+        }
+      } catch (e) {
+        console.error('[Capacity] Error parsing doneDate:', task.doneDate, e);
       }
     }
 
-    // Assigned (not done) tasks
+    // Assigned (not done) tasks - check dueDate
     if (!task.done && task.dueDate) {
-      const dueDate = parseISO(task.dueDate);
-      if (dueDate >= now && dueDate <= nextWeekEnd) {
-        assigneeData[assigneeName].assignedThisWeek++;
-      }
-      if (dueDate >= now && dueDate <= nextMonthEnd) {
-        assigneeData[assigneeName].assignedThisMonth++;
+      try {
+        const dueDate = parseISO(task.dueDate);
+        
+        // Check if due in next 7 days
+        if (isAfter(dueDate, now) && isBefore(dueDate, nextWeekEnd)) {
+          assigneeData[assigneeName].assignedThisWeek++;
+        }
+        
+        // Check if due in next 30 days
+        if (isAfter(dueDate, now) && isBefore(dueDate, nextMonthEnd)) {
+          assigneeData[assigneeName].assignedThisMonth++;
+        }
+      } catch (e) {
+        console.error('[Capacity] Error parsing dueDate:', task.dueDate, e);
       }
     }
   });
+
+  console.log('[Capacity] Assignee data:', assigneeData);
 
   // Convert to array and sort
   return Object.entries(assigneeData)
@@ -199,6 +255,11 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string) {
 
 // Process client months for Client Economics
 export function processClientMonths(clientMonths: ClientMonth[]) {
+  console.log('[Economics] Processing client months, total count:', clientMonths.length);
+  if (clientMonths.length > 0) {
+    console.log('[Economics] Sample client month data:', clientMonths.slice(0, 3));
+  }
+
   const processed = clientMonths
     .map((cm) => {
       const costPerDeliverable =
@@ -231,6 +292,8 @@ export function processClientMonths(clientMonths: ClientMonth[]) {
     })
     .sort((a, b) => b.month.localeCompare(a.month));
 
+  console.log('[Economics] Processed data:', processed.slice(0, 5));
+
   // Get unique clients for filter
   const clients = Array.from(new Set(processed.map((p) => p.client))).sort();
 
@@ -246,10 +309,19 @@ export function processClientMonths(clientMonths: ClientMonth[]) {
 
   const chartData = Object.entries(chartDataMap)
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([month, clientData]) => ({
-      month: format(parseISO(`${month}-01`), "MMM yyyy"),
-      ...clientData,
-    }));
+    .map(([month, clientData]) => {
+      try {
+        return {
+          month: format(parseISO(`${month}-01`), "MMM yyyy"),
+          ...clientData,
+        };
+      } catch (e) {
+        console.error('[Economics] Error parsing month:', month, e);
+        return { month, ...clientData };
+      }
+    });
+
+  console.log('[Economics] Chart data:', chartData);
 
   return {
     tableData: processed,
