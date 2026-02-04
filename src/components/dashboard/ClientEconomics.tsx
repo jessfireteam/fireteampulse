@@ -50,6 +50,7 @@ function processClientEconomicsData(
     client: { name: string } | null;
     month: { name: string } | null;
     fireTeamSpend: number | null;
+    totalSpend: number | null;
   }>,
   deliverablesByClientMonth: Record<string, number>
 ) {
@@ -66,6 +67,11 @@ function processClientEconomicsData(
     if (monthStr && monthStr <= currentMonthStr) {
       const key = `${clientName}-${monthStr}`;
       feesByClientMonth[key] = cm.fireTeamSpend || 0;
+      
+      // Debug: show what values we're using
+      console.log('[Economics] Fee Data:', clientName, monthStr, 
+        'fireTeamSpend:', cm.fireTeamSpend, 
+        'totalSpend:', cm.totalSpend);
     }
   });
 
@@ -102,6 +108,10 @@ function processClientEconomicsData(
 
     // Only include if we have both deliverables and fee data
     if (deliverables > 0 && fireTeamSpend > 0) {
+      console.log('[Economics] Combined:', clientPart, monthPart, 
+        'Fee:', fireTeamSpend, 'Deliverables:', deliverables, 
+        '$/Deliverable:', costPerDeliverable);
+      
       combined.push({
         client: clientPart,
         month: monthPart,
