@@ -150,6 +150,33 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string) {
   const next7Days = addDays(today, 7);
   const next30Days = addDays(today, 30);
 
+  // Debug logging
+  console.log('[Capacity] Today:', now.toISOString());
+  console.log('[Capacity] Date ranges:', {
+    last7Days: last7Days.toISOString(),
+    last30Days: last30Days.toISOString(),
+    next7Days: next7Days.toISOString(),
+    next30Days: next30Days.toISOString(),
+  });
+
+  // Log done tasks
+  const doneTasks = tasks.filter(t => t.done && t.doneDate);
+  console.log('[Capacity] Done tasks count:', doneTasks.length);
+  console.log('[Capacity] Sample done task dates:', doneTasks.slice(0, 10).map(t => ({
+    name: t.name,
+    doneDate: t.doneDate,
+    assignee: t.assignee?.name
+  })));
+
+  // Log pending tasks with due dates
+  const pendingWithDue = tasks.filter(t => t.done === false && t.dueDate);
+  console.log('[Capacity] Pending tasks with dueDate:', pendingWithDue.length);
+  console.log('[Capacity] Sample pending task dates:', pendingWithDue.slice(0, 10).map(t => ({
+    name: t.name,
+    dueDate: t.dueDate,
+    assignee: t.assignee?.name
+  })));
+
   // Filter by role if specified
   let filteredTasks = tasks;
   if (roleFilter === "video") {
