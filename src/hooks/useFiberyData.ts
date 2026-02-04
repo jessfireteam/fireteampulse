@@ -161,40 +161,72 @@ export function processProjectsForHeartbeat(projects: Project[]) {
   };
 }
 
-// Process tasks data for Team Capacity - simplified version
-export function processTasksForCapacity(tasks: Task[], roleFilter: string) {
+// Week boundaries helper
+function getWeekBoundaries(referenceDate: Date, weeksAgo: number) {
+  const weekStart = startOfWeek(subDays(referenceDate, weeksAgo * 7), { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
+  return { start: weekStart, end: weekEnd };
+}
+
+// Extract task type from task name (first part before any specific details)
+function extractTaskType(taskName: string): string {
+  // Common patterns: "Write Brief - Project Name" or "Review Creative for Client"
+  // Take the first meaningful chunk
+  const cleanName = taskName.trim();
+  
+  // Try splitting by common separators
+  const separators = [' - ', ' – ', ' for ', ' | ', ':'];
+  for (const sep of separators) {
+    if (cleanName.includes(sep)) {
+      return cleanName.split(sep)[0].trim();
+    }
+  }
+  
+  // If no separator, return the full name (but limit length)
+  return cleanName.length > 30 ? cleanName.substring(0, 30) + '...' : cleanName;
+}
+
+export interface TaskTypeRow {
+  taskType: string;
+  avg30Day: number;
+  weekMinus5: number;
+  weekMinus4: number;
+  weekMinus3: number;
+  weekMinus2: number;
+  weekMinus1: number;
+  due7Days: number;
+  due30Days: number;
+}
+
+export interface PersonCapacity {
+  name: string;
+  taskTypes: TaskTypeRow[];
+  subtotal: TaskTypeRow;
+}
+
+// Process tasks data for Team Capacity with task type breakdown
+export function processTasksForCapacity(tasks: Task[], roleFilter: string): PersonCapacity[] {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-  const last7Days = subDays(today, 7);
-  const last30Days = subDays(today, 30);
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const next7Days = addDays(today, 7);
   const next30Days = addDays(today, 30);
+  const last30Days = subDays(today, 30);
 
-  // Debug logging
+  // Get week boundaries for last 5 weeks
+  const weeks = [
+    getWeekBoundaries(today, 1), // Week -1 (last week)
+    getWeekBoundaries(today, 2), // Week -2
+    getWeekBoundaries(today, 3), // Week -3
+    getWeekBoundaries(today, 4), // Week -4
+    getWeekBoundaries(today, 5), // Week -5
+  ];
+
   console.log('[Capacity] Today:', now.toISOString());
-  console.log('[Capacity] Date ranges:', {
-    last7Days: last7Days.toISOString(),
-    last30Days: last30Days.toISOString(),
-    next7Days: next7Days.toISOString(),
-    next30Days: next30Days.toISOString(),
-  });
-
-  // Log done tasks
-  const doneTasks = tasks.filter(t => t.done && t.doneDate);
-  console.log('[Capacity] Done tasks count:', doneTasks.length);
-  console.log('[Capacity] Sample done task dates:', doneTasks.slice(0, 10).map(t => ({
-    name: t.name,
-    doneDate: t.doneDate,
-    assignee: t.assignee?.name
-  })));
-
-  // Log pending tasks with due dates
-  const pendingWithDue = tasks.filter(t => t.done === false && t.dueDate);
-  console.log('[Capacity] Pending tasks with dueDate:', pendingWithDue.length);
-  console.log('[Capacity] Sample pending task dates:', pendingWithDue.slice(0, 10).map(t => ({
-    name: t.name,
-    dueDate: t.dueDate,
-    assignee: t.assignee?.name
+  console.log('[Capacity] Week boundaries:', weeks.map((w, i) => ({
+    week: `W-${i + 1}`,
+    start: format(w.start, 'MMM d'),
+    end: format(w.end, 'MMM d'),
   })));
 
   // Filter by role if specified
@@ -209,61 +241,113 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string) {
     );
   }
 
-  // Group by assignee
-  const assigneeData: Record<
-    string,
-    {
-      completedLastWeek: number;
-      completedLastMonth: number;
-      assignedThisWeek: number;
-      assignedThisMonth: number;
-    }
-  > = {};
+  // Group by assignee and task type
+  const personData: Record<string, Record<string, {
+    weekCounts: number[];
+    due7Days: number;
+    due30Days: number;
+    last30DaysTotal: number;
+  }>> = {};
 
   filteredTasks.forEach((task) => {
-    const assigneeName = task.assignee?.name || "Unassigned";
+    const assigneeName = task.assignee?.name;
+    if (!assigneeName) return;
 
-    if (!assigneeData[assigneeName]) {
-      assigneeData[assigneeName] = {
-        completedLastWeek: 0,
-        completedLastMonth: 0,
-        assignedThisWeek: 0,
-        assignedThisMonth: 0,
+    const taskType = extractTaskType(task.name);
+
+    if (!personData[assigneeName]) {
+      personData[assigneeName] = {};
+    }
+    if (!personData[assigneeName][taskType]) {
+      personData[assigneeName][taskType] = {
+        weekCounts: [0, 0, 0, 0, 0], // W-1 to W-5
+        due7Days: 0,
+        due30Days: 0,
+        last30DaysTotal: 0,
       };
     }
 
-    // Completed tasks
+    const data = personData[assigneeName][taskType];
+
+    // Completed tasks - check which week they were done in
     if (task.done && task.doneDate) {
       const doneDate = new Date(task.doneDate);
-      if (doneDate >= last7Days && doneDate <= today) {
-        assigneeData[assigneeName].completedLastWeek++;
-      }
+      
+      // Check last 30 days for average
       if (doneDate >= last30Days && doneDate <= today) {
-        assigneeData[assigneeName].completedLastMonth++;
+        data.last30DaysTotal++;
       }
+      
+      // Check each week
+      weeks.forEach((week, index) => {
+        if (isWithinInterval(doneDate, { start: week.start, end: week.end })) {
+          data.weekCounts[index]++;
+        }
+      });
     }
 
-    // Assigned (not done) tasks
+    // Pending tasks with due dates
     if (!task.done && task.dueDate) {
       const dueDate = new Date(task.dueDate);
-      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       
       if (dueDate >= todayStart && dueDate <= next7Days) {
-        assigneeData[assigneeName].assignedThisWeek++;
+        data.due7Days++;
       }
       if (dueDate >= todayStart && dueDate <= next30Days) {
-        assigneeData[assigneeName].assignedThisMonth++;
+        data.due30Days++;
       }
     }
   });
 
-  return Object.entries(assigneeData)
-    .filter(([name]) => name !== "Unassigned")
-    .map(([name, data]) => ({
-      name,
-      ...data,
-    }))
-    .sort((a, b) => (b.completedLastMonth + b.assignedThisMonth) - (a.completedLastMonth + a.assignedThisMonth));
+  // Convert to structured output
+  const result: PersonCapacity[] = Object.entries(personData)
+    .map(([name, taskTypes]) => {
+      const taskTypeRows: TaskTypeRow[] = Object.entries(taskTypes)
+        .map(([taskType, data]) => ({
+          taskType,
+          avg30Day: Math.round((data.last30DaysTotal / 4) * 10) / 10, // 30 days ≈ 4 weeks
+          weekMinus5: data.weekCounts[4],
+          weekMinus4: data.weekCounts[3],
+          weekMinus3: data.weekCounts[2],
+          weekMinus2: data.weekCounts[1],
+          weekMinus1: data.weekCounts[0],
+          due7Days: data.due7Days,
+          due30Days: data.due30Days,
+        }))
+        .filter(row => 
+          // Only include task types with some activity
+          row.avg30Day > 0 || row.due7Days > 0 || row.due30Days > 0 ||
+          row.weekMinus1 > 0 || row.weekMinus2 > 0 || row.weekMinus3 > 0 ||
+          row.weekMinus4 > 0 || row.weekMinus5 > 0
+        )
+        .sort((a, b) => b.avg30Day - a.avg30Day);
+
+      // Calculate subtotal
+      const subtotal: TaskTypeRow = {
+        taskType: 'Subtotal',
+        avg30Day: Math.round(taskTypeRows.reduce((sum, r) => sum + r.avg30Day, 0) * 10) / 10,
+        weekMinus5: taskTypeRows.reduce((sum, r) => sum + r.weekMinus5, 0),
+        weekMinus4: taskTypeRows.reduce((sum, r) => sum + r.weekMinus4, 0),
+        weekMinus3: taskTypeRows.reduce((sum, r) => sum + r.weekMinus3, 0),
+        weekMinus2: taskTypeRows.reduce((sum, r) => sum + r.weekMinus2, 0),
+        weekMinus1: taskTypeRows.reduce((sum, r) => sum + r.weekMinus1, 0),
+        due7Days: taskTypeRows.reduce((sum, r) => sum + r.due7Days, 0),
+        due30Days: taskTypeRows.reduce((sum, r) => sum + r.due30Days, 0),
+      };
+
+      return {
+        name,
+        taskTypes: taskTypeRows,
+        subtotal,
+      };
+    })
+    .filter(person => person.taskTypes.length > 0)
+    .sort((a, b) => b.subtotal.avg30Day - a.subtotal.avg30Day);
+
+  console.log('[Capacity] Processed persons:', result.length);
+  console.log('[Capacity] Sample person data:', result[0]);
+
+  return result;
 }
 
 // Note: Client Economics processing has been moved to ClientEconomics.tsx
