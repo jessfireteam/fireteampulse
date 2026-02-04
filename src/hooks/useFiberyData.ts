@@ -210,12 +210,16 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Pers
   const next30Days = addDays(today, 30);
   const last30Days = subDays(today, 30);
 
-  // Debug: Log all unique task names for Jess to investigate brief naming
-  const jessTasks = tasks.filter(t => t.assignee?.name?.includes('Jess'));
-  const jessTaskNames = [...new Set(jessTasks.map(t => t.name))];
-  console.log('[Capacity] Jess task names:', jessTaskNames);
-  console.log('[Capacity] Jess tasks with "brief":', jessTasks.filter(t => t.name?.toLowerCase().includes('brief')).length);
-  console.log('[Capacity] Jess brief task examples:', jessTasks.filter(t => t.name?.toLowerCase().includes('brief')).slice(0, 10).map(t => t.name));
+  // Debug: Log Jess's brief tasks with dates to check date distribution
+  const jessBriefs = tasks.filter(t => 
+    t.assignee?.name?.includes('Jess') && 
+    t.name?.toLowerCase().includes('brief')
+  );
+  console.log('[Capacity] Jess brief tasks by date:', jessBriefs.map(t => ({
+    name: t.name,
+    doneDate: t.doneDate,
+    done: t.done
+  })).sort((a, b) => new Date(b.doneDate || 0).getTime() - new Date(a.doneDate || 0).getTime()));
 
   // Get week boundaries for last 5 weeks
   const weeks = [
