@@ -144,15 +144,17 @@ export function processProjectsForHeartbeat(projects: Project[]) {
 // Process tasks data for Team Capacity
 export function processTasksForCapacity(tasks: Task[], roleFilter: string) {
   const now = new Date();
-  const lastWeekStart = subDays(now, 7);
-  const lastMonthStart = subDays(now, 30);
-  const nextWeekEnd = addDays(now, 7);
-  const nextMonthEnd = addDays(now, 30);
+  // Set to start of today for cleaner comparisons
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const lastWeekStart = subDays(today, 7);
+  const lastMonthStart = subDays(today, 30);
+  const nextWeekEnd = addDays(today, 7);
+  const nextMonthEnd = addDays(today, 30);
 
   console.log('[Capacity] Processing tasks, total count:', tasks.length);
-  console.log('[Capacity] Current date:', now.toISOString());
-  console.log('[Capacity] Last week start:', lastWeekStart.toISOString());
-  console.log('[Capacity] Last month start:', lastMonthStart.toISOString());
+  console.log('[Capacity] Today (start of day):', today.toISOString());
+  console.log('[Capacity] Last week range:', lastWeekStart.toISOString(), 'to', today.toISOString());
+  console.log('[Capacity] Last month range:', lastMonthStart.toISOString(), 'to', today.toISOString());
 
   // Log sample task dates
   const completedTasks = tasks.filter(t => t.done && t.doneDate);
@@ -202,18 +204,18 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string) {
       };
     }
 
-    // Completed tasks - check if doneDate is within the range
+    // Completed tasks - check if doneDate is within the range (inclusive)
     if (task.done && task.doneDate) {
       try {
         const doneDate = parseISO(task.doneDate);
         
-        // Check if completed in last 7 days
-        if (isAfter(doneDate, lastWeekStart) && isBefore(doneDate, now)) {
+        // Check if completed in last 7 days (inclusive of both ends)
+        if (isWithinInterval(doneDate, { start: lastWeekStart, end: today })) {
           assigneeData[assigneeName].completedLastWeek++;
         }
         
-        // Check if completed in last 30 days
-        if (isAfter(doneDate, lastMonthStart) && isBefore(doneDate, now)) {
+        // Check if completed in last 30 days (inclusive of both ends)
+        if (isWithinInterval(doneDate, { start: lastMonthStart, end: today })) {
           assigneeData[assigneeName].completedLastMonth++;
         }
       } catch (e) {
@@ -226,13 +228,13 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string) {
       try {
         const dueDate = parseISO(task.dueDate);
         
-        // Check if due in next 7 days
-        if (isAfter(dueDate, now) && isBefore(dueDate, nextWeekEnd)) {
+        // Check if due today or in next 7 days (inclusive)
+        if (isWithinInterval(dueDate, { start: today, end: nextWeekEnd })) {
           assigneeData[assigneeName].assignedThisWeek++;
         }
         
-        // Check if due in next 30 days
-        if (isAfter(dueDate, now) && isBefore(dueDate, nextMonthEnd)) {
+        // Check if due today or in next 30 days (inclusive)
+        if (isWithinInterval(dueDate, { start: today, end: nextMonthEnd })) {
           assigneeData[assigneeName].assignedThisMonth++;
         }
       } catch (e) {
@@ -260,8 +262,20 @@ export function processClientMonths(clientMonths: ClientMonth[]) {
     console.log('[Economics] Sample client month data:', clientMonths.slice(0, 3));
   }
 
+  // Current date for filtering out future/invalid data
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1; // 1-indexed
+  const currentMonthStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
+
+  console.log('[Economics] Current month string:', currentMonthStr);
+
   const processed = clientMonths
     .map((cm) => {
+      // Extract month from name (format: "2025-01 - ClientName") or use month.name
+      const monthMatch = cm.name?.match(/^(\d{4}-\d{2})/);
+      const monthStr = monthMatch ? monthMatch[1] : cm.month?.name || "";
+
       const costPerDeliverable =
         cm.actualDeliverables && cm.actualDeliverables > 0
           ? (cm.fireTeamSpend || 0) / cm.actualDeliverables
@@ -273,10 +287,6 @@ export function processClientMonths(clientMonths: ClientMonth[]) {
         else if (costPerDeliverable > 2000) flag = "under";
         else flag = "normal";
       }
-
-      // Extract month from name (format: "2025-01 - ClientName") or use month.name
-      const monthMatch = cm.name?.match(/^(\d{4}-\d{2})/);
-      const monthStr = monthMatch ? monthMatch[1] : cm.month?.name || "";
 
       return {
         id: cm.id,
@@ -290,14 +300,28 @@ export function processClientMonths(clientMonths: ClientMonth[]) {
         flag,
       };
     })
-    .sort((a, b) => b.month.localeCompare(a.month));
+    // Filter out future dates (anything after current month) and invalid months
+    .filter((item) => {
+      if (!item.month || item.month === "") return false;
+      // Only include months up to and including current month
+      return item.month <= currentMonthStr;
+    })
+    // Sort by month descending (newest first), then put 0 deliverables at the bottom
+    .sort((a, b) => {
+      // First, sort by whether they have deliverables (items with 0 go to bottom)
+      if (a.actualDeliverables === 0 && b.actualDeliverables > 0) return 1;
+      if (a.actualDeliverables > 0 && b.actualDeliverables === 0) return -1;
+      // Then sort by month descending
+      return b.month.localeCompare(a.month);
+    });
 
-  console.log('[Economics] Processed data:', processed.slice(0, 5));
+  console.log('[Economics] Processed data (filtered):', processed.length, 'records');
+  console.log('[Economics] First 5 records:', processed.slice(0, 5));
 
   // Get unique clients for filter
   const clients = Array.from(new Set(processed.map((p) => p.client))).sort();
 
-  // Prepare line chart data
+  // Prepare line chart data - only use items with valid cost per deliverable
   const chartDataMap: Record<string, Record<string, number>> = {};
   processed.forEach((item) => {
     if (!item.month || item.costPerDeliverable === null) return;
@@ -307,6 +331,7 @@ export function processClientMonths(clientMonths: ClientMonth[]) {
     chartDataMap[item.month][item.client] = item.costPerDeliverable;
   });
 
+  // Sort chronologically for the chart (oldest to newest for time series)
   const chartData = Object.entries(chartDataMap)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([month, clientData]) => {
