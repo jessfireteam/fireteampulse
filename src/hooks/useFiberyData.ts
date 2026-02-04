@@ -2,7 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import {
   queryFibery,
   PROJECTS_QUERY,
-  TASKS_QUERY,
+  COMPLETED_TASKS_QUERY,
+  PENDING_TASKS_QUERY,
   CLIENT_MONTHS_QUERY,
   ProjectsResponse,
   TasksResponse,
@@ -36,11 +37,30 @@ export function useProjectsData() {
   });
 }
 
-// Hook for Tasks data
+// Hook for Tasks data - combines completed and pending tasks
 export function useTasksData() {
   return useQuery({
     queryKey: ["fibery-tasks"],
-    queryFn: () => queryFibery<TasksResponse>("projects", TASKS_QUERY),
+    queryFn: async () => {
+      // Fetch both queries in parallel
+      const [completedRes, pendingRes] = await Promise.all([
+        queryFibery<TasksResponse>("projects", COMPLETED_TASKS_QUERY),
+        queryFibery<TasksResponse>("projects", PENDING_TASKS_QUERY),
+      ]);
+
+      // Combine and deduplicate by task ID
+      const tasksMap = new Map<string, Task>();
+      completedRes.findProjectSpecificTasks.forEach(t => tasksMap.set(t.id, t));
+      pendingRes.findProjectSpecificTasks.forEach(t => tasksMap.set(t.id, t));
+
+      console.log('[Tasks] Completed tasks fetched:', completedRes.findProjectSpecificTasks.length);
+      console.log('[Tasks] Pending tasks fetched:', pendingRes.findProjectSpecificTasks.length);
+      console.log('[Tasks] Combined unique tasks:', tasksMap.size);
+
+      return {
+        findProjectSpecificTasks: Array.from(tasksMap.values()),
+      };
+    },
     staleTime: 5 * 60 * 1000,
     retry: 2,
   });

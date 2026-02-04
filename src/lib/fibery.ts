@@ -46,8 +46,33 @@ export const PROJECTS_QUERY = `{
   }
 }`;
 
-export const TASKS_QUERY = `{
-  findProjectSpecificTasks(limit: 3000) {
+// Query for recently completed tasks (last ~60 days to be safe)
+export const COMPLETED_TASKS_QUERY = `{
+  findProjectSpecificTasks(
+    limit: 2000
+    doneDate: { greater: "2025-12-01" }
+  ) {
+    id
+    name
+    done
+    doneDate
+    dueDate
+    assignee { name }
+    taskTemplateRole { name }
+    project { 
+      name 
+      client { name }
+    }
+  }
+}`;
+
+// Query for pending tasks with upcoming due dates
+export const PENDING_TASKS_QUERY = `{
+  findProjectSpecificTasks(
+    limit: 1000
+    done: { is: false }
+    dueDate: { greater: "2026-01-01" }
+  ) {
     id
     name
     done
