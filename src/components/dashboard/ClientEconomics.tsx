@@ -8,126 +8,78 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useClientMonthsData, useProjectsData } from "@/hooks/useFiberyData";
+import { useClientMonthsData } from "@/hooks/useFiberyData";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ClientMonthlyChart } from "./ClientWeeklyChart";
-import { format, parseISO, subMonths } from "date-fns";
+import { format, parseISO } from "date-fns";
 
-// Count deliverables from Projects endpoint by client + month
-function countDeliverablesFromProjects(
-  projects: Array<{
-    id: string;
-    name: string;
-    doneDate: string | null;
-    client: { name: string } | null;
-  }>
-) {
-  const deliverablesByClientMonth: Record<string, number> = {};
-  const now = new Date();
-  const twelveMonthsAgo = subMonths(now, 12);
-
-  projects.forEach((p) => {
-    if (!p.doneDate || !p.client?.name) return;
-    
-    const doneDate = new Date(p.doneDate);
-    // Only count projects from the last 12 months
-    if (doneDate < twelveMonthsAgo || doneDate > now) return;
-
-    const month = p.doneDate.substring(0, 7); // "2026-01"
-    const key = `${p.client.name}-${month}`;
-    deliverablesByClientMonth[key] = (deliverablesByClientMonth[key] || 0) + 1;
-  });
-
-  console.log('[Economics] Deliverables from Projects:', deliverablesByClientMonth);
-  return deliverablesByClientMonth;
-}
-
-// Join Projects deliverables with Stats fee data
+// Process ClientMonths using Fibery's pre-calculated costPerDeliverable
 function processClientEconomicsData(
   clientMonths: Array<{
     id: string;
     name: string;
     client: { name: string } | null;
-    month: { name: string } | null;
-    fireTeamSpend: number | null;
     totalSpend: number | null;
-  }>,
-  deliverablesByClientMonth: Record<string, number>
+    fireTeamSpend: number | null;
+    pricingPlanMonths: Array<{
+      revenue: number | null;
+      costPerDeliverable: number | null;
+      deliverablesShipped: number | null;
+    }> | null;
+  }>
 ) {
   const now = new Date();
   const currentMonthStr = format(now, "yyyy-MM");
 
-  // Build a map of client-month -> fireTeamSpend
-  const feesByClientMonth: Record<string, number> = {};
-  clientMonths.forEach((cm) => {
-    const monthMatch = cm.name?.match(/^(\d{4}-\d{2})/);
-    const monthStr = monthMatch ? monthMatch[1] : cm.month?.name || "";
-    const clientName = cm.client?.name || "Unknown";
-    
-    if (monthStr && monthStr <= currentMonthStr) {
-      const key = `${clientName}-${monthStr}`;
-      feesByClientMonth[key] = cm.fireTeamSpend || 0;
-      
-      // Debug: show what values we're using
-      console.log('[Economics] Fee Data:', clientName, monthStr, 
-        'fireTeamSpend:', cm.fireTeamSpend, 
-        'totalSpend:', cm.totalSpend);
-    }
-  });
-
-  console.log('[Economics] Fees from Stats:', feesByClientMonth);
-
-  // Combine: get all unique client-month keys
-  const allKeys = new Set([
-    ...Object.keys(deliverablesByClientMonth),
-    ...Object.keys(feesByClientMonth),
-  ]);
-
-  const combined: Array<{
+  const processed: Array<{
     client: string;
     month: string;
     deliverables: number;
-    fireTeamSpend: number;
+    revenue: number;
     costPerDeliverable: number;
   }> = [];
 
-  allKeys.forEach((key) => {
-    const [client, month] = [
-      key.substring(0, key.lastIndexOf("-")),
-      key.substring(key.lastIndexOf("-") - 4, key.lastIndexOf("-") + 3),
-    ];
-    
-    // Parse the key properly: "ClientName-2026-01" -> client = "ClientName", month = "2026-01"
-    const parts = key.split("-");
-    const monthPart = `${parts[parts.length - 2]}-${parts[parts.length - 1]}`;
-    const clientPart = parts.slice(0, -2).join("-");
+  clientMonths.forEach((cm) => {
+    // Extract month from name (format: "2026-01 - ClientName")
+    const monthMatch = cm.name?.match(/^(\d{4}-\d{2})/);
+    const monthStr = monthMatch ? monthMatch[1] : "";
+    const clientName = cm.client?.name || "Unknown";
 
-    const deliverables = deliverablesByClientMonth[key] || 0;
-    const fireTeamSpend = feesByClientMonth[key] || 0;
-    const costPerDeliverable = deliverables > 0 ? fireTeamSpend / deliverables : 0;
+    // Skip future months or invalid data
+    if (!monthStr || monthStr > currentMonthStr) return;
 
-    // Only include if we have both deliverables and fee data
-    if (deliverables > 0 && fireTeamSpend > 0) {
-      console.log('[Economics] Combined:', clientPart, monthPart, 
-        'Fee:', fireTeamSpend, 'Deliverables:', deliverables, 
-        '$/Deliverable:', costPerDeliverable);
-      
-      combined.push({
-        client: clientPart,
-        month: monthPart,
+    // Get data from pricingPlanMonths relationship
+    const ppm = cm.pricingPlanMonths?.[0];
+    if (!ppm) return;
+
+    const costPerDeliverable = ppm.costPerDeliverable || 0;
+    const deliverables = ppm.deliverablesShipped || 0;
+    const revenue = ppm.revenue || 0;
+
+    // Debug logging
+    console.log('[Economics] Fibery Data:', clientName, monthStr,
+      'Revenue:', revenue,
+      'Deliverables:', deliverables,
+      '$/Deliverable:', costPerDeliverable);
+
+    // Only include if we have valid cost per deliverable
+    if (costPerDeliverable > 0) {
+      processed.push({
+        client: clientName,
+        month: monthStr,
         deliverables,
-        fireTeamSpend,
+        revenue,
         costPerDeliverable,
       });
     }
   });
 
   // Sort by month descending
-  combined.sort((a, b) => b.month.localeCompare(a.month));
+  processed.sort((a, b) => b.month.localeCompare(a.month));
 
-  console.log('[Economics] Combined data:', combined.slice(0, 10));
+  console.log('[Economics] Processed data:', processed.slice(0, 10));
 
-  return combined;
+  return processed;
 }
 
 // Group data by client for charts
@@ -136,7 +88,7 @@ function groupByClient(
     client: string;
     month: string;
     deliverables: number;
-    fireTeamSpend: number;
+    revenue: number;
     costPerDeliverable: number;
   }>
 ) {
@@ -168,7 +120,7 @@ function groupByClient(
       monthLabel,
       costPerDeliverable: item.costPerDeliverable,
       deliverables: item.deliverables,
-      fireTeamSpend: item.fireTeamSpend,
+      fireTeamSpend: item.revenue, // Using revenue as the fee
     });
   });
 
@@ -182,26 +134,13 @@ function groupByClient(
 
 export function ClientEconomics() {
   const [clientFilter, setClientFilter] = useState<string>("top5");
-  const { data: clientMonthsData, isLoading: loadingMonths, error: errorMonths } = useClientMonthsData();
-  const { data: projectsData, isLoading: loadingProjects, error: errorProjects } = useProjectsData();
+  const { data: clientMonthsData, isLoading, error } = useClientMonthsData();
 
-  const isLoading = loadingMonths || loadingProjects;
-  const error = errorMonths || errorProjects;
-
-  // Count deliverables from Projects
-  const deliverablesByClientMonth = useMemo(() => {
-    if (!projectsData?.findProjects) return {};
-    return countDeliverablesFromProjects(projectsData.findProjects);
-  }, [projectsData]);
-
-  // Combine with fee data
+  // Process using Fibery's pre-calculated data
   const combinedData = useMemo(() => {
     if (!clientMonthsData?.findClientMonths) return [];
-    return processClientEconomicsData(
-      clientMonthsData.findClientMonths,
-      deliverablesByClientMonth
-    );
-  }, [clientMonthsData, deliverablesByClientMonth]);
+    return processClientEconomicsData(clientMonthsData.findClientMonths);
+  }, [clientMonthsData]);
 
   // Group by client
   const clientChartData = useMemo(() => {
