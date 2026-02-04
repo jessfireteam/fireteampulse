@@ -67,11 +67,13 @@ export const CLIENT_MONTHS_QUERY = `{
     id
     name
     client { name }
-    month { name }
     totalSpend
     fireTeamSpend
-    actualDeliverables
-    scopedDeliverables
+    pricingPlanMonths {
+      revenue
+      costPerDeliverable
+      deliverablesShipped
+    }
   }
 }`;
 
@@ -98,15 +100,19 @@ export interface Task {
   } | null;
 }
 
+export interface PricingPlanMonth {
+  revenue: number | null;
+  costPerDeliverable: number | null;
+  deliverablesShipped: number | null;
+}
+
 export interface ClientMonth {
   id: string;
   name: string;
   client: { name: string } | null;
-  month: { name: string } | null;
   totalSpend: number | null;
   fireTeamSpend: number | null;
-  actualDeliverables: number | null;
-  scopedDeliverables: number | null;
+  pricingPlanMonths: PricingPlanMonth[] | null;
 }
 
 export interface ProjectsResponse {
