@@ -77,16 +77,16 @@ export function TeamCapacity() {
                 <TableRow className="border-border/50 hover:bg-transparent">
                   <TableHead className="text-muted-foreground font-semibold">Person</TableHead>
                   <TableHead className="text-center text-muted-foreground font-semibold">
-                    Done Last Week
+                    Done (7 days)
                   </TableHead>
                   <TableHead className="text-center text-muted-foreground font-semibold">
-                    Done Last Month
+                    Done (30 days)
                   </TableHead>
                   <TableHead className="text-center text-muted-foreground font-semibold">
-                    Due This Week
+                    Due (7 days)
                   </TableHead>
                   <TableHead className="text-center text-muted-foreground font-semibold">
-                    Due This Month
+                    Due (30 days)
                   </TableHead>
                 </TableRow>
               </TableHeader>

@@ -1,0 +1,130 @@
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceArea,
+} from "recharts";
+
+interface WeeklyData {
+  week: string;
+  weekLabel: string;
+  costPerDeliverable: number;
+  deliverables: number;
+  fee: number;
+}
+
+interface ClientWeeklyChartProps {
+  clientName: string;
+  data: WeeklyData[];
+}
+
+function formatCurrency(value: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+export function ClientWeeklyChart({ clientName, data }: ClientWeeklyChartProps) {
+  if (data.length === 0) {
+    return null;
+  }
+
+  // Calculate max value for Y axis
+  const maxValue = Math.max(...data.map((d) => d.costPerDeliverable), 2500);
+  const yAxisMax = Math.ceil(maxValue / 500) * 500;
+
+  return (
+    <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
+      <CardContent className="p-6">
+        <h3 className="mb-4 text-lg font-semibold">{clientName}</h3>
+        <div className="h-[300px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={data}
+              margin={{ top: 20, right: 30, left: 60, bottom: 60 }}
+            >
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke="hsl(217, 33%, 18%)"
+                vertical={false}
+              />
+              {/* Target range band: $1,000 - $2,000 */}
+              <ReferenceArea
+                y1={1000}
+                y2={2000}
+                fill="hsl(142, 76%, 45%)"
+                fillOpacity={0.15}
+                label={{
+                  value: "Target: $1k-$2k",
+                  position: "insideTopRight",
+                  fill: "hsl(142, 76%, 45%)",
+                  fontSize: 11,
+                  opacity: 0.8,
+                }}
+              />
+              <XAxis
+                dataKey="weekLabel"
+                tick={{ fill: "hsl(215, 20%, 55%)", fontSize: 10 }}
+                tickLine={false}
+                axisLine={{ stroke: "hsl(217, 33%, 18%)" }}
+                angle={-45}
+                textAnchor="end"
+                height={60}
+                interval={0}
+              />
+              <YAxis
+                tick={{ fill: "hsl(215, 20%, 55%)", fontSize: 11 }}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(value) => `$${(value / 1000).toFixed(1)}k`}
+                domain={[0, yAxisMax]}
+                width={50}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "hsl(222, 47%, 10%)",
+                  border: "1px solid hsl(217, 33%, 18%)",
+                  borderRadius: "8px",
+                  padding: "12px",
+                  fontSize: "13px",
+                }}
+                labelStyle={{ color: "hsl(210, 40%, 96%)", fontWeight: 600, marginBottom: 4 }}
+                formatter={(value: number, name: string) => {
+                  if (name === "costPerDeliverable") {
+                    return [formatCurrency(value), "$/Deliverable"];
+                  }
+                  return [value, name];
+                }}
+                labelFormatter={(label) => `Week of ${label}`}
+              />
+              <Bar
+                dataKey="costPerDeliverable"
+                fill="hsl(25, 95%, 53%)"
+                radius={[4, 4, 0, 0]}
+                maxBarSize={40}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="mt-2 flex items-center justify-center gap-4 text-xs text-muted-foreground">
+          <div className="flex items-center gap-1">
+            <div className="h-3 w-6 rounded-sm bg-[hsl(142,76%,45%)]/20 border border-[hsl(142,76%,45%)]/30" />
+            <span>Target zone ($1k-$2k)</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="h-3 w-3 rounded-sm bg-[hsl(25,95%,53%)]" />
+            <span>$/Deliverable</span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}

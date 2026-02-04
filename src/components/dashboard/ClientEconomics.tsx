@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { SectionHeader } from "./SectionHeader";
 import {
@@ -16,10 +16,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useClientMonthsData, processClientMonths } from "@/hooks/useFiberyData";
+import { useClientMonthsData, useProjectsData, processClientMonths } from "@/hooks/useFiberyData";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { ClientSmallMultiples } from "./ClientSmallMultiples";
+import { ClientWeeklyChart } from "./ClientWeeklyChart";
+import { startOfWeek, format, parseISO, subMonths } from "date-fns";
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-US", {
@@ -30,19 +31,164 @@ function formatCurrency(value: number): string {
   }).format(value);
 }
 
+// Process projects into weekly $/deliverable per client
+function processProjectsForWeeklyEconomics(
+  projects: Array<{
+    id: string;
+    name: string;
+    doneDate: string | null;
+    client: { name: string } | null;
+  }>,
+  clientMonthFees: Map<string, number> // Map of "ClientName-YYYY-MM" -> fireTeamSpend
+) {
+  const now = new Date();
+  const sixMonthsAgo = subMonths(now, 6);
+
+  // Group projects by client and week
+  const clientWeeklyData: Record<
+    string,
+    Record<string, { deliverables: number; week: string }>
+  > = {};
+
+  projects.forEach((project) => {
+    if (!project.doneDate || !project.client?.name) return;
+
+    const doneDate = parseISO(project.doneDate);
+    if (doneDate < sixMonthsAgo || doneDate > now) return;
+
+    const clientName = project.client.name;
+    const weekStart = startOfWeek(doneDate, { weekStartsOn: 1 });
+    const weekKey = format(weekStart, "yyyy-MM-dd");
+
+    if (!clientWeeklyData[clientName]) {
+      clientWeeklyData[clientName] = {};
+    }
+    if (!clientWeeklyData[clientName][weekKey]) {
+      clientWeeklyData[clientName][weekKey] = { deliverables: 0, week: weekKey };
+    }
+    clientWeeklyData[clientName][weekKey].deliverables++;
+  });
+
+  // Calculate weekly fee by distributing monthly fee across weeks
+  // For simplicity, we'll divide monthly fee by 4.33 (avg weeks per month)
+  const result: Record<
+    string,
+    Array<{
+      week: string;
+      weekLabel: string;
+      costPerDeliverable: number;
+      deliverables: number;
+      fee: number;
+    }>
+  > = {};
+
+  Object.entries(clientWeeklyData).forEach(([clientName, weeks]) => {
+    const weeklyArray = Object.entries(weeks)
+      .map(([weekKey, data]) => {
+        // Get the month for this week to find the fee
+        const weekDate = parseISO(weekKey);
+        const monthKey = `${clientName}-${format(weekDate, "yyyy-MM")}`;
+        const monthlyFee = clientMonthFees.get(monthKey) || 0;
+        const weeklyFee = monthlyFee / 4.33; // Approximate weeks per month
+
+        const costPerDeliverable =
+          data.deliverables > 0 ? weeklyFee / data.deliverables : 0;
+
+        return {
+          week: weekKey,
+          weekLabel: format(weekDate, "MMM d"),
+          costPerDeliverable,
+          deliverables: data.deliverables,
+          fee: weeklyFee,
+        };
+      })
+      .filter((d) => d.deliverables > 0)
+      .sort((a, b) => a.week.localeCompare(b.week));
+
+    if (weeklyArray.length > 0) {
+      result[clientName] = weeklyArray;
+    }
+  });
+
+  return result;
+}
+
 export function ClientEconomics() {
-  const [clientFilter, setClientFilter] = useState<string>("all");
-  const { data, isLoading, error } = useClientMonthsData();
+  const [clientFilter, setClientFilter] = useState<string>("top5");
+  const { data: clientMonthsData, isLoading: loadingMonths, error: errorMonths } = useClientMonthsData();
+  const { data: projectsData, isLoading: loadingProjects, error: errorProjects } = useProjectsData();
+
+  const isLoading = loadingMonths || loadingProjects;
+  const error = errorMonths || errorProjects;
+
+  // Process data
+  const { tableData, clients: allClients, clientMonthFees } = useMemo(() => {
+    if (!clientMonthsData?.findClientMonths) {
+      return { tableData: [], clients: [], clientMonthFees: new Map<string, number>() };
+    }
+
+    const processed = processClientMonths(clientMonthsData.findClientMonths);
+    
+    // Build a map of client-month -> fireTeamSpend
+    const feeMap = new Map<string, number>();
+    processed.tableData.forEach((item) => {
+      const key = `${item.client}-${item.month}`;
+      feeMap.set(key, item.fireTeamSpend);
+    });
+
+    return {
+      tableData: processed.tableData,
+      clients: processed.clients,
+      clientMonthFees: feeMap,
+    };
+  }, [clientMonthsData]);
+
+  // Process weekly economics
+  const weeklyEconomics = useMemo(() => {
+    if (!projectsData?.findProjects) return {};
+    return processProjectsForWeeklyEconomics(projectsData.findProjects, clientMonthFees);
+  }, [projectsData, clientMonthFees]);
+
+  // Get clients sorted by total deliverables (top 5)
+  const sortedClients = useMemo(() => {
+    return Object.entries(weeklyEconomics)
+      .map(([client, data]) => ({
+        client,
+        totalDeliverables: data.reduce((sum, d) => sum + d.deliverables, 0),
+        data,
+      }))
+      .sort((a, b) => b.totalDeliverables - a.totalDeliverables);
+  }, [weeklyEconomics]);
+
+  // Filter clients for display
+  const displayClients = useMemo(() => {
+    if (clientFilter === "top5") {
+      return sortedClients.slice(0, 5);
+    } else if (clientFilter === "all") {
+      return sortedClients;
+    } else {
+      return sortedClients.filter((c) => c.client === clientFilter);
+    }
+  }, [sortedClients, clientFilter]);
+
+  // Filter table data
+  const filteredTableData = useMemo(() => {
+    if (clientFilter === "top5") {
+      const top5Names = sortedClients.slice(0, 5).map((c) => c.client);
+      return tableData.filter((item) => top5Names.includes(item.client));
+    } else if (clientFilter === "all") {
+      return tableData;
+    } else {
+      return tableData.filter((item) => item.client === clientFilter);
+    }
+  }, [tableData, clientFilter, sortedClients]);
 
   if (isLoading) {
     return (
       <div className="space-y-6">
         <SectionHeader title="Client Economics" />
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {[1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="h-52" />
-          ))}
-        </div>
+        <Skeleton className="h-[300px]" />
+        <Skeleton className="h-[300px]" />
         <Skeleton className="h-96" />
       </div>
     );
@@ -61,25 +207,17 @@ export function ClientEconomics() {
     );
   }
 
-  const clientMonths = data?.findClientMonths || [];
-  const { tableData, chartData, clients } = processClientMonths(clientMonths);
-
-  // Filter table data by client
-  const filteredTableData =
-    clientFilter === "all"
-      ? tableData
-      : tableData.filter((item) => item.client === clientFilter);
-
   return (
     <div className="space-y-6">
-      <SectionHeader title="Client Economics">
+      <SectionHeader title="Client Economics (Weekly)">
         <Select value={clientFilter} onValueChange={setClientFilter}>
           <SelectTrigger className="w-48 bg-secondary/50 border-border/50">
             <SelectValue placeholder="Filter by client" />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="top5">Top 5 Clients</SelectItem>
             <SelectItem value="all">All Clients</SelectItem>
-            {clients.map((client) => (
+            {allClients.map((client) => (
               <SelectItem key={client} value={client}>
                 {client}
               </SelectItem>
@@ -88,29 +226,22 @@ export function ClientEconomics() {
         </Select>
       </SectionHeader>
 
-      {/* Legend */}
-      <div className="flex flex-wrap items-center gap-4 text-sm">
-        <span className="text-muted-foreground">$/Deliverable target:</span>
-        <div className="flex items-center gap-2">
-          <div className="h-3 w-3 rounded-sm bg-success" />
-          <span className="text-muted-foreground">&lt;$1,000 (over-resourced)</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="h-3 w-3 rounded-sm" style={{ backgroundColor: "hsl(215, 20%, 55%)" }} />
-          <span className="text-muted-foreground">$1,000-$2,000 (target)</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="h-3 w-3 rounded-sm bg-destructive" />
-          <span className="text-muted-foreground">&gt;$2,000 (under-resourced)</span>
-        </div>
+      {/* Full-width stacked charts - one per client */}
+      <div className="space-y-6">
+        {displayClients.length === 0 ? (
+          <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
+            <CardContent className="p-6">
+              <p className="text-center text-muted-foreground">
+                No weekly data available for selected clients
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          displayClients.map(({ client, data }) => (
+            <ClientWeeklyChart key={client} clientName={client} data={data} />
+          ))
+        )}
       </div>
-
-      {/* Small Multiples Bar Charts */}
-      <ClientSmallMultiples 
-        chartData={chartData} 
-        tableData={tableData} 
-        clients={clients} 
-      />
 
       {/* Data Table */}
       <Card className="border-border/50 bg-card/50 backdrop-blur-sm overflow-hidden">
