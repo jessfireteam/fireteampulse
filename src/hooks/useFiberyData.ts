@@ -143,28 +143,38 @@ export function processProjectsForHeartbeat(projects: Project[]) {
 
 // Process tasks data for Team Capacity
 export function processTasksForCapacity(tasks: Task[], roleFilter: string) {
+  // Use a fixed "today" date for consistency - Feb 4, 2026
   const now = new Date();
-  // Set to start of today for cleaner comparisons
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
   const lastWeekStart = subDays(today, 7);
   const lastMonthStart = subDays(today, 30);
   const nextWeekEnd = addDays(today, 7);
   const nextMonthEnd = addDays(today, 30);
 
-  console.log('[Capacity] Processing tasks, total count:', tasks.length);
-  console.log('[Capacity] Today (start of day):', today.toISOString());
+  console.log('[Capacity] ========== DEBUG START ==========');
+  console.log('[Capacity] Total tasks from API:', tasks.length);
+  console.log('[Capacity] Today:', today.toISOString());
   console.log('[Capacity] Last week range:', lastWeekStart.toISOString(), 'to', today.toISOString());
   console.log('[Capacity] Last month range:', lastMonthStart.toISOString(), 'to', today.toISOString());
 
-  // Log sample task dates
-  const completedTasks = tasks.filter(t => t.done && t.doneDate);
-  console.log('[Capacity] Total completed tasks with doneDate:', completedTasks.length);
-  if (completedTasks.length > 0) {
-    console.log('[Capacity] Sample completed task doneDates:', completedTasks.slice(0, 10).map(t => ({ 
-      name: t.name, 
-      doneDate: t.doneDate,
-      assignee: t.assignee?.name 
-    })));
+  // Log ALL task dates for debugging
+  const completedTasks = tasks.filter(t => t.done);
+  const tasksWithDoneDate = completedTasks.filter(t => t.doneDate);
+  
+  console.log('[Capacity] Tasks marked done:', completedTasks.length);
+  console.log('[Capacity] Tasks with doneDate:', tasksWithDoneDate.length);
+  
+  if (tasksWithDoneDate.length > 0) {
+    // Log first 20 done dates to see the format
+    console.log('[Capacity] Sample doneDates (raw):', tasksWithDoneDate.slice(0, 20).map(t => t.doneDate));
+    
+    // Test parsing
+    const sampleTask = tasksWithDoneDate[0];
+    console.log('[Capacity] Parsing test for:', sampleTask.doneDate);
+    const parsedDate = new Date(sampleTask.doneDate!);
+    console.log('[Capacity] Parsed with new Date():', parsedDate.toISOString());
+    const parsedISO = parseISO(sampleTask.doneDate!);
+    console.log('[Capacity] Parsed with parseISO():', parsedISO.toISOString());
   }
 
   // Filter by role if specified
@@ -179,7 +189,7 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string) {
     );
   }
 
-  console.log('[Capacity] Filtered tasks count:', filteredTasks.length);
+  console.log('[Capacity] After role filter:', filteredTasks.length);
 
   // Group by assignee
   const assigneeData: Record<
@@ -191,6 +201,9 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string) {
       assignedThisMonth: number;
     }
   > = {};
+
+  let debugCountLastWeek = 0;
+  let debugCountLastMonth = 0;
 
   filteredTasks.forEach((task) => {
     const assigneeName = task.assignee?.name || "Unassigned";
@@ -204,19 +217,23 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string) {
       };
     }
 
-    // Completed tasks - check if doneDate is within the range (inclusive)
+    // Completed tasks - use new Date() for parsing ISO strings
     if (task.done && task.doneDate) {
       try {
-        const doneDate = parseISO(task.doneDate);
+        const doneDate = new Date(task.doneDate);
         
-        // Check if completed in last 7 days (inclusive of both ends)
-        if (isWithinInterval(doneDate, { start: lastWeekStart, end: today })) {
+        // Check if completed in last 7 days
+        const inLastWeek = doneDate >= lastWeekStart && doneDate <= today;
+        if (inLastWeek) {
           assigneeData[assigneeName].completedLastWeek++;
+          debugCountLastWeek++;
         }
         
-        // Check if completed in last 30 days (inclusive of both ends)
-        if (isWithinInterval(doneDate, { start: lastMonthStart, end: today })) {
+        // Check if completed in last 30 days
+        const inLastMonth = doneDate >= lastMonthStart && doneDate <= today;
+        if (inLastMonth) {
           assigneeData[assigneeName].completedLastMonth++;
+          debugCountLastMonth++;
         }
       } catch (e) {
         console.error('[Capacity] Error parsing doneDate:', task.doneDate, e);
@@ -226,15 +243,16 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string) {
     // Assigned (not done) tasks - check dueDate
     if (!task.done && task.dueDate) {
       try {
-        const dueDate = parseISO(task.dueDate);
+        const dueDate = new Date(task.dueDate);
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         
-        // Check if due today or in next 7 days (inclusive)
-        if (isWithinInterval(dueDate, { start: today, end: nextWeekEnd })) {
+        // Check if due today or in next 7 days
+        if (dueDate >= todayStart && dueDate <= nextWeekEnd) {
           assigneeData[assigneeName].assignedThisWeek++;
         }
         
-        // Check if due today or in next 30 days (inclusive)
-        if (isWithinInterval(dueDate, { start: today, end: nextMonthEnd })) {
+        // Check if due today or in next 30 days
+        if (dueDate >= todayStart && dueDate <= nextMonthEnd) {
           assigneeData[assigneeName].assignedThisMonth++;
         }
       } catch (e) {
@@ -243,7 +261,10 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string) {
     }
   });
 
-  console.log('[Capacity] Assignee data:', assigneeData);
+  console.log('[Capacity] Total matched last week:', debugCountLastWeek);
+  console.log('[Capacity] Total matched last month:', debugCountLastMonth);
+  console.log('[Capacity] Assignee data:', JSON.stringify(assigneeData, null, 2));
+  console.log('[Capacity] ========== DEBUG END ==========');
 
   // Convert to array and sort
   return Object.entries(assigneeData)

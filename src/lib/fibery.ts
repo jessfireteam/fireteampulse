@@ -35,7 +35,7 @@ export async function queryFibery<T>(
 // GraphQL Queries
 export const PROJECTS_QUERY = `{
   findProjects(
-    limit: 500
+    limit: 1000
     status: { name: { is: "Completed" } }
   ) {
     id
