@@ -141,36 +141,14 @@ export function processProjectsForHeartbeat(projects: Project[]) {
   };
 }
 
-// Process tasks data for Team Capacity
-// Alternative approach: Count tasks from recently completed projects
-export function processTasksForCapacity(
-  tasks: Task[], 
-  roleFilter: string,
-  projects?: Project[]
-) {
+// Process tasks data for Team Capacity - simplified version
+export function processTasksForCapacity(tasks: Task[], roleFilter: string) {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
   const last7Days = subDays(today, 7);
   const last30Days = subDays(today, 30);
   const next7Days = addDays(today, 7);
   const next30Days = addDays(today, 30);
-
-  console.log('[Capacity] ========== DEBUG START ==========');
-  console.log('[Capacity] Total tasks from API:', tasks.length);
-  console.log('[Capacity] Today:', today.toISOString());
-
-  // Find recently completed projects (last 30 days)
-  let recentProjectNames = new Set<string>();
-  if (projects && projects.length > 0) {
-    const recentProjects = projects.filter((p) => {
-      if (!p.doneDate) return false;
-      const doneDate = new Date(p.doneDate);
-      return doneDate >= last30Days && doneDate <= today;
-    });
-    recentProjectNames = new Set(recentProjects.map((p) => p.name));
-    console.log('[Capacity] Recently completed projects (30 days):', recentProjects.length);
-    console.log('[Capacity] Sample recent project names:', Array.from(recentProjectNames).slice(0, 5));
-  }
 
   // Filter by role if specified
   let filteredTasks = tasks;
@@ -184,8 +162,6 @@ export function processTasksForCapacity(
     );
   }
 
-  console.log('[Capacity] After role filter:', filteredTasks.length);
-
   // Group by assignee
   const assigneeData: Record<
     string,
@@ -196,8 +172,6 @@ export function processTasksForCapacity(
       assignedThisMonth: number;
     }
   > = {};
-
-  let debugCountFromProjects = 0;
 
   filteredTasks.forEach((task) => {
     const assigneeName = task.assignee?.name || "Unassigned";
@@ -211,23 +185,8 @@ export function processTasksForCapacity(
       };
     }
 
-    // Approach 1: If task is done AND belongs to a recently completed project
-    if (task.done && task.project?.name && recentProjectNames.has(task.project.name)) {
-      // Check if the project was completed in last 7 or 30 days
-      // We already know it's in recentProjectNames (last 30 days)
-      assigneeData[assigneeName].completedLastMonth++;
-      debugCountFromProjects++;
-      
-      // For last 7 days, we'd need project doneDate - approximate by checking task doneDate if available
-      if (task.doneDate) {
-        const doneDate = new Date(task.doneDate);
-        if (doneDate >= last7Days && doneDate <= today) {
-          assigneeData[assigneeName].completedLastWeek++;
-        }
-      }
-    }
-    // Approach 2: Also count tasks with doneDate directly (fallback)
-    else if (task.done && task.doneDate) {
+    // Completed tasks
+    if (task.done && task.doneDate) {
       const doneDate = new Date(task.doneDate);
       if (doneDate >= last7Days && doneDate <= today) {
         assigneeData[assigneeName].completedLastWeek++;
@@ -237,38 +196,20 @@ export function processTasksForCapacity(
       }
     }
 
-    // Assigned (not done) tasks - check dueDate is in the future
-    if (task.done === false && task.dueDate) {
+    // Assigned (not done) tasks
+    if (!task.done && task.dueDate) {
       const dueDate = new Date(task.dueDate);
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       
-      // Due in next 7 days (from today onwards)
       if (dueDate >= todayStart && dueDate <= next7Days) {
         assigneeData[assigneeName].assignedThisWeek++;
       }
-      // Due in next 30 days (from today onwards)
       if (dueDate >= todayStart && dueDate <= next30Days) {
         assigneeData[assigneeName].assignedThisMonth++;
       }
     }
   });
 
-  // Debug: count tasks that are not done and have dueDates
-  const pendingWithDueDate = filteredTasks.filter(t => t.done === false && t.dueDate);
-  console.log('[Capacity] Pending tasks with dueDate:', pendingWithDueDate.length);
-  if (pendingWithDueDate.length > 0) {
-    console.log('[Capacity] Sample pending dueDates:', pendingWithDueDate.slice(0, 10).map(t => ({ 
-      dueDate: t.dueDate, 
-      done: t.done,
-      assignee: t.assignee?.name 
-    })));
-  }
-
-  console.log('[Capacity] Tasks matched via project association:', debugCountFromProjects);
-  console.log('[Capacity] Assignee data:', JSON.stringify(assigneeData, null, 2));
-  console.log('[Capacity] ========== DEBUG END ==========');
-
-  // Convert to array and sort by total activity
   return Object.entries(assigneeData)
     .filter(([name]) => name !== "Unassigned")
     .map(([name, data]) => ({

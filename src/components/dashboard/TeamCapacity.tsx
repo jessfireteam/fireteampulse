@@ -10,17 +10,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useTasksData, useProjectsData, processTasksForCapacity } from "@/hooks/useFiberyData";
+import { useTasksData, processTasksForCapacity } from "@/hooks/useFiberyData";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 export function TeamCapacity() {
   const [roleFilter, setRoleFilter] = useState("all");
-  const { data: tasksData, isLoading: loadingTasks, error: errorTasks } = useTasksData();
-  const { data: projectsData, isLoading: loadingProjects, error: errorProjects } = useProjectsData();
-
-  const isLoading = loadingTasks || loadingProjects;
-  const error = errorTasks || errorProjects;
+  const { data, isLoading, error } = useTasksData();
 
   if (isLoading) {
     return (
@@ -44,9 +40,8 @@ export function TeamCapacity() {
     );
   }
 
-  const tasks = tasksData?.findProjectSpecificTasks || [];
-  const projects = projectsData?.findProjects || [];
-  const teamData = processTasksForCapacity(tasks, roleFilter, projects);
+  const tasks = data?.findProjectSpecificTasks || [];
+  const teamData = processTasksForCapacity(tasks, roleFilter);
 
   const getCellStyle = (value: number, type: "assigned") => {
     if (type === "assigned") {

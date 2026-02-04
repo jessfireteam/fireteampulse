@@ -47,7 +47,7 @@ export const PROJECTS_QUERY = `{
 }`;
 
 export const TASKS_QUERY = `{
-  findProjectSpecificTasks(limit: 5000) {
+  findProjectSpecificTasks(limit: 3000) {
     id
     name
     done

@@ -8,37 +8,126 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { useClientMonthsData, processClientMonths } from "@/hooks/useFiberyData";
+import { useClientMonthsData, useProjectsData } from "@/hooks/useFiberyData";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
 import { ClientMonthlyChart } from "./ClientWeeklyChart";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, subMonths } from "date-fns";
 
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
+// Count deliverables from Projects endpoint by client + month
+function countDeliverablesFromProjects(
+  projects: Array<{
+    id: string;
+    name: string;
+    doneDate: string | null;
+    client: { name: string } | null;
+  }>
+) {
+  const deliverablesByClientMonth: Record<string, number> = {};
+  const now = new Date();
+  const twelveMonthsAgo = subMonths(now, 12);
+
+  projects.forEach((p) => {
+    if (!p.doneDate || !p.client?.name) return;
+    
+    const doneDate = new Date(p.doneDate);
+    // Only count projects from the last 12 months
+    if (doneDate < twelveMonthsAgo || doneDate > now) return;
+
+    const month = p.doneDate.substring(0, 7); // "2026-01"
+    const key = `${p.client.name}-${month}`;
+    deliverablesByClientMonth[key] = (deliverablesByClientMonth[key] || 0) + 1;
+  });
+
+  console.log('[Economics] Deliverables from Projects:', deliverablesByClientMonth);
+  return deliverablesByClientMonth;
 }
 
-// Process table data into monthly chart data per client
-function processForMonthlyCharts(
-  tableData: Array<{
+// Join Projects deliverables with Stats fee data
+function processClientEconomicsData(
+  clientMonths: Array<{
+    id: string;
+    name: string;
+    client: { name: string } | null;
+    month: { name: string } | null;
+    fireTeamSpend: number | null;
+  }>,
+  deliverablesByClientMonth: Record<string, number>
+) {
+  const now = new Date();
+  const currentMonthStr = format(now, "yyyy-MM");
+
+  // Build a map of client-month -> fireTeamSpend
+  const feesByClientMonth: Record<string, number> = {};
+  clientMonths.forEach((cm) => {
+    const monthMatch = cm.name?.match(/^(\d{4}-\d{2})/);
+    const monthStr = monthMatch ? monthMatch[1] : cm.month?.name || "";
+    const clientName = cm.client?.name || "Unknown";
+    
+    if (monthStr && monthStr <= currentMonthStr) {
+      const key = `${clientName}-${monthStr}`;
+      feesByClientMonth[key] = cm.fireTeamSpend || 0;
+    }
+  });
+
+  console.log('[Economics] Fees from Stats:', feesByClientMonth);
+
+  // Combine: get all unique client-month keys
+  const allKeys = new Set([
+    ...Object.keys(deliverablesByClientMonth),
+    ...Object.keys(feesByClientMonth),
+  ]);
+
+  const combined: Array<{
     client: string;
     month: string;
-    costPerDeliverable: number | null;
-    actualDeliverables: number;
+    deliverables: number;
     fireTeamSpend: number;
+    costPerDeliverable: number;
+  }> = [];
+
+  allKeys.forEach((key) => {
+    const [client, month] = [
+      key.substring(0, key.lastIndexOf("-")),
+      key.substring(key.lastIndexOf("-") - 4, key.lastIndexOf("-") + 3),
+    ];
+    
+    // Parse the key properly: "ClientName-2026-01" -> client = "ClientName", month = "2026-01"
+    const parts = key.split("-");
+    const monthPart = `${parts[parts.length - 2]}-${parts[parts.length - 1]}`;
+    const clientPart = parts.slice(0, -2).join("-");
+
+    const deliverables = deliverablesByClientMonth[key] || 0;
+    const fireTeamSpend = feesByClientMonth[key] || 0;
+    const costPerDeliverable = deliverables > 0 ? fireTeamSpend / deliverables : 0;
+
+    // Only include if we have both deliverables and fee data
+    if (deliverables > 0 && fireTeamSpend > 0) {
+      combined.push({
+        client: clientPart,
+        month: monthPart,
+        deliverables,
+        fireTeamSpend,
+        costPerDeliverable,
+      });
+    }
+  });
+
+  // Sort by month descending
+  combined.sort((a, b) => b.month.localeCompare(a.month));
+
+  console.log('[Economics] Combined data:', combined.slice(0, 10));
+
+  return combined;
+}
+
+// Group data by client for charts
+function groupByClient(
+  data: Array<{
+    client: string;
+    month: string;
+    deliverables: number;
+    fireTeamSpend: number;
+    costPerDeliverable: number;
   }>
 ) {
   const clientData: Record<
@@ -52,27 +141,23 @@ function processForMonthlyCharts(
     }>
   > = {};
 
-  tableData.forEach((item) => {
-    if (!item.month || item.costPerDeliverable === null || item.costPerDeliverable === 0) return;
-
-    const clientName = item.client;
-    if (!clientData[clientName]) {
-      clientData[clientName] = [];
+  data.forEach((item) => {
+    if (!clientData[item.client]) {
+      clientData[item.client] = [];
     }
 
-    // Parse month for label
     let monthLabel = item.month;
     try {
       monthLabel = format(parseISO(`${item.month}-01`), "MMM yy");
     } catch {
-      // Keep original if parsing fails
+      // Keep original
     }
 
-    clientData[clientName].push({
+    clientData[item.client].push({
       month: item.month,
       monthLabel,
       costPerDeliverable: item.costPerDeliverable,
-      deliverables: item.actualDeliverables,
+      deliverables: item.deliverables,
       fireTeamSpend: item.fireTeamSpend,
     });
   });
@@ -87,32 +172,44 @@ function processForMonthlyCharts(
 
 export function ClientEconomics() {
   const [clientFilter, setClientFilter] = useState<string>("top5");
-  const { data: clientMonthsData, isLoading, error } = useClientMonthsData();
+  const { data: clientMonthsData, isLoading: loadingMonths, error: errorMonths } = useClientMonthsData();
+  const { data: projectsData, isLoading: loadingProjects, error: errorProjects } = useProjectsData();
 
-  // Process data
-  const { tableData, clients: allClients } = useMemo(() => {
-    if (!clientMonthsData?.findClientMonths) {
-      return { tableData: [], clients: [] };
-    }
-    return processClientMonths(clientMonthsData.findClientMonths);
-  }, [clientMonthsData]);
+  const isLoading = loadingMonths || loadingProjects;
+  const error = errorMonths || errorProjects;
 
-  // Process for monthly charts - uses the SAME data as the table
-  const monthlyChartData = useMemo(() => {
-    return processForMonthlyCharts(tableData);
-  }, [tableData]);
+  // Count deliverables from Projects
+  const deliverablesByClientMonth = useMemo(() => {
+    if (!projectsData?.findProjects) return {};
+    return countDeliverablesFromProjects(projectsData.findProjects);
+  }, [projectsData]);
+
+  // Combine with fee data
+  const combinedData = useMemo(() => {
+    if (!clientMonthsData?.findClientMonths) return [];
+    return processClientEconomicsData(
+      clientMonthsData.findClientMonths,
+      deliverablesByClientMonth
+    );
+  }, [clientMonthsData, deliverablesByClientMonth]);
+
+  // Group by client
+  const clientChartData = useMemo(() => {
+    return groupByClient(combinedData);
+  }, [combinedData]);
 
   // Get clients sorted by total deliverables
   const sortedClients = useMemo(() => {
-    return Object.entries(monthlyChartData)
+    return Object.entries(clientChartData)
       .map(([client, data]) => ({
         client,
-        dataPoints: data.length,
         totalDeliverables: data.reduce((sum, d) => sum + d.deliverables, 0),
         data,
       }))
       .sort((a, b) => b.totalDeliverables - a.totalDeliverables);
-  }, [monthlyChartData]);
+  }, [clientChartData]);
+
+  const allClients = sortedClients.map((c) => c.client);
 
   // Filter clients for display
   const displayClients = useMemo(() => {
@@ -125,25 +222,12 @@ export function ClientEconomics() {
     }
   }, [sortedClients, clientFilter]);
 
-  // Filter table data
-  const filteredTableData = useMemo(() => {
-    if (clientFilter === "top5") {
-      const top5Names = sortedClients.slice(0, 5).map((c) => c.client);
-      return tableData.filter((item) => top5Names.includes(item.client));
-    } else if (clientFilter === "all") {
-      return tableData;
-    } else {
-      return tableData.filter((item) => item.client === clientFilter);
-    }
-  }, [tableData, clientFilter, sortedClients]);
-
   if (isLoading) {
     return (
       <div className="space-y-6">
         <SectionHeader title="Client Economics" />
         <Skeleton className="h-[300px]" />
         <Skeleton className="h-[300px]" />
-        <Skeleton className="h-96" />
       </div>
     );
   }
@@ -163,7 +247,7 @@ export function ClientEconomics() {
 
   return (
     <div className="space-y-6">
-      <SectionHeader title="Client Economics (Monthly $/Deliverable)">
+      <SectionHeader title="Client Economics ($/Deliverable)">
         <Select value={clientFilter} onValueChange={setClientFilter}>
           <SelectTrigger className="w-48 bg-secondary/50 border-border/50">
             <SelectValue placeholder="Filter by client" />
@@ -196,84 +280,6 @@ export function ClientEconomics() {
           ))
         )}
       </div>
-
-      {/* Data Table */}
-      <Card className="border-border/50 bg-card/50 backdrop-blur-sm overflow-hidden">
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="border-border/50 hover:bg-transparent">
-                  <TableHead className="text-muted-foreground font-semibold">Client</TableHead>
-                  <TableHead className="text-muted-foreground font-semibold">Month</TableHead>
-                  <TableHead className="text-right text-muted-foreground font-semibold">
-                    Ad Spend
-                  </TableHead>
-                  <TableHead className="text-right text-muted-foreground font-semibold">
-                    FireTeam Fee
-                  </TableHead>
-                  <TableHead className="text-center text-muted-foreground font-semibold">
-                    Deliverables
-                  </TableHead>
-                  <TableHead className="text-right text-muted-foreground font-semibold">
-                    $/Deliverable
-                  </TableHead>
-                  <TableHead className="text-center text-muted-foreground font-semibold">
-                    Status
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredTableData.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                      No data available
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredTableData.map((item) => (
-                    <TableRow key={item.id} className="border-border/50">
-                      <TableCell className="font-medium">{item.client}</TableCell>
-                      <TableCell className="text-muted-foreground">{item.month}</TableCell>
-                      <TableCell className="text-right font-mono">
-                        {formatCurrency(item.totalSpend)}
-                      </TableCell>
-                      <TableCell className="text-right font-mono">
-                        {formatCurrency(item.fireTeamSpend)}
-                      </TableCell>
-                      <TableCell className="text-center font-mono">
-                        {item.actualDeliverables}
-                      </TableCell>
-                      <TableCell className="text-right font-mono">
-                        {item.costPerDeliverable !== null
-                          ? formatCurrency(item.costPerDeliverable)
-                          : "N/A"}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {item.flag === "over" && (
-                          <Badge className="bg-success/20 text-success hover:bg-success/30">
-                            Over-resourced
-                          </Badge>
-                        )}
-                        {item.flag === "under" && (
-                          <Badge className="bg-destructive/20 text-destructive hover:bg-destructive/30">
-                            Under-resourced
-                          </Badge>
-                        )}
-                        {item.flag === "normal" && (
-                          <Badge variant="secondary" className="opacity-50">
-                            Normal
-                          </Badge>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

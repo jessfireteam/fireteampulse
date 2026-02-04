@@ -41,12 +41,12 @@ export function ClientMonthlyChart({ clientName, data }: ClientMonthlyChartProps
   const Y_AXIS_CAP = 15000;
   const hasClippedValues = data.some((d) => d.costPerDeliverable > Y_AXIS_CAP);
 
-  // Clip data for display
-  const displayData = data.map((d) => ({
-    ...d,
-    displayValue: Math.min(d.costPerDeliverable, Y_AXIS_CAP),
-    isClipped: d.costPerDeliverable > Y_AXIS_CAP,
-  }));
+  // Calculate actual max for proper scaling
+  const actualMax = Math.max(...data.map((d) => d.costPerDeliverable));
+  const effectiveMax = Math.min(actualMax, Y_AXIS_CAP);
+  
+  console.log(`[Chart ${clientName}] Data:`, data.map(d => ({ month: d.monthLabel, cost: d.costPerDeliverable })));
+  console.log(`[Chart ${clientName}] Max value: ${actualMax}, Effective max: ${effectiveMax}`);
 
   return (
     <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
@@ -62,7 +62,7 @@ export function ClientMonthlyChart({ clientName, data }: ClientMonthlyChartProps
         <div className="h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
-              data={displayData}
+              data={data}
               margin={{ top: 20, right: 30, left: 60, bottom: 40 }}
             >
               <CartesianGrid
@@ -107,15 +107,11 @@ export function ClientMonthlyChart({ clientName, data }: ClientMonthlyChartProps
                   fontSize: "13px",
                 }}
                 labelStyle={{ color: "hsl(210, 40%, 96%)", fontWeight: 600, marginBottom: 4 }}
-                formatter={(value: number, name: string, props: { payload: { costPerDeliverable: number; isClipped: boolean } }) => {
-                  // Show actual value in tooltip, not clipped
-                  const actualValue = props.payload.costPerDeliverable;
-                  return [formatCurrency(actualValue), "$/Deliverable"];
-                }}
+                formatter={(value: number) => [formatCurrency(value), "$/Deliverable"]}
                 labelFormatter={(label) => label}
               />
               <Bar
-                dataKey="displayValue"
+                dataKey="costPerDeliverable"
                 fill="hsl(25, 95%, 53%)"
                 radius={[4, 4, 0, 0]}
                 maxBarSize={50}
