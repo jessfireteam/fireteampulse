@@ -14,7 +14,7 @@ import { TrendSparkline } from "./TrendSparkline";
 function OverdueCell({ value }: { value: number }) {
   return (
     <TableCell className={cn(
-      "text-center font-mono text-xs font-semibold px-2",
+      "text-center font-mono text-sm font-semibold px-2",
       value > 0 ? "text-destructive" : "text-muted-foreground/50"
     )}>
       {value}
@@ -32,7 +32,7 @@ function Due7dCell({ due7d, avg7d }: { due7d: number; avg7d: number }) {
   };
   
   return (
-    <TableCell className={cn("text-center font-mono text-xs font-semibold px-2", getColor())}>
+    <TableCell className={cn("text-center font-mono text-sm font-semibold px-2", getColor())}>
       {due7d}
     </TableCell>
   );
@@ -41,7 +41,7 @@ function Due7dCell({ due7d, avg7d }: { due7d: number; avg7d: number }) {
 function DataCell({ value }: { value: number }) {
   return (
     <TableCell className={cn(
-      "text-center font-mono text-xs px-2",
+      "text-center font-mono text-sm px-2",
       value === 0 && "text-muted-foreground/50"
     )}>
       {value}
@@ -55,10 +55,10 @@ function PersonRow({ name, row }: { name: string; row: TaskTypeRow }) {
   return (
     <TableRow className="border-border/30 hover:bg-muted/20">
       <TableCell className="font-medium text-foreground text-sm py-2 px-3">{name}</TableCell>
-      <TableCell className="text-center font-mono text-xs px-2">
+      <TableCell className="text-center font-mono text-sm px-2">
         {row.avg30Day.toFixed(0)}
       </TableCell>
-      <TableCell className="text-center font-mono text-xs px-2">
+      <TableCell className="text-center font-mono text-sm px-2">
         {avg7d.toFixed(1)}
       </TableCell>
       <TableCell className="text-center px-1">
