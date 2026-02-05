@@ -38,6 +38,17 @@ function Due7dCell({ due7d, avg7d }: { due7d: number; avg7d: number }) {
   );
 }
 
+function DataCell({ value }: { value: number }) {
+  return (
+    <TableCell className={cn(
+      "text-center font-mono text-xs px-2",
+      value === 0 && "text-muted-foreground/50"
+    )}>
+      {value}
+    </TableCell>
+  );
+}
+
 function PersonRow({ name, row }: { name: string; row: TaskTypeRow }) {
   const avg7d = row.avg30Day / 4.3;
   
@@ -47,6 +58,9 @@ function PersonRow({ name, row }: { name: string; row: TaskTypeRow }) {
       <TableCell className="text-center font-mono text-xs px-2">
         {row.avg30Day.toFixed(0)}
       </TableCell>
+      <TableCell className="text-center font-mono text-xs px-2">
+        {avg7d.toFixed(1)}
+      </TableCell>
       <TableCell className="text-center px-1">
         <TrendSparkline 
           data={[row.weekMinus5, row.weekMinus4, row.weekMinus3, row.weekMinus2, row.weekMinus1]} 
@@ -54,6 +68,7 @@ function PersonRow({ name, row }: { name: string; row: TaskTypeRow }) {
       </TableCell>
       <OverdueCell value={row.overdue} />
       <Due7dCell due7d={row.due7Days} avg7d={avg7d} />
+      <DataCell value={row.due30Days} />
     </TableRow>
   );
 }
@@ -86,10 +101,12 @@ export function RoleCapacityCard({ group }: RoleCapacityCardProps) {
           <TableHeader>
             <TableRow className="border-border/50 hover:bg-transparent">
               <TableHead className="text-muted-foreground font-semibold text-xs py-2 px-3">Person</TableHead>
-              <TableHead className="text-center text-muted-foreground font-semibold text-xs px-2 w-12">30d</TableHead>
-              <TableHead className="text-center text-muted-foreground font-semibold text-xs px-1 w-16">Trend</TableHead>
-              <TableHead className="text-center text-muted-foreground font-semibold text-xs px-2 w-14">Over</TableHead>
-              <TableHead className="text-center text-muted-foreground font-semibold text-xs px-2 w-14">Due</TableHead>
+              <TableHead className="text-center text-muted-foreground font-semibold text-xs px-2 w-10">30d</TableHead>
+              <TableHead className="text-center text-muted-foreground font-semibold text-xs px-2 w-10">7d</TableHead>
+              <TableHead className="text-center text-muted-foreground font-semibold text-xs px-1 w-14">Trend</TableHead>
+              <TableHead className="text-center text-muted-foreground font-semibold text-xs px-2 w-10">Over</TableHead>
+              <TableHead className="text-center text-muted-foreground font-semibold text-xs px-2 w-10">7d</TableHead>
+              <TableHead className="text-center text-muted-foreground font-semibold text-xs px-2 w-10">30d</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
