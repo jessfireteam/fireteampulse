@@ -37,6 +37,22 @@ function AvgCell({ value }: { value: number }) {
   );
 }
 
+function Due7dCell({ due7d, avg7d }: { due7d: number; avg7d: number }) {
+  const getColor = () => {
+    if (avg7d === 0) return "text-muted-foreground";
+    const ratio = due7d / avg7d;
+    if (ratio >= 1.2) return "text-rose-500"; // 20%+ higher = overloaded
+    if (ratio <= 0.8) return "text-emerald-500"; // 20%+ lower = capacity
+    return "text-muted-foreground"; // normal
+  };
+  
+  return (
+    <TableCell className={cn("text-center font-mono text-sm font-semibold", getColor())}>
+      {due7d}
+    </TableCell>
+  );
+}
+
 export function TeamCapacity() {
   const [roleFilter, setRoleFilter] = useState("all");
   const { data, isLoading, error } = useTasksData();
@@ -93,6 +109,7 @@ export function TeamCapacity() {
                   <TableHead className="text-muted-foreground font-semibold w-40">Person</TableHead>
                   <TableHead className="text-muted-foreground font-semibold w-48">Task Type</TableHead>
                   <TableHead className="text-center text-muted-foreground font-semibold w-20">30d Avg</TableHead>
+                  <TableHead className="text-center text-muted-foreground font-semibold w-20">7d Avg</TableHead>
                   <TableHead className="text-center text-muted-foreground font-semibold w-28">Trend</TableHead>
                   <TableHead className="text-center text-muted-foreground font-semibold w-20">Due 7d</TableHead>
                   <TableHead className="text-center text-muted-foreground font-semibold w-20">Due 30d</TableHead>
@@ -101,7 +118,7 @@ export function TeamCapacity() {
               <TableBody>
                 {teamData.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                       No team members found
                     </TableCell>
                   </TableRow>
@@ -116,58 +133,68 @@ export function TeamCapacity() {
                           personIndex > 0 && "border-t-2 border-t-border"
                         )}
                       >
-                        <TableCell className="font-semibold text-foreground" colSpan={6}>
+                        <TableCell className="font-semibold text-foreground" colSpan={7}>
                           {person.name}
                         </TableCell>
                       </TableRow>
                       
                       {/* Task type rows */}
-                      {person.taskTypes.map((row) => (
-                        <TableRow 
-                          key={`${person.name}-${row.taskType}`} 
-                          className="border-border/30 hover:bg-muted/20"
-                        >
-                          <TableCell></TableCell>
-                          <TableCell className="text-sm text-foreground/80">{row.taskType}</TableCell>
-                          <AvgCell value={row.avg30Day} />
-                          <TableCell className="text-center">
-                            <TrendSparkline 
-                              data={[row.weekMinus5, row.weekMinus4, row.weekMinus3, row.weekMinus2, row.weekMinus1]} 
-                            />
-                          </TableCell>
-                          <DataCell value={row.due7Days} highlight />
-                          <DataCell value={row.due30Days} highlight />
-                        </TableRow>
-                      ))}
+                      {person.taskTypes.map((row) => {
+                        const avg7d = row.avg30Day / 4.3;
+                        return (
+                          <TableRow 
+                            key={`${person.name}-${row.taskType}`} 
+                            className="border-border/30 hover:bg-muted/20"
+                          >
+                            <TableCell></TableCell>
+                            <TableCell className="text-sm text-foreground/80">{row.taskType}</TableCell>
+                            <AvgCell value={row.avg30Day} />
+                            <TableCell className="text-center font-mono text-sm">
+                              {avg7d.toFixed(1)}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <TrendSparkline 
+                                data={[row.weekMinus5, row.weekMinus4, row.weekMinus3, row.weekMinus2, row.weekMinus1]} 
+                              />
+                            </TableCell>
+                            <Due7dCell due7d={row.due7Days} avg7d={avg7d} />
+                            <DataCell value={row.due30Days} />
+                          </TableRow>
+                        );
+                      })}
                       
                       {/* Subtotal row */}
-                      <TableRow 
-                        key={`${person.name}-subtotal`} 
-                        className="border-border/50 bg-primary/5"
-                      >
-                        <TableCell></TableCell>
-                        <TableCell className="font-semibold text-sm text-primary">Subtotal</TableCell>
-                        <TableCell className="text-center font-mono text-sm font-semibold text-primary">
-                          {person.subtotal.avg30Day.toFixed(1)}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <TrendSparkline 
-                            data={[
-                              person.subtotal.weekMinus5, 
-                              person.subtotal.weekMinus4, 
-                              person.subtotal.weekMinus3, 
-                              person.subtotal.weekMinus2, 
-                              person.subtotal.weekMinus1
-                            ]} 
-                          />
-                        </TableCell>
-                        <TableCell className="text-center font-mono text-sm font-semibold text-warning">
-                          {person.subtotal.due7Days}
-                        </TableCell>
-                        <TableCell className="text-center font-mono text-sm font-semibold text-warning">
-                          {person.subtotal.due30Days}
-                        </TableCell>
-                      </TableRow>
+                      {(() => {
+                        const subtotalAvg7d = person.subtotal.avg30Day / 4.3;
+                        return (
+                          <TableRow 
+                            key={`${person.name}-subtotal`} 
+                            className="border-border/50 bg-primary/5"
+                          >
+                            <TableCell></TableCell>
+                            <TableCell className="font-semibold text-sm text-primary">Subtotal</TableCell>
+                            <TableCell className="text-center font-mono text-sm font-semibold text-primary">
+                              {person.subtotal.avg30Day.toFixed(1)}
+                            </TableCell>
+                            <TableCell className="text-center font-mono text-sm font-semibold text-primary">
+                              {subtotalAvg7d.toFixed(1)}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <TrendSparkline 
+                                data={[
+                                  person.subtotal.weekMinus5, 
+                                  person.subtotal.weekMinus4, 
+                                  person.subtotal.weekMinus3, 
+                                  person.subtotal.weekMinus2, 
+                                  person.subtotal.weekMinus1
+                                ]} 
+                              />
+                            </TableCell>
+                            <Due7dCell due7d={person.subtotal.due7Days} avg7d={subtotalAvg7d} />
+                            <DataCell value={person.subtotal.due30Days} />
+                          </TableRow>
+                        );
+                      })()}
                     </>
                   ))
                 )}
