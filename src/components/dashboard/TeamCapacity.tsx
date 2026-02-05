@@ -1,7 +1,5 @@
-import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { SectionHeader } from "./SectionHeader";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -94,7 +92,6 @@ const ROLE_LABELS: Record<RoleGroup['role'], { label: string; taskLabel: string 
 };
 
 export function TeamCapacity() {
-  const [roleFilter, setRoleFilter] = useState("all");
   const { data, isLoading, error } = useTasksData();
 
   if (isLoading) {
@@ -120,34 +117,11 @@ export function TeamCapacity() {
   }
 
   const tasks = data?.findProjectSpecificTasks || [];
-  const roleGroups = processTasksForCapacity(tasks, roleFilter);
-
-  // Filter role groups based on tab selection
-  const filteredGroups = roleFilter === "all" 
-    ? roleGroups 
-    : roleGroups.filter(g => {
-        if (roleFilter === "video") return g.role === "Video";
-        if (roleFilter === "design") return g.role === "Design";
-        return true;
-      });
+  const roleGroups = processTasksForCapacity(tasks, "all");
 
   return (
     <div className="space-y-6">
-      <SectionHeader title="Team Capacity">
-        <Tabs value={roleFilter} onValueChange={setRoleFilter}>
-          <TabsList className="bg-secondary/50">
-            <TabsTrigger value="all" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              All
-            </TabsTrigger>
-            <TabsTrigger value="video" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              Video
-            </TabsTrigger>
-            <TabsTrigger value="design" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              Design
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </SectionHeader>
+      <SectionHeader title="Team Capacity" />
 
       <Card className="border-border/50 bg-card/50 backdrop-blur-sm overflow-hidden">
         <CardContent className="p-0">
@@ -165,14 +139,14 @@ export function TeamCapacity() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredGroups.length === 0 ? (
+                {roleGroups.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                       No team members found
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredGroups.map((group, groupIndex) => {
+                  roleGroups.map((group, groupIndex) => {
                     const roleInfo = ROLE_LABELS[group.role];
                     
                     return (
