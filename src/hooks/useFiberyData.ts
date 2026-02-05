@@ -217,19 +217,45 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Pers
   const next30Days = addDays(todayStart, 30);
   const last30Days = subDays(todayStart, 30);
 
-  // Debug: Log Jess's pending tasks with dueDate to verify date ranges
-  const jessPending = tasks.filter(t => 
-    t.assignee?.name?.includes('Jess') && 
-    !t.done
-  );
-  console.log('[Capacity] Reference date: Feb 4, 2026');
-  console.log('[Capacity] Due date range: 7d =', format(todayStart, 'MMM d'), 'to', format(next7Days, 'MMM d'));
-  console.log('[Capacity] Due date range: 30d =', format(todayStart, 'MMM d'), 'to', format(next30Days, 'MMM d'));
-  console.log('[Capacity] Jess pending tasks with dueDates:', jessPending.filter(t => t.dueDate).map(t => ({
+  // DEBUG: Detailed analysis for Jess Bachman
+  const jessAllTasks = tasks.filter(t => t.assignee?.name?.includes('Jess'));
+  const jessCompletedTasks = jessAllTasks.filter(t => t.done && t.doneDate);
+  const jessReviewTasks = jessCompletedTasks.filter(t => getTaskCategory(t.name) === 'Review');
+  const jessReviewIn30Days = jessReviewTasks.filter(t => {
+    const doneDate = parseTaskDate(t.doneDate);
+    return doneDate && doneDate >= last30Days && doneDate <= today;
+  });
+
+  console.log('[DEBUG Jess] Total tasks with assignee containing "Jess":', jessAllTasks.length);
+  console.log('[DEBUG Jess] Completed tasks (done=true, has doneDate):', jessCompletedTasks.length);
+  console.log('[DEBUG Jess] Tasks categorized as "Review":', jessReviewTasks.length);
+  console.log('[DEBUG Jess] Review tasks in last 30 days:', jessReviewIn30Days.length);
+  console.log('[DEBUG Jess] Task categorization uses: task.name field with keyword matching');
+  console.log('[DEBUG Jess] 5 sample tasks COUNTED as Jess + Review in 30d:', jessReviewIn30Days.slice(0, 5).map(t => ({
     name: t.name,
-    dueDate: t.dueDate,
-    parsedDue: parseTaskDate(t.dueDate)?.toISOString(),
-  })).slice(0, 15));
+    assignee: t.assignee?.name,
+    doneDate: t.doneDate,
+    category: getTaskCategory(t.name),
+  })));
+  
+  // Find tasks that are NOT being counted - either wrong category or outside date range
+  const jessNotCountedReview = jessCompletedTasks.filter(t => {
+    const doneDate = parseTaskDate(t.doneDate);
+    const inDateRange = doneDate && doneDate >= last30Days && doneDate <= today;
+    const isReview = getTaskCategory(t.name) === 'Review';
+    // Either: in date range but not categorized as Review, OR is Review but not in date range
+    return (inDateRange && !isReview) || (isReview && !inDateRange);
+  });
+  console.log('[DEBUG Jess] 5 sample tasks NOT counted (wrong category or date):', jessNotCountedReview.slice(0, 5).map(t => ({
+    name: t.name,
+    assignee: t.assignee?.name,
+    doneDate: t.doneDate,
+    category: getTaskCategory(t.name),
+    inDateRange: (() => {
+      const d = parseTaskDate(t.doneDate);
+      return d && d >= last30Days && d <= today;
+    })(),
+  })));
 
   // Get week boundaries for last 5 weeks
   const weeks = [
