@@ -10,9 +10,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useTasksData, processTasksForCapacity, TaskTypeRow } from "@/hooks/useFiberyData";
+import { useTasksData, processTasksForCapacity } from "@/hooks/useFiberyData";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { TrendSparkline } from "./TrendSparkline";
 
 function DataCell({ value, highlight = false }: { value: number; highlight?: boolean }) {
   return (
@@ -92,11 +93,7 @@ export function TeamCapacity() {
                   <TableHead className="text-muted-foreground font-semibold w-40">Person</TableHead>
                   <TableHead className="text-muted-foreground font-semibold w-48">Task Type</TableHead>
                   <TableHead className="text-center text-muted-foreground font-semibold w-20">30d Avg</TableHead>
-                  <TableHead className="text-center text-muted-foreground font-semibold w-14">W-5</TableHead>
-                  <TableHead className="text-center text-muted-foreground font-semibold w-14">W-4</TableHead>
-                  <TableHead className="text-center text-muted-foreground font-semibold w-14">W-3</TableHead>
-                  <TableHead className="text-center text-muted-foreground font-semibold w-14">W-2</TableHead>
-                  <TableHead className="text-center text-muted-foreground font-semibold w-14">W-1</TableHead>
+                  <TableHead className="text-center text-muted-foreground font-semibold w-28">Trend</TableHead>
                   <TableHead className="text-center text-muted-foreground font-semibold w-20">Due 7d</TableHead>
                   <TableHead className="text-center text-muted-foreground font-semibold w-20">Due 30d</TableHead>
                 </TableRow>
@@ -104,7 +101,7 @@ export function TeamCapacity() {
               <TableBody>
                 {teamData.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                       No team members found
                     </TableCell>
                   </TableRow>
@@ -119,7 +116,7 @@ export function TeamCapacity() {
                           personIndex > 0 && "border-t-2 border-t-border"
                         )}
                       >
-                        <TableCell className="font-semibold text-foreground" colSpan={10}>
+                        <TableCell className="font-semibold text-foreground" colSpan={6}>
                           {person.name}
                         </TableCell>
                       </TableRow>
@@ -133,11 +130,11 @@ export function TeamCapacity() {
                           <TableCell></TableCell>
                           <TableCell className="text-sm text-foreground/80">{row.taskType}</TableCell>
                           <AvgCell value={row.avg30Day} />
-                          <DataCell value={row.weekMinus5} />
-                          <DataCell value={row.weekMinus4} />
-                          <DataCell value={row.weekMinus3} />
-                          <DataCell value={row.weekMinus2} />
-                          <DataCell value={row.weekMinus1} />
+                          <TableCell className="text-center">
+                            <TrendSparkline 
+                              data={[row.weekMinus5, row.weekMinus4, row.weekMinus3, row.weekMinus2, row.weekMinus1]} 
+                            />
+                          </TableCell>
                           <DataCell value={row.due7Days} highlight />
                           <DataCell value={row.due30Days} highlight />
                         </TableRow>
@@ -153,20 +150,16 @@ export function TeamCapacity() {
                         <TableCell className="text-center font-mono text-sm font-semibold text-primary">
                           {person.subtotal.avg30Day.toFixed(1)}
                         </TableCell>
-                        <TableCell className="text-center font-mono text-sm font-semibold">
-                          {person.subtotal.weekMinus5}
-                        </TableCell>
-                        <TableCell className="text-center font-mono text-sm font-semibold">
-                          {person.subtotal.weekMinus4}
-                        </TableCell>
-                        <TableCell className="text-center font-mono text-sm font-semibold">
-                          {person.subtotal.weekMinus3}
-                        </TableCell>
-                        <TableCell className="text-center font-mono text-sm font-semibold">
-                          {person.subtotal.weekMinus2}
-                        </TableCell>
-                        <TableCell className="text-center font-mono text-sm font-semibold">
-                          {person.subtotal.weekMinus1}
+                        <TableCell className="text-center">
+                          <TrendSparkline 
+                            data={[
+                              person.subtotal.weekMinus5, 
+                              person.subtotal.weekMinus4, 
+                              person.subtotal.weekMinus3, 
+                              person.subtotal.weekMinus2, 
+                              person.subtotal.weekMinus1
+                            ]} 
+                          />
                         </TableCell>
                         <TableCell className="text-center font-mono text-sm font-semibold text-warning">
                           {person.subtotal.due7Days}
