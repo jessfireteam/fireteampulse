@@ -85,8 +85,9 @@ export function TrendSparkline({ data, className }: TrendSparklineProps) {
       </HoverCardTrigger>
       <HoverCardContent 
         className="w-80 p-4 bg-card border-border/50"
-        side="top"
+        side="bottom"
         align="center"
+        sideOffset={8}
       >
         <div className="space-y-3">
           <div className="flex items-center justify-between">
