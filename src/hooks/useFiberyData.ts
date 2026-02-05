@@ -365,7 +365,7 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Pers
       const taskTypeRows: TaskTypeRow[] = Object.entries(taskTypes)
         .map(([taskType, data]) => ({
           taskType,
-          avg30Day: Math.round((data.last30DaysTotal / 4) * 10) / 10, // 30 days ≈ 4 weeks
+          avg30Day: data.last30DaysTotal, // Total completed in last 30 days
           weekMinus5: data.weekCounts[4],
           weekMinus4: data.weekCounts[3],
           weekMinus3: data.weekCounts[2],
