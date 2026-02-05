@@ -1,16 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import {
   queryFibery,
-  PROJECTS_QUERY,
-  COMPLETED_TASKS_QUERY,
-  PENDING_TASKS_QUERY,
-  CLIENT_MONTHS_QUERY,
   ProjectsResponse,
   TasksResponse,
   ClientMonthsResponse,
   Project,
   Task,
-  ClientMonth,
 } from "@/lib/fibery";
 import {
   startOfWeek,
@@ -23,16 +18,14 @@ import {
   parseISO,
   format,
   addDays,
-  isAfter,
-  isBefore,
 } from "date-fns";
 
 // Hook for Projects data
 export function useProjectsData() {
   return useQuery({
     queryKey: ["fibery-projects"],
-    queryFn: () => queryFibery<ProjectsResponse>("projects", PROJECTS_QUERY),
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    queryFn: () => queryFibery<ProjectsResponse>("projects"),
+    staleTime: 5 * 60 * 1000,
     retry: 2,
   });
 }
@@ -42,20 +35,14 @@ export function useTasksData() {
   return useQuery({
     queryKey: ["fibery-tasks"],
     queryFn: async () => {
-      // Fetch both queries in parallel
       const [completedRes, pendingRes] = await Promise.all([
-        queryFibery<TasksResponse>("projects", COMPLETED_TASKS_QUERY),
-        queryFibery<TasksResponse>("projects", PENDING_TASKS_QUERY),
+        queryFibery<TasksResponse>("tasks"),
+        queryFibery<TasksResponse>("pending-tasks"),
       ]);
 
-      // Combine and deduplicate by task ID
       const tasksMap = new Map<string, Task>();
       completedRes.findProjectSpecificTasks.forEach(t => tasksMap.set(t.id, t));
       pendingRes.findProjectSpecificTasks.forEach(t => tasksMap.set(t.id, t));
-
-      console.log('[Tasks] Completed tasks fetched:', completedRes.findProjectSpecificTasks.length);
-      console.log('[Tasks] Pending tasks fetched:', pendingRes.findProjectSpecificTasks.length);
-      console.log('[Tasks] Combined unique tasks:', tasksMap.size);
 
       return {
         findProjectSpecificTasks: Array.from(tasksMap.values()),
@@ -70,7 +57,7 @@ export function useTasksData() {
 export function useClientMonthsData() {
   return useQuery({
     queryKey: ["fibery-client-months"],
-    queryFn: () => queryFibery<ClientMonthsResponse>("stats", CLIENT_MONTHS_QUERY),
+    queryFn: () => queryFibery<ClientMonthsResponse>("client-months"),
     staleTime: 5 * 60 * 1000,
     retry: 2,
   });
@@ -81,24 +68,12 @@ export function processProjectsForHeartbeat(projects: Project[], viewMode: 'week
   const now = new Date();
   const sixMonthsAgo = subMonths(now, 6);
 
-  console.log('[Heartbeat] Processing projects, total count:', projects.length);
-  console.log('[Heartbeat] Current date:', now.toISOString());
-  console.log('[Heartbeat] Six months ago:', sixMonthsAgo.toISOString());
-
-  // Filter to last 6 months
   const recentProjects = projects.filter((p) => {
     if (!p.doneDate) return false;
     const date = parseISO(p.doneDate);
-    const isRecent = date >= sixMonthsAgo && date <= now;
-    return isRecent;
+    return date >= sixMonthsAgo && date <= now;
   });
 
-  console.log('[Heartbeat] Recent projects (last 6 months):', recentProjects.length);
-  if (recentProjects.length > 0) {
-    console.log('[Heartbeat] Sample project doneDates:', recentProjects.slice(0, 5).map(p => p.doneDate));
-  }
-
-  // Group by time period and client
   const periodData: Record<string, Record<string, number>> = {};
   const clients = new Set<string>();
 
@@ -122,7 +97,6 @@ export function processProjectsForHeartbeat(projects: Project[], viewMode: 'week
     periodData[periodKey][clientName] = (periodData[periodKey][clientName] || 0) + 1;
   });
 
-  // Convert to chart format
   const chartData = Object.entries(periodData)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([period, clientCounts]) => ({
@@ -132,23 +106,14 @@ export function processProjectsForHeartbeat(projects: Project[], viewMode: 'week
       ...clientCounts,
     }));
 
-  // Calculate KPIs - use current month
   const thisMonthStart = startOfMonth(now);
   const thisMonthEnd = endOfMonth(now);
-
-  console.log('[Heartbeat] This month range:', thisMonthStart.toISOString(), 'to', thisMonthEnd.toISOString());
 
   const projectsThisMonth = recentProjects.filter((p) => {
     if (!p.doneDate) return false;
     const date = parseISO(p.doneDate);
-    const inMonth = isWithinInterval(date, { start: thisMonthStart, end: thisMonthEnd });
-    return inMonth;
+    return isWithinInterval(date, { start: thisMonthStart, end: thisMonthEnd });
   });
-
-  console.log('[Heartbeat] Projects this month:', projectsThisMonth.length);
-  if (projectsThisMonth.length > 0) {
-    console.log('[Heartbeat] This month project dates:', projectsThisMonth.map(p => p.doneDate));
-  }
 
   const activeClients = new Set(
     projectsThisMonth.map((p) => p.client?.name).filter(Boolean)
@@ -220,21 +185,14 @@ export interface RoleGroup {
 
 // Explicit role assignments with primary task types
 const ROLE_ASSIGNMENTS: Record<string, { role: RoleType; primaryTaskType: string }[]> = {
-  // Account
   'Niki Brazier': [{ role: 'Account', primaryTaskType: 'Approvals' }],
   'Emily Peter': [{ role: 'Account', primaryTaskType: 'Approvals' }],
   'amanda@fireteam.is': [{ role: 'Account', primaryTaskType: 'Approvals' }],
-  
-  // Copywriters
   'Jess Bachman': [{ role: 'Copywriters', primaryTaskType: 'Brief Work' }],
   'riteesh@fireteam.is': [{ role: 'Copywriters', primaryTaskType: 'Brief Work' }],
   'shreya8881@gmail.com': [{ role: 'Copywriters', primaryTaskType: 'Brief Work' }],
-  
-  // Design
   'Erik Furtado': [{ role: 'Design', primaryTaskType: 'Design' }],
   'Reynelle Reid': [{ role: 'Design', primaryTaskType: 'Design' }],
-  
-  // Video
   'Vaiv Singh': [{ role: 'Video', primaryTaskType: 'Video Editing' }],
   'Sanchit': [{ role: 'Video', primaryTaskType: 'Video Editing' }],
   'Ike': [{ role: 'Video', primaryTaskType: 'Video Editing' }],
@@ -242,19 +200,14 @@ const ROLE_ASSIGNMENTS: Record<string, { role: RoleType; primaryTaskType: string
     { role: 'Video', primaryTaskType: 'Video Editing' },
     { role: 'Other', primaryTaskType: 'Assignments' },
   ],
-  
-  // Other
-  'Nicolle Valladares': [{ role: 'Other', primaryTaskType: 'Other' }], // Cast Creator
+  'Nicolle Valladares': [{ role: 'Other', primaryTaskType: 'Other' }],
   'Jada Hall': [{ role: 'Other', primaryTaskType: 'Upload' }],
 };
 
-// Helper to match assignee name to role assignments (handles partial matches)
 function getAssigneeRoles(assigneeName: string): { role: RoleType; primaryTaskType: string }[] | null {
-  // Direct match
   if (ROLE_ASSIGNMENTS[assigneeName]) {
     return ROLE_ASSIGNMENTS[assigneeName];
   }
-  // Check if name contains or is contained by any key
   for (const [key, value] of Object.entries(ROLE_ASSIGNMENTS)) {
     if (assigneeName.includes(key) || key.includes(assigneeName)) {
       return value;
@@ -263,7 +216,6 @@ function getAssigneeRoles(assigneeName: string): { role: RoleType; primaryTaskTy
   return null;
 }
 
-// Helper to parse date strings (handles both '2026-02-11' and '2026-02-11T00:00:00Z' formats)
 function parseTaskDate(dateStr: string | null | undefined): Date | null {
   if (!dateStr) return null;
   return new Date(dateStr);
@@ -271,70 +223,20 @@ function parseTaskDate(dateStr: string | null | undefined): Date | null {
 
 // Process tasks data for Team Capacity with task type breakdown
 export function processTasksForCapacity(tasks: Task[], roleFilter: string): RoleGroup[] {
-  // Reference date: Feb 4, 2026 (matches the data's time context)
-  const now = new Date('2026-02-04T12:00:00Z');
-  const today = new Date(2026, 1, 4, 23, 59, 59); // Feb 4, 2026 end of day
-  const todayStart = new Date(2026, 1, 4, 0, 0, 0); // Feb 4, 2026 start of day
+  const todayStart = new Date(2026, 1, 4, 0, 0, 0);
+  const today = new Date(2026, 1, 4, 23, 59, 59);
   const next7Days = addDays(todayStart, 7);
   const next30Days = addDays(todayStart, 30);
   const last30Days = subDays(todayStart, 30);
 
-  // DEBUG: Detailed analysis for Jess Bachman
-  const jessAllTasks = tasks.filter(t => t.assignee?.name?.includes('Jess'));
-  const jessCompletedTasks = jessAllTasks.filter(t => t.done && t.doneDate);
-  const jessReviewTasks = jessCompletedTasks.filter(t => getTaskCategory(t.name) === 'Review');
-  const jessReviewIn30Days = jessReviewTasks.filter(t => {
-    const doneDate = parseTaskDate(t.doneDate);
-    return doneDate && doneDate >= last30Days && doneDate <= today;
-  });
-
-  console.log('[DEBUG Jess] Total tasks with assignee containing "Jess":', jessAllTasks.length);
-  console.log('[DEBUG Jess] Completed tasks (done=true, has doneDate):', jessCompletedTasks.length);
-  console.log('[DEBUG Jess] Tasks categorized as "Review":', jessReviewTasks.length);
-  console.log('[DEBUG Jess] Review tasks in last 30 days:', jessReviewIn30Days.length);
-  console.log('[DEBUG Jess] Task categorization uses: task.name field with keyword matching');
-  console.log('[DEBUG Jess] 5 sample tasks COUNTED as Jess + Review in 30d:', jessReviewIn30Days.slice(0, 5).map(t => ({
-    name: t.name,
-    assignee: t.assignee?.name,
-    doneDate: t.doneDate,
-    category: getTaskCategory(t.name),
-  })));
-  
-  // Find tasks that are NOT being counted - either wrong category or outside date range
-  const jessNotCountedReview = jessCompletedTasks.filter(t => {
-    const doneDate = parseTaskDate(t.doneDate);
-    const inDateRange = doneDate && doneDate >= last30Days && doneDate <= today;
-    const isReview = getTaskCategory(t.name) === 'Review';
-    // Either: in date range but not categorized as Review, OR is Review but not in date range
-    return (inDateRange && !isReview) || (isReview && !inDateRange);
-  });
-  console.log('[DEBUG Jess] 5 sample tasks NOT counted (wrong category or date):', jessNotCountedReview.slice(0, 5).map(t => ({
-    name: t.name,
-    assignee: t.assignee?.name,
-    doneDate: t.doneDate,
-    category: getTaskCategory(t.name),
-    inDateRange: (() => {
-      const d = parseTaskDate(t.doneDate);
-      return d && d >= last30Days && d <= today;
-    })(),
-  })));
-
-  // Get week boundaries for last 5 weeks
   const weeks = [
-    getWeekBoundaries(todayStart, 1), // Week -1 (last week)
-    getWeekBoundaries(todayStart, 2), // Week -2
-    getWeekBoundaries(todayStart, 3), // Week -3
-    getWeekBoundaries(todayStart, 4), // Week -4
-    getWeekBoundaries(todayStart, 5), // Week -5
+    getWeekBoundaries(todayStart, 1),
+    getWeekBoundaries(todayStart, 2),
+    getWeekBoundaries(todayStart, 3),
+    getWeekBoundaries(todayStart, 4),
+    getWeekBoundaries(todayStart, 5),
   ];
 
-  console.log('[Capacity] Week boundaries:', weeks.map((w, i) => ({
-    week: `W-${i + 1}`,
-    start: format(w.start, 'MMM d'),
-    end: format(w.end, 'MMM d'),
-  })));
-
-  // Filter by role if specified
   let filteredTasks = tasks;
   if (roleFilter === "video") {
     filteredTasks = tasks.filter((t) =>
@@ -346,7 +248,6 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
     );
   }
 
-  // Group by assignee and task type
   const personData: Record<string, Record<string, {
     weekCounts: number[];
     overdue: number;
@@ -355,10 +256,6 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
     last30DaysTotal: number;
   }>> = {};
 
-  // Debug counter for 30-day completed tasks
-  let debugLast30DaysCount = 0;
-  const debugSample30Day: Array<{ name: string; assignee: string; doneDate: string }> = [];
-  
   filteredTasks.forEach((task) => {
     const assigneeName = task.assignee?.name;
     if (!assigneeName) return;
@@ -370,7 +267,7 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
     }
     if (!personData[assigneeName][taskType]) {
       personData[assigneeName][taskType] = {
-        weekCounts: [0, 0, 0, 0, 0], // W-1 to W-5
+        weekCounts: [0, 0, 0, 0, 0],
         overdue: 0,
         due7Days: 0,
         due30Days: 0,
@@ -380,25 +277,14 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
 
     const data = personData[assigneeName][taskType];
 
-    // Completed tasks - check which week they were done in
     if (task.done && task.doneDate) {
       const doneDate = parseTaskDate(task.doneDate);
       if (!doneDate) return;
       
-      // Check last 30 days for average
       if (doneDate >= last30Days && doneDate <= today) {
         data.last30DaysTotal++;
-        debugLast30DaysCount++;
-        if (debugSample30Day.length < 20) {
-          debugSample30Day.push({
-            name: task.name,
-            assignee: assigneeName,
-            doneDate: task.doneDate,
-          });
-        }
       }
       
-      // Check each week
       weeks.forEach((week, index) => {
         if (isWithinInterval(doneDate, { start: week.start, end: week.end })) {
           data.weekCounts[index]++;
@@ -406,15 +292,12 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
       });
     }
 
-    // Pending tasks with due dates
     if (!task.done && task.dueDate) {
       const dueDate = parseTaskDate(task.dueDate);
       if (!dueDate) return;
       
-      // Normalize dueDate to start of day for comparison
       const dueDateNormalized = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
       
-      // Overdue: due date is before today
       if (dueDateNormalized < todayStart) {
         data.overdue++;
       }
@@ -428,13 +311,11 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
     }
   });
 
-  // Convert to structured output - only include people with explicit role assignments
-  // For people in multiple roles (like Kenny), create separate entries
   const people: PersonCapacity[] = [];
   
   Object.entries(personData).forEach(([name, taskTypes]) => {
     const roles = getAssigneeRoles(name);
-    if (!roles) return; // Skip people not in our role assignments
+    if (!roles) return;
     
     const taskTypeRows: TaskTypeRow[] = Object.entries(taskTypes)
       .map(([taskType, data]) => ({
@@ -456,7 +337,6 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
       })
       .sort((a, b) => b.avg30Day - a.avg30Day);
 
-    // Calculate subtotal
     const subtotal: TaskTypeRow = {
       taskType: 'Subtotal',
       avg30Day: Math.round(taskTypeRows.reduce((sum, r) => sum + r.avg30Day, 0) * 10) / 10,
@@ -470,7 +350,6 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
       due30Days: taskTypeRows.reduce((sum, r) => sum + r.due30Days, 0),
     };
 
-    // Create entry for each role assignment (allows people like Kenny to appear in multiple roles)
     roles.forEach(({ role, primaryTaskType }) => {
       people.push({
         name,
@@ -482,25 +361,13 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
     });
   });
 
-  // Sort by subtotal within each role
   people.sort((a, b) => b.subtotal.avg30Day - a.subtotal.avg30Day);
 
-  // Group by role
   const roleOrder: RoleType[] = ['Account', 'Copywriters', 'Design', 'Video', 'Other'];
-  const result: RoleGroup[] = roleOrder
+  return roleOrder
     .map(role => ({
       role,
       people: people.filter(p => p.role === role),
     }))
     .filter(group => group.people.length > 0);
-
-  console.log('[Capacity] Total completed tasks in last 30 days:', debugLast30DaysCount);
-  console.log('[Capacity] 30-day range:', format(last30Days, 'MMM d'), 'to', format(today, 'MMM d'));
-  console.log('[Capacity] Processed persons:', people.length);
-  console.log('[Capacity] Role groups:', result.map(g => `${g.role}: ${g.people.length}`));
-
-  return result;
 }
-
-// Note: Client Economics processing has been moved to ClientEconomics.tsx
-// to use Fibery's pre-calculated costPerDeliverable from pricingPlanMonths

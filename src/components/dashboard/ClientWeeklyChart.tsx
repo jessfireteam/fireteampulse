@@ -39,14 +39,8 @@ export function ClientMonthlyChart({ clientName, data }: ClientMonthlyChartProps
 
   // Cap Y-axis at $4,000 to show detail in the $1k-$2k target range
   const Y_AXIS_CAP = 4000;
-  const hasClippedValues = data.some((d) => d.costPerDeliverable > Y_AXIS_CAP);
-
-  // Calculate actual max for proper scaling
   const actualMax = Math.max(...data.map((d) => d.costPerDeliverable));
-  const effectiveMax = Math.min(actualMax, Y_AXIS_CAP);
-  
-  console.log(`[Chart ${clientName}] Data:`, data.map(d => ({ month: d.monthLabel, cost: d.costPerDeliverable })));
-  console.log(`[Chart ${clientName}] Max value: ${actualMax}, Effective max: ${effectiveMax}`);
+  const hasClippedValues = actualMax > Y_AXIS_CAP;
 
   return (
     <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
