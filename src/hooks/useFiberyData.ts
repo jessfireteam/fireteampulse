@@ -266,6 +266,10 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Pers
     last30DaysTotal: number;
   }>> = {};
 
+  // Debug counter for 30-day completed tasks
+  let debugLast30DaysCount = 0;
+  const debugSample30Day: Array<{ name: string; assignee: string; doneDate: string }> = [];
+  
   filteredTasks.forEach((task) => {
     const assigneeName = task.assignee?.name;
     if (!assigneeName) return;
@@ -294,6 +298,14 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Pers
       // Check last 30 days for average
       if (doneDate >= last30Days && doneDate <= today) {
         data.last30DaysTotal++;
+        debugLast30DaysCount++;
+        if (debugSample30Day.length < 20) {
+          debugSample30Day.push({
+            name: task.name,
+            assignee: assigneeName,
+            doneDate: task.doneDate,
+          });
+        }
       }
       
       // Check each week
@@ -367,6 +379,10 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Pers
     .filter(person => person.taskTypes.length > 0)
     .sort((a, b) => b.subtotal.avg30Day - a.subtotal.avg30Day);
 
+  console.log('[Capacity] Total completed tasks in last 30 days:', debugLast30DaysCount);
+  console.log('[Capacity] 30-day range:', format(last30Days, 'MMM d'), 'to', format(today, 'MMM d'));
+  console.log('[Capacity] Sample 30-day completed tasks:', debugSample30Day);
+  console.log('[Capacity] Completed tasks (done=true) in input:', filteredTasks.filter(t => t.done).length);
   console.log('[Capacity] Processed persons:', result.length);
   console.log('[Capacity] Sample person data:', result[0]);
 
