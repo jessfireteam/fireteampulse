@@ -89,7 +89,7 @@ export function RoleCapacityCard({ group }: RoleCapacityCardProps) {
   const roleInfo = ROLE_LABELS[group.role];
   
   return (
-    <Card className="border-border/50 bg-card/50 backdrop-blur-sm overflow-hidden">
+    <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
       <CardHeader className="py-3 px-4 bg-primary/10 border-b border-border/30">
         <CardTitle className="text-sm font-bold text-primary flex items-center justify-between">
           <span>{roleInfo.label}</span>
