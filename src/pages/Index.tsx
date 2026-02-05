@@ -2,8 +2,20 @@ import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { AgencyHeartbeat } from "@/components/dashboard/AgencyHeartbeat";
 import { TeamCapacity } from "@/components/dashboard/TeamCapacity";
 import { ClientEconomics } from "@/components/dashboard/ClientEconomics";
+import { useAuth } from "@/hooks/useAuth";
+import { Loader2 } from "lucide-react";
 
 const Index = () => {
+  const { loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       {/* Subtle background gradient */}
