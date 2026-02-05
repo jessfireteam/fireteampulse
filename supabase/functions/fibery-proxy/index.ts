@@ -6,15 +6,93 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 }
 
+// Whitelisted query types - only these are allowed
+const ALLOWED_QUERY_TYPES = ['projects', 'tasks', 'pending-tasks', 'client-months'] as const
+type QueryType = typeof ALLOWED_QUERY_TYPES[number]
+
+// Predefined queries for security - no arbitrary GraphQL allowed
+const QUERIES: Record<QueryType, string> = {
+  'projects': `{
+    findProjects(
+      limit: 1000
+      status: { name: { is: "Completed" } }
+    ) {
+      id
+      name
+      doneDate
+      client { name }
+      type { name }
+    }
+  }`,
+  'tasks': `{
+    findProjectSpecificTasks(
+      limit: 2000
+      done: { is: true }
+      doneDate: { greater: "2026-01-01" }
+    ) {
+      id
+      name
+      done
+      doneDate
+      dueDate
+      assignee { name }
+      taskTemplateRole { name }
+      project { 
+        name 
+        client { name }
+      }
+    }
+  }`,
+  'pending-tasks': `{
+    findProjectSpecificTasks(
+      limit: 1000
+      done: { is: false }
+      dueDate: { greater: "2026-01-01" }
+    ) {
+      id
+      name
+      done
+      doneDate
+      dueDate
+      assignee { name }
+      taskTemplateRole { name }
+      project { 
+        name 
+        client { name }
+      }
+    }
+  }`,
+  'client-months': `{
+    findClientMonths(limit: 200) {
+      id
+      name
+      client { name }
+      totalSpend
+      fireTeamSpend
+      pricingPlanMonths {
+        revenue
+        costPerDeliverable
+        deliverablesShipped
+      }
+    }
+  }`
+}
+
+// Map query types to their Fibery endpoints
+const QUERY_ENDPOINTS: Record<QueryType, string> = {
+  'projects': 'https://fireteam.fibery.io/api/graphql/space/Projects',
+  'tasks': 'https://fireteam.fibery.io/api/graphql/space/Projects',
+  'pending-tasks': 'https://fireteam.fibery.io/api/graphql/space/Projects',
+  'client-months': 'https://fireteam.fibery.io/api/graphql/space/Stats',
+}
+
 // Retry with exponential backoff for rate limiting
 async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3): Promise<Response> {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const response = await fetch(url, options);
     
     if (response.status === 429 && attempt < maxRetries) {
-      // Rate limited - wait with exponential backoff
-      const waitTime = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
-      console.log(`Rate limited (429). Waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}`);
+      const waitTime = Math.pow(2, attempt) * 1000;
       await new Promise(resolve => setTimeout(resolve, waitTime));
       continue;
     }
@@ -22,7 +100,7 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3)
     return response;
   }
   
-  throw new Error('Max retries exceeded for rate limiting');
+  throw new Error('Max retries exceeded');
 }
 
 serve(async (req) => {
@@ -65,27 +143,31 @@ serve(async (req) => {
 
     const FIBERY_TOKEN = Deno.env.get('FIBERY_TOKEN')
     if (!FIBERY_TOKEN) {
-      console.error('FIBERY_TOKEN not configured')
-      throw new Error('Service configuration error')
+      console.error('Service configuration error')
+      return new Response(
+        JSON.stringify({ error: 'Service configuration error' }),
+        { 
+          status: 500, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
     }
 
-    const { endpoint, query } = await req.json()
+    const { queryType } = await req.json()
 
-    console.log('Received request with endpoint:', endpoint)
-
-    if (!endpoint || !query) {
-      throw new Error('Missing endpoint or query parameter')
+    // Validate query type against whitelist
+    if (!queryType || !ALLOWED_QUERY_TYPES.includes(queryType)) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid query type' }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
     }
 
-    // Determine the Fibery URL based on endpoint type
-    let url: string
-    if (endpoint === 'stats') {
-      url = 'https://fireteam.fibery.io/api/graphql/space/Stats'
-    } else {
-      url = 'https://fireteam.fibery.io/api/graphql/space/Projects'
-    }
-
-    console.log('Proxying request to:', url)
+    const query = QUERIES[queryType as QueryType]
+    const url = QUERY_ENDPOINTS[queryType as QueryType]
 
     const response = await fetchWithRetry(url, {
       method: 'POST',
@@ -97,11 +179,16 @@ serve(async (req) => {
     })
 
     const responseText = await response.text()
-    console.log('Fibery response status:', response.status)
 
     if (!response.ok) {
-      console.error(`Fibery API error [${response.status}]`)
-      throw new Error('External API error')
+      console.error('External API error')
+      return new Response(
+        JSON.stringify({ error: 'External API error' }),
+        { 
+          status: 502, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
     }
 
     const responseData = JSON.parse(responseText)
@@ -113,7 +200,7 @@ serve(async (req) => {
       }
     })
   } catch (error: unknown) {
-    console.error('Proxy error:', error)
+    console.error('Request failed')
     return new Response(
       JSON.stringify({ error: 'Request failed' }),
       {
