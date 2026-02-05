@@ -132,8 +132,22 @@ function groupByClient(
   return clientData;
 }
 
+// Active clients list - clients with ongoing work
+const ACTIVE_CLIENTS = [
+  "Webull",
+  "Halara", 
+  "Orangetheory",
+  "SharkNinja",
+  "Babbel",
+  "TelevisaUnivision",
+  "Jones Road Beauty",
+  "ZocDoc",
+  "Nurx",
+  "Turo",
+];
+
 export function ClientEconomics() {
-  const [clientFilter, setClientFilter] = useState<string>("top5");
+  const [clientFilter, setClientFilter] = useState<string>("active");
   const { data: clientMonthsData, isLoading, error } = useClientMonthsData();
 
   // Process using Fibery's pre-calculated data
@@ -162,8 +176,8 @@ export function ClientEconomics() {
 
   // Filter clients for display
   const displayClients = useMemo(() => {
-    if (clientFilter === "top5") {
-      return sortedClients.slice(0, 5);
+    if (clientFilter === "active") {
+      return sortedClients.filter((c) => ACTIVE_CLIENTS.includes(c.client));
     } else if (clientFilter === "all") {
       return sortedClients;
     } else {
@@ -202,7 +216,7 @@ export function ClientEconomics() {
             <SelectValue placeholder="Filter by client" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="top5">Top 5 Clients</SelectItem>
+            <SelectItem value="active">Active Clients</SelectItem>
             <SelectItem value="all">All Clients</SelectItem>
             {allClients.map((client) => (
               <SelectItem key={client} value={client}>
