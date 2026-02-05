@@ -132,18 +132,17 @@ function groupByClient(
   return clientData;
 }
 
-// Active clients list - clients with ongoing work
+// Active clients list - clients with ongoing work (matching actual data names)
 const ACTIVE_CLIENTS = [
-  "Webull",
-  "Halara", 
-  "Orangetheory",
-  "SharkNinja",
-  "Babbel",
-  "TelevisaUnivision",
-  "Jones Road Beauty",
-  "ZocDoc",
-  "Nurx",
-  "Turo",
+  "Rejuvia",
+  "FabFitFun",
+  "Bambu Earth",
+  "Adapt Naturals",
+  "After.com",
+  "Paperlike",
+  "OMGYES",
+  "Nutrisense",
+  "NOBL Travel",
 ];
 
 export function ClientEconomics() {
