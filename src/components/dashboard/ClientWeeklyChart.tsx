@@ -37,8 +37,8 @@ export function ClientMonthlyChart({ clientName, data }: ClientMonthlyChartProps
     return null;
   }
 
-  // Cap Y-axis at $5,000 to show detail in the $1k-$3k range
-  const Y_AXIS_CAP = 5000;
+  // Cap Y-axis at $4,000 to show detail in the $1k-$2k target range
+  const Y_AXIS_CAP = 4000;
   const hasClippedValues = data.some((d) => d.costPerDeliverable > Y_AXIS_CAP);
 
   // Calculate actual max for proper scaling
@@ -55,7 +55,7 @@ export function ClientMonthlyChart({ clientName, data }: ClientMonthlyChartProps
           <h3 className="text-lg font-semibold">{clientName}</h3>
           {hasClippedValues && (
             <span className="text-xs text-muted-foreground bg-muted/50 px-2 py-1 rounded">
-              * Values above $5k are clipped
+              * Values above $4k are clipped
             </span>
           )}
         </div>
@@ -95,7 +95,7 @@ export function ClientMonthlyChart({ clientName, data }: ClientMonthlyChartProps
                 axisLine={false}
                 tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
                 domain={[0, Y_AXIS_CAP]}
-                ticks={[0, 1000, 2000, 3000, 4000, 5000]}
+                ticks={[0, 1000, 2000, 3000, 4000]}
                 width={50}
               />
               <Tooltip
