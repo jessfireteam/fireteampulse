@@ -174,10 +174,19 @@ export function ClientEconomics() {
 
   const allClients = sortedClients.map((c) => c.client);
 
-  // Filter clients for display
+  // Debug: log all available client names
+  console.log('[Economics] Available clients:', allClients);
+  console.log('[Economics] ACTIVE_CLIENTS list:', ACTIVE_CLIENTS);
+
+  // Filter clients for display - use case-insensitive matching
   const displayClients = useMemo(() => {
     if (clientFilter === "active") {
-      return sortedClients.filter((c) => ACTIVE_CLIENTS.includes(c.client));
+      const activeClientsLower = ACTIVE_CLIENTS.map(c => c.toLowerCase());
+      const filtered = sortedClients.filter((c) => 
+        activeClientsLower.includes(c.client.toLowerCase())
+      );
+      console.log('[Economics] Active filter result:', filtered.map(c => c.client));
+      return filtered;
     } else if (clientFilter === "all") {
       return sortedClients;
     } else {
