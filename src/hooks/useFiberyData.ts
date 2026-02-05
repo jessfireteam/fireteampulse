@@ -77,7 +77,7 @@ export function useClientMonthsData() {
 }
 
 // Process projects data for Agency Heartbeat
-export function processProjectsForHeartbeat(projects: Project[]) {
+export function processProjectsForHeartbeat(projects: Project[], viewMode: 'weekly' | 'monthly' = 'weekly') {
   const now = new Date();
   const sixMonthsAgo = subMonths(now, 6);
 
@@ -98,30 +98,37 @@ export function processProjectsForHeartbeat(projects: Project[]) {
     console.log('[Heartbeat] Sample project doneDates:', recentProjects.slice(0, 5).map(p => p.doneDate));
   }
 
-  // Group by week and client
-  const weeklyData: Record<string, Record<string, number>> = {};
+  // Group by time period and client
+  const periodData: Record<string, Record<string, number>> = {};
   const clients = new Set<string>();
 
   recentProjects.forEach((project) => {
     if (!project.doneDate) return;
     const date = parseISO(project.doneDate);
-    const weekStart = startOfWeek(date, { weekStartsOn: 1 });
-    const weekKey = format(weekStart, "yyyy-MM-dd");
     const clientName = project.client?.name || "Unknown";
-
     clients.add(clientName);
 
-    if (!weeklyData[weekKey]) {
-      weeklyData[weekKey] = {};
+    let periodKey: string;
+    if (viewMode === 'monthly') {
+      periodKey = format(startOfMonth(date), "yyyy-MM-dd");
+    } else {
+      const weekStart = startOfWeek(date, { weekStartsOn: 1 });
+      periodKey = format(weekStart, "yyyy-MM-dd");
     }
-    weeklyData[weekKey][clientName] = (weeklyData[weekKey][clientName] || 0) + 1;
+
+    if (!periodData[periodKey]) {
+      periodData[periodKey] = {};
+    }
+    periodData[periodKey][clientName] = (periodData[periodKey][clientName] || 0) + 1;
   });
 
   // Convert to chart format
-  const chartData = Object.entries(weeklyData)
+  const chartData = Object.entries(periodData)
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([week, clientCounts]) => ({
-      week: format(parseISO(week), "MMM d"),
+    .map(([period, clientCounts]) => ({
+      week: viewMode === 'monthly' 
+        ? format(parseISO(period), "MMM yyyy")
+        : format(parseISO(period), "MMM d"),
       ...clientCounts,
     }));
 
@@ -147,7 +154,7 @@ export function processProjectsForHeartbeat(projects: Project[]) {
     projectsThisMonth.map((p) => p.client?.name).filter(Boolean)
   ).size;
 
-  const weeksCount = Object.keys(weeklyData).length || 1;
+  const weeksCount = Object.keys(periodData).length || 1;
   const weeklyAverage = Math.round(recentProjects.length / weeksCount);
 
   return {

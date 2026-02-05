@@ -1,3 +1,4 @@
+import { useState, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { KPICard } from "./KPICard";
 import { SectionHeader } from "./SectionHeader";
@@ -14,6 +15,7 @@ import {
 } from "recharts";
 import { useProjectsData, processProjectsForHeartbeat } from "@/hooks/useFiberyData";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 // Color palette for clients
 const COLORS = [
@@ -28,7 +30,13 @@ const COLORS = [
 ];
 
 export function AgencyHeartbeat() {
+  const [viewMode, setViewMode] = useState<'weekly' | 'monthly'>('weekly');
   const { data, isLoading, error } = useProjectsData();
+
+  const { chartData, clients, kpis } = useMemo(() => {
+    const projects = data?.findProjects || [];
+    return processProjectsForHeartbeat(projects, viewMode);
+  }, [data, viewMode]);
 
   if (isLoading) {
     return (
@@ -57,9 +65,6 @@ export function AgencyHeartbeat() {
     );
   }
 
-  const projects = data?.findProjects || [];
-  const { chartData, clients, kpis } = processProjectsForHeartbeat(projects);
-
   return (
     <div className="space-y-6">
       <SectionHeader title="Agency Heartbeat" />
@@ -87,9 +92,32 @@ export function AgencyHeartbeat() {
       {/* Stacked Bar Chart */}
       <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
         <CardContent className="p-6">
-          <h3 className="mb-4 text-sm font-medium text-muted-foreground">
-            Projects Completed by Week
-          </h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-medium text-muted-foreground">
+              Projects Completed by {viewMode === 'weekly' ? 'Week' : 'Month'}
+            </h3>
+            <ToggleGroup
+              type="single"
+              value={viewMode}
+              onValueChange={(value) => value && setViewMode(value as 'weekly' | 'monthly')}
+              className="bg-secondary/50 rounded-md p-1"
+            >
+              <ToggleGroupItem
+                value="weekly"
+                aria-label="View by week"
+                className="text-xs px-3 py-1 data-[state=on]:bg-background data-[state=on]:shadow-sm"
+              >
+                Week
+              </ToggleGroupItem>
+              <ToggleGroupItem
+                value="monthly"
+                aria-label="View by month"
+                className="text-xs px-3 py-1 data-[state=on]:bg-background data-[state=on]:shadow-sm"
+              >
+                Month
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </div>
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
