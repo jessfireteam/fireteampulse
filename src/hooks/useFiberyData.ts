@@ -196,17 +196,64 @@ export interface TaskTypeRow {
   due30Days: number;
 }
 
+export type RoleType = 'Account' | 'Copywriters' | 'Design' | 'Video' | 'Other';
+
 export interface PersonCapacity {
   name: string;
-  role: 'Account' | 'Copywriters' | 'Design' | 'Video';
+  role: RoleType;
   primaryTaskType: string;
   taskTypes: TaskTypeRow[];
   subtotal: TaskTypeRow;
 }
 
 export interface RoleGroup {
-  role: 'Account' | 'Copywriters' | 'Design' | 'Video';
+  role: RoleType;
   people: PersonCapacity[];
+}
+
+// Explicit role assignments with primary task types
+const ROLE_ASSIGNMENTS: Record<string, { role: RoleType; primaryTaskType: string }[]> = {
+  // Account
+  'Niki Brazier': [{ role: 'Account', primaryTaskType: 'Approvals' }],
+  'Emily Peter': [{ role: 'Account', primaryTaskType: 'Approvals' }],
+  'amanda@fireteam.is': [{ role: 'Account', primaryTaskType: 'Approvals' }],
+  
+  // Copywriters
+  'Jess Bachman': [{ role: 'Copywriters', primaryTaskType: 'Brief Work' }],
+  'riteesh@fireteam.is': [{ role: 'Copywriters', primaryTaskType: 'Brief Work' }],
+  'shreya8881@gmail.com': [{ role: 'Copywriters', primaryTaskType: 'Brief Work' }],
+  
+  // Design
+  'Erik Furtado': [{ role: 'Design', primaryTaskType: 'Design' }],
+  'Reynelle Reid': [{ role: 'Design', primaryTaskType: 'Design' }],
+  
+  // Video
+  'Vaiv Singh': [{ role: 'Video', primaryTaskType: 'Video Editing' }],
+  'Sanchit': [{ role: 'Video', primaryTaskType: 'Video Editing' }],
+  'Ike': [{ role: 'Video', primaryTaskType: 'Video Editing' }],
+  'Kenny Fisher': [
+    { role: 'Video', primaryTaskType: 'Video Editing' },
+    { role: 'Other', primaryTaskType: 'Assignments' },
+  ],
+  
+  // Other
+  'Nicolle Valladares': [{ role: 'Other', primaryTaskType: 'Other' }], // Cast Creator
+  'Jada Hall': [{ role: 'Other', primaryTaskType: 'Upload' }],
+};
+
+// Helper to match assignee name to role assignments (handles partial matches)
+function getAssigneeRoles(assigneeName: string): { role: RoleType; primaryTaskType: string }[] | null {
+  // Direct match
+  if (ROLE_ASSIGNMENTS[assigneeName]) {
+    return ROLE_ASSIGNMENTS[assigneeName];
+  }
+  // Check if name contains or is contained by any key
+  for (const [key, value] of Object.entries(ROLE_ASSIGNMENTS)) {
+    if (assigneeName.includes(key) || key.includes(assigneeName)) {
+      return value;
+    }
+  }
+  return null;
 }
 
 // Helper to parse date strings (handles both '2026-02-11' and '2026-02-11T00:00:00Z' formats)
@@ -374,84 +421,65 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
     }
   });
 
-  // Determine role and primary task type based on what task types a person has
-  function determineRole(taskTypes: Record<string, unknown>): { role: PersonCapacity['role']; primaryTaskType: string } {
-    const types = Object.keys(taskTypes);
+  // Convert to structured output - only include people with explicit role assignments
+  // For people in multiple roles (like Kenny), create separate entries
+  const people: PersonCapacity[] = [];
+  
+  Object.entries(personData).forEach(([name, taskTypes]) => {
+    const roles = getAssigneeRoles(name);
+    if (!roles) return; // Skip people not in our role assignments
     
-    // Check for Video role (Video Editing or Upload)
-    if (types.includes('Video Editing') || types.includes('Upload')) {
-      return { role: 'Video', primaryTaskType: types.includes('Video Editing') ? 'Video Editing' : 'Upload' };
-    }
-    // Check for Design role
-    if (types.includes('Design')) {
-      return { role: 'Design', primaryTaskType: 'Design' };
-    }
-    // Check for Account role (Review, Approvals)
-    if (types.includes('Review') || types.includes('Approvals')) {
-      return { role: 'Account', primaryTaskType: types.includes('Review') ? 'Review' : 'Approvals' };
-    }
-    // Check for Copywriters (Brief Work)
-    if (types.includes('Brief Work')) {
-      return { role: 'Copywriters', primaryTaskType: 'Brief Work' };
-    }
-    // Default to Account if no match
-    return { role: 'Account', primaryTaskType: types[0] || 'Other' };
-  }
+    const taskTypeRows: TaskTypeRow[] = Object.entries(taskTypes)
+      .map(([taskType, data]) => ({
+        taskType,
+        avg30Day: data.last30DaysTotal,
+        weekMinus5: data.weekCounts[4],
+        weekMinus4: data.weekCounts[3],
+        weekMinus3: data.weekCounts[2],
+        weekMinus2: data.weekCounts[1],
+        weekMinus1: data.weekCounts[0],
+        overdue: data.overdue,
+        due7Days: data.due7Days,
+        due30Days: data.due30Days,
+      }))
+      .filter(row => {
+        const totalWeeks = row.weekMinus1 + row.weekMinus2 + row.weekMinus3 + 
+                          row.weekMinus4 + row.weekMinus5;
+        return totalWeeks >= 3 || row.due7Days >= 3 || row.due30Days >= 3 || row.overdue >= 1;
+      })
+      .sort((a, b) => b.avg30Day - a.avg30Day);
 
-  // Convert to structured output
-  const people: PersonCapacity[] = Object.entries(personData)
-    .map(([name, taskTypes]) => {
-      const { role, primaryTaskType } = determineRole(taskTypes);
-      
-      const taskTypeRows: TaskTypeRow[] = Object.entries(taskTypes)
-        .map(([taskType, data]) => ({
-          taskType,
-          avg30Day: data.last30DaysTotal, // Total completed in last 30 days
-          weekMinus5: data.weekCounts[4],
-          weekMinus4: data.weekCounts[3],
-          weekMinus3: data.weekCounts[2],
-          weekMinus2: data.weekCounts[1],
-          weekMinus1: data.weekCounts[0],
-          overdue: data.overdue,
-          due7Days: data.due7Days,
-          due30Days: data.due30Days,
-        }))
-        .filter(row => {
-          // Calculate total across all weeks
-          const totalWeeks = row.weekMinus1 + row.weekMinus2 + row.weekMinus3 + 
-                            row.weekMinus4 + row.weekMinus5;
-          // Filter out low-volume task types (less than 3 total across all weeks)
-          return totalWeeks >= 3 || row.due7Days >= 3 || row.due30Days >= 3 || row.overdue >= 1;
-        })
-        .sort((a, b) => b.avg30Day - a.avg30Day);
+    // Calculate subtotal
+    const subtotal: TaskTypeRow = {
+      taskType: 'Subtotal',
+      avg30Day: Math.round(taskTypeRows.reduce((sum, r) => sum + r.avg30Day, 0) * 10) / 10,
+      weekMinus5: taskTypeRows.reduce((sum, r) => sum + r.weekMinus5, 0),
+      weekMinus4: taskTypeRows.reduce((sum, r) => sum + r.weekMinus4, 0),
+      weekMinus3: taskTypeRows.reduce((sum, r) => sum + r.weekMinus3, 0),
+      weekMinus2: taskTypeRows.reduce((sum, r) => sum + r.weekMinus2, 0),
+      weekMinus1: taskTypeRows.reduce((sum, r) => sum + r.weekMinus1, 0),
+      overdue: taskTypeRows.reduce((sum, r) => sum + r.overdue, 0),
+      due7Days: taskTypeRows.reduce((sum, r) => sum + r.due7Days, 0),
+      due30Days: taskTypeRows.reduce((sum, r) => sum + r.due30Days, 0),
+    };
 
-      // Calculate subtotal
-      const subtotal: TaskTypeRow = {
-        taskType: 'Subtotal',
-        avg30Day: Math.round(taskTypeRows.reduce((sum, r) => sum + r.avg30Day, 0) * 10) / 10,
-        weekMinus5: taskTypeRows.reduce((sum, r) => sum + r.weekMinus5, 0),
-        weekMinus4: taskTypeRows.reduce((sum, r) => sum + r.weekMinus4, 0),
-        weekMinus3: taskTypeRows.reduce((sum, r) => sum + r.weekMinus3, 0),
-        weekMinus2: taskTypeRows.reduce((sum, r) => sum + r.weekMinus2, 0),
-        weekMinus1: taskTypeRows.reduce((sum, r) => sum + r.weekMinus1, 0),
-        overdue: taskTypeRows.reduce((sum, r) => sum + r.overdue, 0),
-        due7Days: taskTypeRows.reduce((sum, r) => sum + r.due7Days, 0),
-        due30Days: taskTypeRows.reduce((sum, r) => sum + r.due30Days, 0),
-      };
-
-      return {
+    // Create entry for each role assignment (allows people like Kenny to appear in multiple roles)
+    roles.forEach(({ role, primaryTaskType }) => {
+      people.push({
         name,
         role,
         primaryTaskType,
         taskTypes: taskTypeRows,
         subtotal,
-      };
-    })
-    .filter(person => person.taskTypes.length > 0)
-    .sort((a, b) => b.subtotal.avg30Day - a.subtotal.avg30Day);
+      });
+    });
+  });
+
+  // Sort by subtotal within each role
+  people.sort((a, b) => b.subtotal.avg30Day - a.subtotal.avg30Day);
 
   // Group by role
-  const roleOrder: PersonCapacity['role'][] = ['Account', 'Copywriters', 'Design', 'Video'];
+  const roleOrder: RoleType[] = ['Account', 'Copywriters', 'Design', 'Video', 'Other'];
   const result: RoleGroup[] = roleOrder
     .map(role => ({
       role,
