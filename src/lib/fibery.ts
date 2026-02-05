@@ -47,9 +47,11 @@ export const PROJECTS_QUERY = `{
 }`;
 
 // Query for recently completed tasks (last ~60 days to be safe)
+// CRITICAL: Filter by done: true AND doneDate to ensure we count actual completions
 export const COMPLETED_TASKS_QUERY = `{
   findProjectSpecificTasks(
     limit: 2000
+    done: { is: true }
     doneDate: { greater: "2025-12-01" }
   ) {
     id
