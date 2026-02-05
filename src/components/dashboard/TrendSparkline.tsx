@@ -38,7 +38,7 @@ export function TrendSparkline({ data, className }: TrendSparklineProps) {
   
   return (
     <div className={cn("flex items-center justify-center", className)}>
-      <div className="w-16 h-6">
+      <div className="w-24 h-6">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={chartData}>
             <Line

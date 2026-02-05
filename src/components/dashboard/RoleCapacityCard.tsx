@@ -14,7 +14,7 @@ import { TrendSparkline } from "./TrendSparkline";
 function OverdueCell({ value }: { value: number }) {
   return (
     <TableCell className={cn(
-      "text-center font-mono text-sm font-semibold px-2",
+      "text-center font-mono text-base font-semibold px-2",
       value > 0 ? "text-destructive" : "text-muted-foreground/50"
     )}>
       {value}
@@ -32,7 +32,7 @@ function Due7dCell({ due7d, avg7d }: { due7d: number; avg7d: number }) {
   };
   
   return (
-    <TableCell className={cn("text-center font-mono text-sm font-semibold px-2", getColor())}>
+    <TableCell className={cn("text-center font-mono text-base font-semibold px-2", getColor())}>
       {due7d}
     </TableCell>
   );
@@ -41,7 +41,7 @@ function Due7dCell({ due7d, avg7d }: { due7d: number; avg7d: number }) {
 function DataCell({ value }: { value: number }) {
   return (
     <TableCell className={cn(
-      "text-center font-mono text-sm px-2",
+      "text-center font-mono text-base px-2",
       value === 0 && "text-muted-foreground/50"
     )}>
       {value}
@@ -55,10 +55,10 @@ function PersonRow({ name, row }: { name: string; row: TaskTypeRow }) {
   return (
     <TableRow className="border-border/30 hover:bg-muted/20">
       <TableCell className="font-medium text-foreground text-sm py-2 px-3">{name}</TableCell>
-      <TableCell className="text-center font-mono text-sm px-2">
+      <TableCell className="text-center font-mono text-base px-2">
         {row.avg30Day.toFixed(0)}
       </TableCell>
-      <TableCell className="text-center font-mono text-sm px-2">
+      <TableCell className="text-center font-mono text-base px-2">
         {avg7d.toFixed(1)}
       </TableCell>
       <TableCell className="text-center px-1">
@@ -102,11 +102,11 @@ export function RoleCapacityCard({ group }: RoleCapacityCardProps) {
             <TableRow className="border-border/50 hover:bg-transparent">
               <TableHead className="text-muted-foreground font-semibold text-xs py-2 px-3">Person</TableHead>
               <TableHead className="text-center text-muted-foreground font-semibold text-xs px-2 w-10">30d</TableHead>
-              <TableHead className="text-center text-muted-foreground font-semibold text-xs px-2 w-10">7d</TableHead>
-              <TableHead className="text-center text-muted-foreground font-semibold text-xs px-1 w-14">Trend</TableHead>
-              <TableHead className="text-center text-muted-foreground font-semibold text-xs px-2 w-10">Over</TableHead>
-              <TableHead className="text-center text-muted-foreground font-semibold text-xs px-2 w-10">7d</TableHead>
-              <TableHead className="text-center text-muted-foreground font-semibold text-xs px-2 w-10">30d</TableHead>
+              <TableHead className="text-center text-muted-foreground font-semibold text-xs px-2 w-12">7d Avg</TableHead>
+              <TableHead className="text-center text-muted-foreground font-semibold text-xs px-1 w-20">Trend</TableHead>
+              <TableHead className="text-center text-muted-foreground font-semibold text-xs px-2 w-14">Overdue</TableHead>
+              <TableHead className="text-center text-muted-foreground font-semibold text-xs px-2 w-14">Next 7d</TableHead>
+              <TableHead className="text-center text-muted-foreground font-semibold text-xs px-2 w-14">Next 30d</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
