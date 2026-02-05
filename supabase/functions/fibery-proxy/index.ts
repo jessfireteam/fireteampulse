@@ -5,6 +5,25 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Retry with exponential backoff for rate limiting
+async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3): Promise<Response> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const response = await fetch(url, options);
+    
+    if (response.status === 429 && attempt < maxRetries) {
+      // Rate limited - wait with exponential backoff
+      const waitTime = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
+      console.log(`Rate limited (429). Waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+      continue;
+    }
+    
+    return response;
+  }
+  
+  throw new Error('Max retries exceeded for rate limiting');
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -20,7 +39,6 @@ serve(async (req) => {
     const { endpoint, query } = await req.json()
 
     console.log('Received request with endpoint:', endpoint)
-    console.log('Query:', query)
 
     if (!endpoint || !query) {
       throw new Error('Missing endpoint or query parameter')
@@ -36,7 +54,7 @@ serve(async (req) => {
 
     console.log('Proxying request to:', url)
 
-    const response = await fetch(url, {
+    const response = await fetchWithRetry(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -47,7 +65,6 @@ serve(async (req) => {
 
     const responseText = await response.text()
     console.log('Fibery response status:', response.status)
-    console.log('Fibery response body:', responseText)
 
     if (!response.ok) {
       console.error(`Fibery API error [${response.status}]:`, responseText)
@@ -55,7 +72,6 @@ serve(async (req) => {
     }
 
     const data = JSON.parse(responseText)
-    console.log('Parsed data:', JSON.stringify(data, null, 2))
 
     return new Response(JSON.stringify(data), {
       headers: {
