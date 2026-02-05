@@ -86,10 +86,11 @@ function PersonRow({ name, row }: { name: string; row: TaskTypeRow }) {
 }
 
 const ROLE_LABELS: Record<RoleGroup['role'], { label: string; taskLabel: string }> = {
-  Account: { label: 'Account', taskLabel: 'Review' },
+  Account: { label: 'Account', taskLabel: 'Approve / Send brief' },
   Copywriters: { label: 'Copywriters', taskLabel: 'Brief Work' },
   Design: { label: 'Design', taskLabel: 'Design' },
   Video: { label: 'Video', taskLabel: 'Video Editing' },
+  Other: { label: 'Other', taskLabel: 'Various' },
 };
 
 export function TeamCapacity() {
