@@ -1,8 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 }
 
 // Retry with exponential backoff for rate limiting
@@ -31,9 +32,41 @@ serve(async (req) => {
   }
 
   try {
+    // Validate authentication
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { 
+          status: 401, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
+    }
+
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: authHeader } } }
+    )
+
+    const token = authHeader.replace('Bearer ', '')
+    const { data, error: authError } = await supabaseClient.auth.getClaims(token)
+    
+    if (authError || !data?.claims) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { 
+          status: 401, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
+    }
+
     const FIBERY_TOKEN = Deno.env.get('FIBERY_TOKEN')
     if (!FIBERY_TOKEN) {
-      throw new Error('FIBERY_TOKEN is not configured')
+      console.error('FIBERY_TOKEN not configured')
+      throw new Error('Service configuration error')
     }
 
     const { endpoint, query } = await req.json()
@@ -67,13 +100,13 @@ serve(async (req) => {
     console.log('Fibery response status:', response.status)
 
     if (!response.ok) {
-      console.error(`Fibery API error [${response.status}]:`, responseText)
-      throw new Error(`Fibery API error: ${response.status}`)
+      console.error(`Fibery API error [${response.status}]`)
+      throw new Error('External API error')
     }
 
-    const data = JSON.parse(responseText)
+    const responseData = JSON.parse(responseText)
 
-    return new Response(JSON.stringify(data), {
+    return new Response(JSON.stringify(responseData), {
       headers: {
         ...corsHeaders,
         'Content-Type': 'application/json'
@@ -81,9 +114,8 @@ serve(async (req) => {
     })
   } catch (error: unknown) {
     console.error('Proxy error:', error)
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ error: 'Request failed' }),
       {
         status: 500,
         headers: {
