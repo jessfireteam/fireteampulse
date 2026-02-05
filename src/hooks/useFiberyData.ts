@@ -191,14 +191,22 @@ export interface TaskTypeRow {
   weekMinus3: number;
   weekMinus2: number;
   weekMinus1: number;
+  overdue: number;
   due7Days: number;
   due30Days: number;
 }
 
 export interface PersonCapacity {
   name: string;
+  role: 'Account' | 'Copywriters' | 'Design' | 'Video';
+  primaryTaskType: string;
   taskTypes: TaskTypeRow[];
   subtotal: TaskTypeRow;
+}
+
+export interface RoleGroup {
+  role: 'Account' | 'Copywriters' | 'Design' | 'Video';
+  people: PersonCapacity[];
 }
 
 // Helper to parse date strings (handles both '2026-02-11' and '2026-02-11T00:00:00Z' formats)
@@ -208,7 +216,7 @@ function parseTaskDate(dateStr: string | null | undefined): Date | null {
 }
 
 // Process tasks data for Team Capacity with task type breakdown
-export function processTasksForCapacity(tasks: Task[], roleFilter: string): PersonCapacity[] {
+export function processTasksForCapacity(tasks: Task[], roleFilter: string): RoleGroup[] {
   // Reference date: Feb 4, 2026 (matches the data's time context)
   const now = new Date('2026-02-04T12:00:00Z');
   const today = new Date(2026, 1, 4, 23, 59, 59); // Feb 4, 2026 end of day
@@ -287,6 +295,7 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Pers
   // Group by assignee and task type
   const personData: Record<string, Record<string, {
     weekCounts: number[];
+    overdue: number;
     due7Days: number;
     due30Days: number;
     last30DaysTotal: number;
@@ -308,6 +317,7 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Pers
     if (!personData[assigneeName][taskType]) {
       personData[assigneeName][taskType] = {
         weekCounts: [0, 0, 0, 0, 0], // W-1 to W-5
+        overdue: 0,
         due7Days: 0,
         due30Days: 0,
         last30DaysTotal: 0,
@@ -350,6 +360,11 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Pers
       // Normalize dueDate to start of day for comparison
       const dueDateNormalized = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
       
+      // Overdue: due date is before today
+      if (dueDateNormalized < todayStart) {
+        data.overdue++;
+      }
+      
       if (dueDateNormalized >= todayStart && dueDateNormalized <= next7Days) {
         data.due7Days++;
       }
@@ -359,9 +374,35 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Pers
     }
   });
 
+  // Determine role and primary task type based on what task types a person has
+  function determineRole(taskTypes: Record<string, unknown>): { role: PersonCapacity['role']; primaryTaskType: string } {
+    const types = Object.keys(taskTypes);
+    
+    // Check for Video role (Video Editing or Upload)
+    if (types.includes('Video Editing') || types.includes('Upload')) {
+      return { role: 'Video', primaryTaskType: types.includes('Video Editing') ? 'Video Editing' : 'Upload' };
+    }
+    // Check for Design role
+    if (types.includes('Design')) {
+      return { role: 'Design', primaryTaskType: 'Design' };
+    }
+    // Check for Account role (Review, Approvals)
+    if (types.includes('Review') || types.includes('Approvals')) {
+      return { role: 'Account', primaryTaskType: types.includes('Review') ? 'Review' : 'Approvals' };
+    }
+    // Check for Copywriters (Brief Work)
+    if (types.includes('Brief Work')) {
+      return { role: 'Copywriters', primaryTaskType: 'Brief Work' };
+    }
+    // Default to Account if no match
+    return { role: 'Account', primaryTaskType: types[0] || 'Other' };
+  }
+
   // Convert to structured output
-  const result: PersonCapacity[] = Object.entries(personData)
+  const people: PersonCapacity[] = Object.entries(personData)
     .map(([name, taskTypes]) => {
+      const { role, primaryTaskType } = determineRole(taskTypes);
+      
       const taskTypeRows: TaskTypeRow[] = Object.entries(taskTypes)
         .map(([taskType, data]) => ({
           taskType,
@@ -371,6 +412,7 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Pers
           weekMinus3: data.weekCounts[2],
           weekMinus2: data.weekCounts[1],
           weekMinus1: data.weekCounts[0],
+          overdue: data.overdue,
           due7Days: data.due7Days,
           due30Days: data.due30Days,
         }))
@@ -379,7 +421,7 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Pers
           const totalWeeks = row.weekMinus1 + row.weekMinus2 + row.weekMinus3 + 
                             row.weekMinus4 + row.weekMinus5;
           // Filter out low-volume task types (less than 3 total across all weeks)
-          return totalWeeks >= 3 || row.due7Days >= 3 || row.due30Days >= 3;
+          return totalWeeks >= 3 || row.due7Days >= 3 || row.due30Days >= 3 || row.overdue >= 1;
         })
         .sort((a, b) => b.avg30Day - a.avg30Day);
 
@@ -392,12 +434,15 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Pers
         weekMinus3: taskTypeRows.reduce((sum, r) => sum + r.weekMinus3, 0),
         weekMinus2: taskTypeRows.reduce((sum, r) => sum + r.weekMinus2, 0),
         weekMinus1: taskTypeRows.reduce((sum, r) => sum + r.weekMinus1, 0),
+        overdue: taskTypeRows.reduce((sum, r) => sum + r.overdue, 0),
         due7Days: taskTypeRows.reduce((sum, r) => sum + r.due7Days, 0),
         due30Days: taskTypeRows.reduce((sum, r) => sum + r.due30Days, 0),
       };
 
       return {
         name,
+        role,
+        primaryTaskType,
         taskTypes: taskTypeRows,
         subtotal,
       };
@@ -405,12 +450,19 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Pers
     .filter(person => person.taskTypes.length > 0)
     .sort((a, b) => b.subtotal.avg30Day - a.subtotal.avg30Day);
 
+  // Group by role
+  const roleOrder: PersonCapacity['role'][] = ['Account', 'Copywriters', 'Design', 'Video'];
+  const result: RoleGroup[] = roleOrder
+    .map(role => ({
+      role,
+      people: people.filter(p => p.role === role),
+    }))
+    .filter(group => group.people.length > 0);
+
   console.log('[Capacity] Total completed tasks in last 30 days:', debugLast30DaysCount);
   console.log('[Capacity] 30-day range:', format(last30Days, 'MMM d'), 'to', format(today, 'MMM d'));
-  console.log('[Capacity] Sample 30-day completed tasks:', debugSample30Day);
-  console.log('[Capacity] Completed tasks (done=true) in input:', filteredTasks.filter(t => t.done).length);
-  console.log('[Capacity] Processed persons:', result.length);
-  console.log('[Capacity] Sample person data:', result[0]);
+  console.log('[Capacity] Processed persons:', people.length);
+  console.log('[Capacity] Role groups:', result.map(g => `${g.role}: ${g.people.length}`));
 
   return result;
 }
