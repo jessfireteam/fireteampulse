@@ -81,6 +81,7 @@ export function DeliverablesChart({ data }: DeliverablesChartProps) {
               width={50}
             />
             <Tooltip
+              cursor={{ fill: "hsl(0, 0%, 100%)", fillOpacity: 0.04 }}
               contentStyle={{
                 backgroundColor: "hsl(0, 0%, 16%)",
                 border: "1px solid hsl(0, 0%, 22%)",
