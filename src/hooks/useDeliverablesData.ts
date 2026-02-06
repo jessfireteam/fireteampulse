@@ -1,18 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
 import { queryFibery, ProjectCompletionsResponse, ProjectUpcomingResponse } from "@/lib/fibery";
 import { useMemo } from "react";
-import { format, parseISO, startOfMonth, subMonths } from "date-fns";
+import { format, parseISO, subMonths } from "date-fns";
 
 export interface MonthDeliverables {
   monthKey: string; // "2026-01"
   monthLabel: string; // "Jan 26"
-  count: number;
+  count: number; // completed projects
+  scheduledCount: number; // due but not yet done (current month only)
 }
 
 export interface ClientDeliverables {
   clientName: string;
   months: MonthDeliverables[];
-  upcomingCount: number;
 }
 
 function useProjectCompletions() {
@@ -49,6 +49,7 @@ export function useDeliverablesData(): {
 
     // Build the last 5 months including current month
     const now = new Date();
+    const currentMonthKey = format(now, "yyyy-MM");
     const months: { key: string; label: string }[] = [];
     for (let i = 4; i >= 0; i--) {
       const d = subMonths(now, i);
@@ -57,6 +58,20 @@ export function useDeliverablesData(): {
         label: format(d, "MMM yy"),
       });
     }
+
+    const ensureClient = (clientName: string) => {
+      if (!result[clientName]) {
+        result[clientName] = {
+          clientName,
+          months: months.map((m) => ({
+            monthKey: m.key,
+            monthLabel: m.label,
+            count: 0,
+            scheduledCount: 0,
+          })),
+        };
+      }
+    };
 
     // Process completed projects
     if (completionsData?.findProjects) {
@@ -69,13 +84,7 @@ export function useDeliverablesData(): {
         // Only include if within last 5 months
         if (!months.some((m) => m.key === monthKey)) return;
 
-        if (!result[clientName]) {
-          result[clientName] = {
-            clientName,
-            months: months.map((m) => ({ monthKey: m.key, monthLabel: m.label, count: 0 })),
-            upcomingCount: 0,
-          };
-        }
+        ensureClient(clientName);
 
         const monthEntry = result[clientName].months.find((m) => m.monthKey === monthKey);
         if (monthEntry) {
@@ -84,21 +93,20 @@ export function useDeliverablesData(): {
       });
     }
 
-    // Process upcoming projects
+    // Process upcoming/scheduled projects → add to current month's scheduledCount
     if (upcomingData?.findProjects) {
       upcomingData.findProjects.forEach((p) => {
         const clientName = p.client?.name?.trim();
         if (!clientName) return;
 
-        if (!result[clientName]) {
-          result[clientName] = {
-            clientName,
-            months: months.map((m) => ({ monthKey: m.key, monthLabel: m.label, count: 0 })),
-            upcomingCount: 0,
-          };
-        }
+        ensureClient(clientName);
 
-        result[clientName].upcomingCount++;
+        const currentMonthEntry = result[clientName].months.find(
+          (m) => m.monthKey === currentMonthKey
+        );
+        if (currentMonthEntry) {
+          currentMonthEntry.scheduledCount++;
+        }
       });
     }
 

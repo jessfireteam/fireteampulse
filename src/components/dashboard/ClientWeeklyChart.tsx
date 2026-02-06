@@ -28,8 +28,7 @@ export function ClientMonthlyChart({
     data.length > 0 ||
     (adSpendData && adSpendData.length > 0) ||
     (deliverablesData &&
-      (deliverablesData.months.some((m) => m.count > 0) ||
-        deliverablesData.upcomingCount > 0));
+      deliverablesData.months.some((m) => m.count > 0 || m.scheduledCount > 0));
 
   if (!hasAnyData) {
     return null;
@@ -83,8 +82,7 @@ export function ClientMonthlyChart({
             </div>
           )
         ) : deliverablesData &&
-          (deliverablesData.months.some((m) => m.count > 0) ||
-            deliverablesData.upcomingCount > 0) ? (
+          deliverablesData.months.some((m) => m.count > 0 || m.scheduledCount > 0) ? (
           <DeliverablesChart data={deliverablesData} />
         ) : (
           <div className="h-[300px] flex items-center justify-center">

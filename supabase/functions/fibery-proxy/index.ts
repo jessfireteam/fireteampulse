@@ -235,16 +235,17 @@ serve(async (req) => {
     let query = QUERIES[queryType as QueryType]
     const url = QUERY_ENDPOINTS[queryType as QueryType]
 
-    // Dynamic query for project-upcoming: calculate dates at request time
+    // Dynamic query for project-upcoming: fetch projects due in current calendar month that aren't done
     if (queryType === 'project-upcoming') {
       const now = new Date()
-      const currentDate = now.toISOString().split('T')[0]
-      const future = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
-      const futureDate = future.toISOString().split('T')[0]
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+      const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+      const monthStartDate = monthStart.toISOString().split('T')[0]
+      const nextMonthStartDate = nextMonthStart.toISOString().split('T')[0]
       query = `{
         findProjects(
           limit: 1000
-          dueDate: { greater: "${currentDate}", less: "${futureDate}" }
+          dueDate: { greaterOrEquals: "${monthStartDate}", less: "${nextMonthStartDate}" }
           doneDate: { isNull: true }
           orderBy: { dueDate: ASC }
         ) {
