@@ -54,7 +54,7 @@ export function useProcessedClientWeeks(): {
       // Convert to display percentage
       const agencyPercent = agencySpendRaw * 100;
       // Calculate the actual dollar amount of agency spend
-      const agencyDollars = totalSpend > 0 ? (agencySpendRaw / 100) * totalSpend : 0;
+      const agencyDollars = totalSpend > 0 ? agencySpendRaw * totalSpend : 0;
 
       const weekStart = cw.dateRange?.start ?? "";
       let weekLabel = "Unknown";
