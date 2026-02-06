@@ -8,7 +8,7 @@ export interface ProcessedClientWeek {
   agencyPercent: number;
   agencySpend: number;
   totalSpend: number;
-  isoWeeknum: number;
+  weekStart: string; // ISO date string for sorting
 }
 
 export interface ClientWeekGroup {
@@ -37,6 +37,11 @@ export function useProcessedClientWeeks(): {
   const processed = useMemo(() => {
     if (!rawData?.findClientWeeks) return {};
 
+    // Debug: log raw response
+    console.log("[ClientWeeks] Raw response count:", rawData.findClientWeeks.length);
+    console.log("[ClientWeeks] Sample records:", rawData.findClientWeeks.slice(0, 5));
+    console.log("[ClientWeeks] Client names:", [...new Set(rawData.findClientWeeks.map(cw => cw.client?.name))]);
+
     const grouped: Record<string, ProcessedClientWeek[]> = {};
 
     rawData.findClientWeeks.forEach((cw) => {
@@ -44,15 +49,20 @@ export function useProcessedClientWeeks(): {
       if (!clientName) return;
 
       const totalSpend = cw.totalSpend ?? 0;
-      const agencySpend = cw.agencySpend ?? 0;
-      const agencyPercent = totalSpend > 0 ? (agencySpend / totalSpend) * 100 : 0;
+      // agencySpend from Fibery is already a percentage as a decimal (e.g., 0.554 = 0.554%)
+      const agencySpendRaw = cw.agencySpend ?? 0;
+      // Convert to display percentage
+      const agencyPercent = agencySpendRaw * 100;
+      // Calculate the actual dollar amount of agency spend
+      const agencyDollars = totalSpend > 0 ? (agencySpendRaw / 100) * totalSpend : 0;
 
+      const weekStart = cw.dateRange?.start ?? "";
       let weekLabel = "Unknown";
-      if (cw.dateRange?.start) {
+      if (weekStart) {
         try {
-          weekLabel = format(parseISO(cw.dateRange.start), "MMM d");
+          weekLabel = format(parseISO(weekStart), "MMM d");
         } catch {
-          weekLabel = cw.dateRange.start;
+          weekLabel = weekStart;
         }
       }
 
@@ -62,18 +72,26 @@ export function useProcessedClientWeeks(): {
 
       grouped[clientName].push({
         weekLabel,
-        agencyPercent: Math.round(agencyPercent * 10) / 10,
-        agencySpend,
-        totalSpend,
-        isoWeeknum: cw.week?.isoWeeknum ?? 0,
+        agencyPercent: Math.round(agencyPercent * 100) / 100,
+        agencySpend: Math.round(agencyDollars),
+        totalSpend: Math.round(totalSpend),
+        weekStart,
       });
     });
 
-    // Sort each client's weeks chronologically and take last 5
+    // Sort each client's weeks by dateRange.start (chronological) and take last 5
     Object.keys(grouped).forEach((client) => {
-      grouped[client].sort((a, b) => a.isoWeeknum - b.isoWeeknum);
+      grouped[client].sort((a, b) => a.weekStart.localeCompare(b.weekStart));
       if (grouped[client].length > 5) {
         grouped[client] = grouped[client].slice(-5);
+      }
+    });
+
+    // Debug: log processed data for active clients
+    const activeClients = ["Rejuvia", "FabFitFun", "Bambu Earth", "Adapt Naturals"];
+    activeClients.forEach(name => {
+      if (grouped[name]) {
+        console.log(`[ClientWeeks] ${name}:`, grouped[name]);
       }
     });
 
