@@ -74,6 +74,9 @@ export function DeliverablesChart({ data }: DeliverablesChartProps) {
                 fontWeight: 600,
                 marginBottom: 4,
               }}
+              itemStyle={{
+                color: "hsl(0, 0%, 89%)",
+              }}
               formatter={(value: number, _name: string, entry: any) => {
                 const item = entry.payload;
                 if (item.isUpcoming) {
