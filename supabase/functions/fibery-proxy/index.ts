@@ -12,8 +12,10 @@ const ALLOWED_ORIGINS = [
 
 // Generate CORS headers with origin validation
 function getCorsHeaders(origin: string | null): Record<string, string> {
-  const allowedOrigin = origin && ALLOWED_ORIGINS.some(allowed => 
-    origin === allowed || origin.endsWith('.lovable.app')
+  const allowedOrigin = origin && (
+    ALLOWED_ORIGINS.some(allowed => origin === allowed) ||
+    origin.endsWith('.lovable.app') ||
+    origin.endsWith('.lovableproject.com')
   ) ? origin : ALLOWED_ORIGINS[0]
   
   return {
