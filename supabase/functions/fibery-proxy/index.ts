@@ -29,7 +29,7 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
 const ALLOWED_EMAIL_DOMAIN = '@fireteam.is'
 
 // Whitelisted query types - only these are allowed
-const ALLOWED_QUERY_TYPES = ['projects', 'tasks', 'pending-tasks', 'client-months', 'client-weeks'] as const
+const ALLOWED_QUERY_TYPES = ['projects', 'tasks', 'pending-tasks', 'client-months', 'client-weeks', 'project-completions', 'project-upcoming'] as const
 type QueryType = typeof ALLOWED_QUERY_TYPES[number]
 
 // Predefined queries for security - no arbitrary GraphQL allowed
@@ -110,7 +110,20 @@ const QUERIES: Record<QueryType, string> = {
       dateRange { start end }
       week { name isoWeeknum current }
     }
-  }`
+  }`,
+  'project-completions': `{
+    findProjects(
+      limit: 3000
+      doneDate: { greater: "2025-09-01" }
+      orderBy: { doneDate: ASC }
+    ) {
+      client { name }
+      name
+      doneDate
+      dueDate
+    }
+  }`,
+  'project-upcoming': 'DYNAMIC'
 }
 
 // Map query types to their Fibery endpoints
@@ -120,6 +133,8 @@ const QUERY_ENDPOINTS: Record<QueryType, string> = {
   'pending-tasks': 'https://fireteam.fibery.io/api/graphql/space/Projects',
   'client-months': 'https://fireteam.fibery.io/api/graphql/space/Stats',
   'client-weeks': 'https://fireteam.fibery.io/api/graphql/space/Stats',
+  'project-completions': 'https://fireteam.fibery.io/api/graphql/space/Projects',
+  'project-upcoming': 'https://fireteam.fibery.io/api/graphql/space/Projects',
 }
 
 // Retry with exponential backoff for rate limiting
@@ -217,8 +232,28 @@ serve(async (req) => {
       )
     }
 
-    const query = QUERIES[queryType as QueryType]
+    let query = QUERIES[queryType as QueryType]
     const url = QUERY_ENDPOINTS[queryType as QueryType]
+
+    // Dynamic query for project-upcoming: calculate dates at request time
+    if (queryType === 'project-upcoming') {
+      const now = new Date()
+      const currentDate = now.toISOString().split('T')[0]
+      const future = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
+      const futureDate = future.toISOString().split('T')[0]
+      query = `{
+        findProjects(
+          limit: 1000
+          dueDate: { greater: "${currentDate}", less: "${futureDate}" }
+          doneDate: { isNull: true }
+          orderBy: { dueDate: ASC }
+        ) {
+          client { name }
+          name
+          dueDate
+        }
+      }`
+    }
 
     const response = await fetchWithRetry(url, {
       method: 'POST',
