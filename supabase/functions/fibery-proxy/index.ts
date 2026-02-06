@@ -99,7 +99,11 @@ const QUERIES: Record<QueryType, string> = {
     }
   }`,
   'client-weeks': `{
-    findClientWeeks(limit: 500, orderBy: { dateRange: { start: ASC } }) {
+    findClientWeeks(
+      limit: 500
+      orderBy: { dateRange: { start: ASC } }
+      dateRange: { start: { greaterOrEquals: "2025-12-01", less: "2026-02-10" } }
+    ) {
       client { name }
       totalSpend
       agencySpend

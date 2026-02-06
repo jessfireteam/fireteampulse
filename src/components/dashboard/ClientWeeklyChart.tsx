@@ -124,11 +124,11 @@ function CostPerDeliverableChart({ data }: { data: MonthlyData[] }) {
 }
 
 function AdSpendChart({ data }: { data: ProcessedClientWeek[] }) {
-  const maxPercent = Math.max(...data.map((d) => d.agencyPercent), 1);
-  const yMax = Math.ceil(maxPercent / 5) * 5; // Round up to nearest 5%
-  const tickCount = Math.min(yMax / 5 + 1, 6);
-  const ticks = Array.from({ length: tickCount }, (_, i) => i * 5).filter(t => t <= yMax);
-  if (!ticks.includes(yMax)) ticks.push(yMax);
+  const maxPercent = Math.max(...data.map((d) => d.agencyPercent), 0.1);
+  // Scale Y-axis dynamically: round up to nearest sensible interval
+  const interval = maxPercent > 10 ? 10 : maxPercent > 2 ? 5 : maxPercent > 1 ? 0.5 : 0.2;
+  const yMax = Math.ceil(maxPercent / interval) * interval;
+  const ticks = Array.from({ length: Math.floor(yMax / interval) + 1 }, (_, i) => Math.round(i * interval * 100) / 100);
 
   return (
     <div className="h-[300px]">
