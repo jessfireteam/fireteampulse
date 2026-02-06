@@ -1,10 +1,30 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
+// Allowed origins for CORS - restrict to known domains
+const ALLOWED_ORIGINS = [
+  'https://fireteampulse.lovable.app',
+  'https://id-preview--a96a0ee1-3f6c-4df3-bcd1-42986223e293.lovable.app',
+  'http://localhost:8080',
+  'http://localhost:5173',
+  'http://localhost:3000',
+]
+
+// Generate CORS headers with origin validation
+function getCorsHeaders(origin: string | null): Record<string, string> {
+  const allowedOrigin = origin && ALLOWED_ORIGINS.some(allowed => 
+    origin === allowed || origin.endsWith('.lovable.app')
+  ) ? origin : ALLOWED_ORIGINS[0]
+  
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
+    'Access-Control-Allow-Credentials': 'true',
+  }
 }
+
+// Allowed email domain for access control
+const ALLOWED_EMAIL_DOMAIN = '@fireteam.is'
 
 // Whitelisted query types - only these are allowed
 const ALLOWED_QUERY_TYPES = ['projects', 'tasks', 'pending-tasks', 'client-months'] as const
@@ -104,6 +124,9 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3)
 }
 
 serve(async (req) => {
+  const origin = req.headers.get('origin')
+  const corsHeaders = getCorsHeaders(origin)
+
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -136,6 +159,18 @@ serve(async (req) => {
         JSON.stringify({ error: 'Unauthorized' }),
         { 
           status: 401, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
+    }
+
+    // Server-side domain validation - enforce @fireteam.is restriction
+    const email = data.claims.email as string | undefined
+    if (!email || !email.endsWith(ALLOWED_EMAIL_DOMAIN)) {
+      return new Response(
+        JSON.stringify({ error: 'Access restricted to FireTeam members' }),
+        { 
+          status: 403, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       )
