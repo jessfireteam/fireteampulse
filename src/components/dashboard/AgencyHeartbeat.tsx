@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { PacingCard } from "./PacingCard";
+import { PacingChart } from "./PacingChart";
 import { SectionHeader } from "./SectionHeader";
 import {
   BarChart,
@@ -13,7 +13,6 @@ import {
   Legend,
 } from "recharts";
 import { useProjectsData, processProjectsForHeartbeat } from "@/hooks/useFiberyData";
-import { usePacingData } from "@/hooks/usePacingData";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
@@ -32,7 +31,6 @@ const COLORS = [
 export function AgencyHeartbeat() {
   const [viewMode, setViewMode] = useState<'weekly' | 'monthly'>('weekly');
   const { data, isLoading, error } = useProjectsData();
-  const pacing = usePacingData();
 
   const { chartData, clients } = useMemo(() => {
     const projects = data?.findProjects || [];
@@ -43,11 +41,7 @@ export function AgencyHeartbeat() {
     return (
       <div className="space-y-6">
         <SectionHeader title="Agency Heartbeat" />
-        <div className="grid gap-4 sm:grid-cols-2">
-          {[1, 2].map((i) => (
-            <Skeleton key={i} className="h-40" />
-          ))}
-        </div>
+        <Skeleton className="h-80" />
         <Skeleton className="h-80" />
       </div>
     );
@@ -70,20 +64,8 @@ export function AgencyHeartbeat() {
     <div className="space-y-6">
       <SectionHeader title="Agency Heartbeat" />
 
-      {/* Pacing Cards */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        {pacing.isLoading ? (
-          <>
-            <Skeleton className="h-40" />
-            <Skeleton className="h-40" />
-          </>
-        ) : (
-          <>
-            <PacingCard title="Projects Created" metric={pacing.created} />
-            <PacingCard title="Projects Shipped" metric={pacing.shipped} />
-          </>
-        )}
-      </div>
+      {/* Pacing Line Chart */}
+      <PacingChart />
 
       {/* Stacked Bar Chart */}
       <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
