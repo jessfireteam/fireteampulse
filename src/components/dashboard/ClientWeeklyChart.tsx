@@ -124,13 +124,14 @@ function CostPerDeliverableChart({ data }: { data: MonthlyData[] }) {
 }
 
 function AdSpendChart({ data }: { data: ProcessedClientWeek[] }) {
-  const maxPercent = Math.max(...data.map((d) => d.agencyPercent), 0.1);
-  // Scale Y-axis dynamically: round up to nearest sensible interval
-  const interval = maxPercent > 10 ? 10 : maxPercent > 2 ? 5 : maxPercent > 1 ? 0.5 : 0.2;
+  const maxPercent = Math.max(...data.map((d) => d.agencyPercent), 50);
+  // Ensure Y-axis is at least 50% so target zone is always visible
+  const interval = maxPercent > 50 ? 10 : 10;
   const yMax = Math.ceil(maxPercent / interval) * interval;
-  const ticks = Array.from({ length: Math.floor(yMax / interval) + 1 }, (_, i) => Math.round(i * interval * 100) / 100);
+  const ticks = Array.from({ length: Math.floor(yMax / interval) + 1 }, (_, i) => i * interval);
 
   return (
+    <>
     <div className="h-[300px]">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart
@@ -141,6 +142,15 @@ function AdSpendChart({ data }: { data: ProcessedClientWeek[] }) {
             strokeDasharray="3 3"
             stroke="hsl(0, 0%, 22%)"
             vertical={false}
+          />
+          <ReferenceArea
+            y1={15}
+            y2={50}
+            fill="hsl(148, 58%, 72%)"
+            fillOpacity={0.2}
+            stroke="hsl(148, 58%, 72%)"
+            strokeOpacity={0.5}
+            strokeDasharray="4 2"
           />
           <XAxis
             dataKey="weekLabel"
@@ -187,6 +197,17 @@ function AdSpendChart({ data }: { data: ProcessedClientWeek[] }) {
         </BarChart>
       </ResponsiveContainer>
     </div>
+      <div className="mt-3 flex items-center justify-center gap-6 text-xs text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <div className="h-4 w-8 rounded-sm bg-success/20 border border-success/50 border-dashed" />
+          <span>Target zone (15%-50%)</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="h-4 w-4 rounded-sm bg-chart-1" />
+          <span>Actual % of Ad Spend</span>
+        </div>
+      </div>
+    </>
   );
 }
 
