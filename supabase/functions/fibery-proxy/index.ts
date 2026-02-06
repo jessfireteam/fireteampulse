@@ -29,7 +29,7 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
 const ALLOWED_EMAIL_DOMAIN = '@fireteam.is'
 
 // Whitelisted query types - only these are allowed
-const ALLOWED_QUERY_TYPES = ['projects', 'tasks', 'pending-tasks', 'client-months', 'client-weeks', 'project-completions', 'project-upcoming'] as const
+const ALLOWED_QUERY_TYPES = ['projects', 'tasks', 'pending-tasks', 'client-months', 'client-weeks', 'project-completions', 'project-upcoming', 'project-pacing'] as const
 type QueryType = typeof ALLOWED_QUERY_TYPES[number]
 
 // Predefined queries for security - no arbitrary GraphQL allowed
@@ -123,7 +123,8 @@ const QUERIES: Record<QueryType, string> = {
       dueDate
     }
   }`,
-  'project-upcoming': 'DYNAMIC'
+  'project-upcoming': 'DYNAMIC',
+  'project-pacing': 'DYNAMIC'
 }
 
 // Map query types to their Fibery endpoints
@@ -135,6 +136,7 @@ const QUERY_ENDPOINTS: Record<QueryType, string> = {
   'client-weeks': 'https://fireteam.fibery.io/api/graphql/space/Stats',
   'project-completions': 'https://fireteam.fibery.io/api/graphql/space/Projects',
   'project-upcoming': 'https://fireteam.fibery.io/api/graphql/space/Projects',
+  'project-pacing': 'https://fireteam.fibery.io/api/graphql/space/Projects',
 }
 
 // Retry with exponential backoff for rate limiting
@@ -252,6 +254,24 @@ serve(async (req) => {
           client { name }
           name
           dueDate
+        }
+      }`
+    }
+
+    // Dynamic query for project-pacing: fetch projects created in last 2 months with shipped info
+    if (queryType === 'project-pacing') {
+      const now = new Date()
+      const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+      const prevMonthStartDate = prevMonthStart.toISOString().split('T')[0]
+      query = `{
+        findProjects(
+          limit: 3000
+          creationDate: { greater: "${prevMonthStartDate}" }
+          orderBy: { creationDate: ASC }
+        ) {
+          name
+          creationDate
+          shippedDay { date }
         }
       }`
     }
