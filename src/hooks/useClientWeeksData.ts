@@ -37,23 +37,46 @@ export function useProcessedClientWeeks(): {
   const processed = useMemo(() => {
     if (!rawData?.findClientWeeks) return {};
 
-    // Debug: log raw response
+    // Debug: log raw dateRange and week info before any processing
     console.log("[ClientWeeks] Raw response count:", rawData.findClientWeeks.length);
-    console.log("[ClientWeeks] Sample records:", rawData.findClientWeeks.slice(0, 5));
-    console.log("[ClientWeeks] Client names:", [...new Set(rawData.findClientWeeks.map(cw => cw.client?.name))]);
+    rawData.findClientWeeks.forEach((cw) => {
+      console.log("[ClientWeeks RAW]", {
+        client: cw.client?.name,
+        "dateRange.start": cw.dateRange?.start,
+        "dateRange.end": cw.dateRange?.end,
+        "week.name": cw.week?.name,
+        "week.isoWeeknum": cw.week?.isoWeeknum,
+        "week.current": cw.week?.current,
+        totalSpend: cw.totalSpend,
+        agencySpend: cw.agencySpend,
+      });
+    });
+
+    // Deduplicate: keep only one record per client per isoWeeknum
+    // Use a Map keyed by "clientName|isoWeeknum" to detect duplicates
+    const deduped = new Map<string, typeof rawData.findClientWeeks[number]>();
+    rawData.findClientWeeks.forEach((cw) => {
+      const clientName = cw.client?.name?.trim();
+      if (!clientName) return;
+      const weekNum = cw.week?.isoWeeknum;
+      const key = `${clientName}|${weekNum ?? cw.dateRange?.start ?? "unknown"}`;
+      // Keep the first occurrence (ordered by ASC from API)
+      if (!deduped.has(key)) {
+        deduped.set(key, cw);
+      }
+    });
+
+    console.log("[ClientWeeks] After dedup:", deduped.size, "records (from", rawData.findClientWeeks.length, "raw)");
 
     const grouped: Record<string, ProcessedClientWeek[]> = {};
 
-    rawData.findClientWeeks.forEach((cw) => {
+    deduped.forEach((cw) => {
       const clientName = cw.client?.name?.trim();
       if (!clientName) return;
 
       const totalSpend = cw.totalSpend ?? 0;
-      // agencySpend from Fibery is already a percentage as a decimal (e.g., 0.554 = 0.554%)
       const agencySpendRaw = cw.agencySpend ?? 0;
-      // Convert to display percentage
       const agencyPercent = agencySpendRaw * 100;
-      // Calculate the actual dollar amount of agency spend
       const agencyDollars = totalSpend > 0 ? agencySpendRaw * totalSpend : 0;
 
       const weekStart = cw.dateRange?.start ?? "";
