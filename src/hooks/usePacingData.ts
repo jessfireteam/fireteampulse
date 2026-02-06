@@ -1,20 +1,22 @@
 import { useQuery } from "@tanstack/react-query";
-import { queryFibery, ProjectPacingResponse } from "@/lib/fibery";
+import { queryFibery, ProjectPacingResponse, ShippedTasksResponse } from "@/lib/fibery";
 import { useMemo } from "react";
 import { parseISO, startOfMonth, endOfMonth, getDaysInMonth, getDate, format, subMonths } from "date-fns";
 
-export interface PacingMetric {
-  currentCount: number;
-  previousCount: number;
-  projectedTotal: number;
-  pacingDiff: number; // positive = ahead, negative = behind
-  percentOfPrevious: number;
-  previousMonthLabel: string;
+export interface PacingDayPoint {
+  day: number;
+  createdCurrent: number;
+  createdPrevious: number;
+  shippedCurrent: number;
+  shippedPrevious: number;
 }
 
-export interface PacingData {
-  created: PacingMetric;
-  shipped: PacingMetric;
+export interface PacingChartData {
+  points: PacingDayPoint[];
+  currentMonthLabel: string;
+  previousMonthLabel: string;
+  totalDaysCurrentMonth: number;
+  totalDaysPreviousMonth: number;
   isLoading: boolean;
   error: Error | null;
 }
@@ -28,8 +30,21 @@ function useProjectPacing() {
   });
 }
 
-export function usePacingData(): PacingData {
-  const { data, isLoading, error } = useProjectPacing();
+function useShippedTasks() {
+  return useQuery({
+    queryKey: ["fibery-shipped-tasks"],
+    queryFn: () => queryFibery<ShippedTasksResponse>("shipped-tasks"),
+    staleTime: 5 * 60 * 1000,
+    retry: 2,
+  });
+}
+
+export function usePacingData(): PacingChartData {
+  const { data: pacingData, isLoading: pacingLoading, error: pacingError } = useProjectPacing();
+  const { data: shippedData, isLoading: shippedLoading, error: shippedError } = useShippedTasks();
+
+  const isLoading = pacingLoading || shippedLoading;
+  const error = pacingError || shippedError;
 
   const result = useMemo(() => {
     const now = new Date();
@@ -38,66 +53,86 @@ export function usePacingData(): PacingData {
     const prevMonthStart = startOfMonth(subMonths(now, 1));
     const prevMonthEnd = endOfMonth(subMonths(now, 1));
 
-    const dayOfMonth = getDate(now);
-    const totalDaysInMonth = getDaysInMonth(now);
-    const percentThroughMonth = dayOfMonth / totalDaysInMonth;
+    const totalDaysCurrentMonth = getDaysInMonth(now);
+    const totalDaysPreviousMonth = getDaysInMonth(subMonths(now, 1));
+    const maxDays = Math.max(totalDaysCurrentMonth, totalDaysPreviousMonth);
 
-    const previousMonthLabel = format(prevMonthStart, "MMMM");
+    const currentMonthLabel = format(now, "MMM");
+    const previousMonthLabel = format(subMonths(now, 1), "MMM");
 
-    const projects = data?.findProjects || [];
+    // Daily buckets for created projects
+    const createdCurrentDaily: number[] = new Array(maxDays).fill(0);
+    const createdPreviousDaily: number[] = new Array(maxDays).fill(0);
 
-    // Count created
-    let createdCurrent = 0;
-    let createdPrevious = 0;
-    let shippedCurrent = 0;
-    let shippedPrevious = 0;
-
+    const projects = pacingData?.findProjects || [];
     projects.forEach((p) => {
-      // Creation date counting
-      if (p.creationDate) {
-        const created = parseISO(p.creationDate);
-        if (created >= currentMonthStart && created <= currentMonthEnd) {
-          createdCurrent++;
-        } else if (created >= prevMonthStart && created <= prevMonthEnd) {
-          createdPrevious++;
-        }
-      }
-
-      // Shipped date counting
-      if (p.shippedDay?.date) {
-        const shipped = parseISO(p.shippedDay.date);
-        if (shipped >= currentMonthStart && shipped <= currentMonthEnd) {
-          shippedCurrent++;
-        } else if (shipped >= prevMonthStart && shipped <= prevMonthEnd) {
-          shippedPrevious++;
-        }
+      if (!p.creationDate) return;
+      const created = parseISO(p.creationDate);
+      if (created >= currentMonthStart && created <= currentMonthEnd) {
+        const day = getDate(created) - 1;
+        if (day < maxDays) createdCurrentDaily[day]++;
+      } else if (created >= prevMonthStart && created <= prevMonthEnd) {
+        const day = getDate(created) - 1;
+        if (day < maxDays) createdPreviousDaily[day]++;
       }
     });
 
-    const buildMetric = (current: number, previous: number): PacingMetric => {
-      const projectedTotal = percentThroughMonth > 0
-        ? Math.round(current / percentThroughMonth)
-        : 0;
-      const pacingDiff = projectedTotal - previous;
-      const percentOfPrevious = previous > 0
-        ? Math.round((current / previous) * 100)
-        : current > 0 ? 100 : 0;
+    // Daily buckets for shipped (task-based)
+    const shippedCurrentDaily: number[] = new Array(maxDays).fill(0);
+    const shippedPreviousDaily: number[] = new Array(maxDays).fill(0);
 
-      return {
-        currentCount: current,
-        previousCount: previous,
-        projectedTotal,
-        pacingDiff,
-        percentOfPrevious,
-        previousMonthLabel,
-      };
-    };
+    const tasks = shippedData?.findProjectSpecificTasks || [];
+    const sendAdTasks = tasks.filter((t) =>
+      t.name?.toLowerCase().includes("send ad to client")
+    );
+
+    console.log(`[Pacing] Total "send ad to client" tasks found: ${sendAdTasks.length}`);
+    sendAdTasks.forEach((t) => {
+      console.log(`[Pacing] Shipped task: "${t.name}" doneDate=${t.doneDate} project="${t.project?.name}"`);
+    });
+
+    sendAdTasks.forEach((t) => {
+      if (!t.doneDate) return;
+      const done = parseISO(t.doneDate);
+      if (done >= currentMonthStart && done <= currentMonthEnd) {
+        const day = getDate(done) - 1;
+        if (day < maxDays) shippedCurrentDaily[day]++;
+      } else if (done >= prevMonthStart && done <= prevMonthEnd) {
+        const day = getDate(done) - 1;
+        if (day < maxDays) shippedPreviousDaily[day]++;
+      }
+    });
+
+    // Build cumulative points
+    const points: PacingDayPoint[] = [];
+    let cumCreatedCurrent = 0;
+    let cumCreatedPrevious = 0;
+    let cumShippedCurrent = 0;
+    let cumShippedPrevious = 0;
+
+    for (let i = 0; i < maxDays; i++) {
+      cumCreatedCurrent += createdCurrentDaily[i];
+      cumCreatedPrevious += createdPreviousDaily[i];
+      cumShippedCurrent += shippedCurrentDaily[i];
+      cumShippedPrevious += shippedPreviousDaily[i];
+
+      points.push({
+        day: i + 1,
+        createdCurrent: cumCreatedCurrent,
+        createdPrevious: cumCreatedPrevious,
+        shippedCurrent: cumShippedCurrent,
+        shippedPrevious: cumShippedPrevious,
+      });
+    }
 
     return {
-      created: buildMetric(createdCurrent, createdPrevious),
-      shipped: buildMetric(shippedCurrent, shippedPrevious),
+      points,
+      currentMonthLabel,
+      previousMonthLabel,
+      totalDaysCurrentMonth,
+      totalDaysPreviousMonth,
     };
-  }, [data]);
+  }, [pacingData, shippedData]);
 
   return {
     ...result,
