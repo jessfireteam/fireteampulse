@@ -9,6 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useClientMonthsData } from "@/hooks/useFiberyData";
+import { useProcessedClientWeeks } from "@/hooks/useClientWeeksData";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ClientMonthlyChart } from "./ClientWeeklyChart";
 import { format, parseISO } from "date-fns";
@@ -140,7 +141,11 @@ const ACTIVE_CLIENTS = [
 
 export function ClientEconomics() {
   const [clientFilter, setClientFilter] = useState<string>("active");
-  const { data: clientMonthsData, isLoading, error } = useClientMonthsData();
+  const { data: clientMonthsData, isLoading: monthsLoading, error: monthsError } = useClientMonthsData();
+  const { data: clientWeeksData, isLoading: weeksLoading } = useProcessedClientWeeks();
+
+  const isLoading = monthsLoading || weeksLoading;
+  const error = monthsError;
 
   // Process using Fibery's pre-calculated data
   const combinedData = useMemo(() => {
@@ -233,9 +238,21 @@ export function ClientEconomics() {
             </CardContent>
           </Card>
         ) : (
-          displayClients.map(({ client, data }) => (
-            <ClientMonthlyChart key={client} clientName={client} data={data} />
-          ))
+          displayClients.map(({ client, data }) => {
+            // Match client name case-insensitively for ad spend data
+            const adSpendKey = Object.keys(clientWeeksData).find(
+              (k) => k.trim().toLowerCase() === client.trim().toLowerCase()
+            );
+            const adSpendData = adSpendKey ? clientWeeksData[adSpendKey] : undefined;
+            return (
+              <ClientMonthlyChart
+                key={client}
+                clientName={client}
+                data={data}
+                adSpendData={adSpendData}
+              />
+            );
+          })
         )}
       </div>
     </div>

@@ -27,7 +27,7 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
 const ALLOWED_EMAIL_DOMAIN = '@fireteam.is'
 
 // Whitelisted query types - only these are allowed
-const ALLOWED_QUERY_TYPES = ['projects', 'tasks', 'pending-tasks', 'client-months'] as const
+const ALLOWED_QUERY_TYPES = ['projects', 'tasks', 'pending-tasks', 'client-months', 'client-weeks'] as const
 type QueryType = typeof ALLOWED_QUERY_TYPES[number]
 
 // Predefined queries for security - no arbitrary GraphQL allowed
@@ -95,6 +95,15 @@ const QUERIES: Record<QueryType, string> = {
         deliverablesShipped
       }
     }
+  }`,
+  'client-weeks': `{
+    findClientWeeks(limit: 500, orderBy: { dateRange: { start: ASC } }) {
+      client { name }
+      totalSpend
+      agencySpend
+      dateRange { start end }
+      week { name isoWeeknum current }
+    }
   }`
 }
 
@@ -104,6 +113,7 @@ const QUERY_ENDPOINTS: Record<QueryType, string> = {
   'tasks': 'https://fireteam.fibery.io/api/graphql/space/Projects',
   'pending-tasks': 'https://fireteam.fibery.io/api/graphql/space/Projects',
   'client-months': 'https://fireteam.fibery.io/api/graphql/space/Stats',
+  'client-weeks': 'https://fireteam.fibery.io/api/graphql/space/Stats',
 }
 
 // Retry with exponential backoff for rate limiting

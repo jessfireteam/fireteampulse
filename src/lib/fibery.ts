@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 
 // Query types that match the edge function whitelist
-type QueryType = 'projects' | 'tasks' | 'pending-tasks' | 'client-months';
+type QueryType = 'projects' | 'tasks' | 'pending-tasks' | 'client-months' | 'client-weeks';
 
 export async function queryFibery<T>(queryType: QueryType): Promise<T> {
   const { data, error } = await supabase.functions.invoke('fibery-proxy', {
@@ -61,6 +61,14 @@ export interface ClientMonth {
   pricingPlanMonths: PricingPlanMonth[] | null;
 }
 
+export interface ClientWeek {
+  client: { name: string } | null;
+  totalSpend: number | null;
+  agencySpend: number | null;
+  dateRange: { start: string; end: string } | null;
+  week: { name: string; isoWeeknum: number; current: boolean } | null;
+}
+
 export interface ProjectsResponse {
   findProjects: Project[];
 }
@@ -71,4 +79,8 @@ export interface TasksResponse {
 
 export interface ClientMonthsResponse {
   findClientMonths: ClientMonth[];
+}
+
+export interface ClientWeeksResponse {
+  findClientWeeks: ClientWeek[];
 }
