@@ -145,6 +145,7 @@ function getTaskCategory(taskName: string): string {
   const name = taskName?.toLowerCase() || '';
   if (name.includes('approve and send brief')) return 'Briefs Sent';
   if (name.includes('brief')) return 'Brief Work';
+  if (name.includes('review creative')) return 'Creative Review';
   if (name.includes('review')) return 'Review';
   if (name.includes('edit video') || name.includes('video edit')) return 'Video Editing';
   if (name.includes('design') || name.includes('static')) return 'Design';
@@ -168,7 +169,7 @@ export interface TaskTypeRow {
   due30Days: number;
 }
 
-export type RoleType = 'Account' | 'Copywriters' | 'Design' | 'Video' | 'Other';
+export type RoleType = 'Account' | 'Creative Review' | 'Copywriters' | 'Design' | 'Video' | 'Other';
 
 export interface PersonCapacity {
   name: string;
@@ -185,10 +186,10 @@ export interface RoleGroup {
 
 // Explicit role assignments with primary task types
 const ROLE_ASSIGNMENTS: Record<string, { role: RoleType; primaryTaskType: string }[]> = {
-  'Niki Brazier': [{ role: 'Account', primaryTaskType: 'Briefs Sent' }],
-  'Emily Peter': [{ role: 'Account', primaryTaskType: 'Briefs Sent' }],
-  'amanda@fireteam.is': [{ role: 'Account', primaryTaskType: 'Briefs Sent' }],
-  'Jess Bachman': [{ role: 'Copywriters', primaryTaskType: 'Brief Work' }],
+  'Niki Brazier': [{ role: 'Account', primaryTaskType: 'Briefs Sent' }, { role: 'Creative Review', primaryTaskType: 'Creative Review' }],
+  'Emily Peter': [{ role: 'Account', primaryTaskType: 'Briefs Sent' }, { role: 'Creative Review', primaryTaskType: 'Creative Review' }],
+  'amanda@fireteam.is': [{ role: 'Account', primaryTaskType: 'Briefs Sent' }, { role: 'Creative Review', primaryTaskType: 'Creative Review' }],
+  'Jess Bachman': [{ role: 'Copywriters', primaryTaskType: 'Brief Work' }, { role: 'Creative Review', primaryTaskType: 'Creative Review' }],
   'riteesh@fireteam.is': [{ role: 'Copywriters', primaryTaskType: 'Brief Work' }],
   'shreya8881@gmail.com': [{ role: 'Copywriters', primaryTaskType: 'Brief Work' }],
   'Erik Furtado': [{ role: 'Design', primaryTaskType: 'Design' }],
@@ -363,7 +364,7 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
 
   people.sort((a, b) => b.subtotal.avg30Day - a.subtotal.avg30Day);
 
-  const roleOrder: RoleType[] = ['Account', 'Copywriters', 'Design', 'Video', 'Other'];
+  const roleOrder: RoleType[] = ['Account', 'Creative Review', 'Copywriters', 'Design', 'Video', 'Other'];
   return roleOrder
     .map(role => ({
       role,
