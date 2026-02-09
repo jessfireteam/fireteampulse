@@ -1,5 +1,6 @@
 import { MonthlyLeadVolume, WeeklyLeadVolume } from "@/hooks/usePipelineData";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import { format, parseISO, addDays } from "date-fns";
 
 interface Props {
   monthlyVolume: MonthlyLeadVolume[];
@@ -14,6 +15,20 @@ function ChartTooltip({ active, payload, label }: any) {
     <div className="rounded-lg border border-border/50 bg-popover px-3 py-2 text-sm shadow-lg">
       <p className="font-medium text-foreground">{label}</p>
       <p className="text-muted-foreground">{payload[0].value} lead{payload[0].value !== 1 ? "s" : ""}</p>
+    </div>
+  );
+}
+
+function WeeklyTooltip({ active, payload }: any) {
+  if (!active || !payload?.length) return null;
+  const entry = payload[0].payload as WeeklyLeadVolume;
+  const start = parseISO(entry.weekStart);
+  const end = addDays(start, 6);
+  const range = `${format(start, "MMM d")} – ${format(end, "MMM d, yyyy")}`;
+  return (
+    <div className="rounded-lg border border-border/50 bg-popover px-3 py-2 text-sm shadow-lg">
+      <p className="font-medium text-foreground">{range}</p>
+      <p className="text-muted-foreground">{entry.count} lead{entry.count !== 1 ? "s" : ""}</p>
     </div>
   );
 }
@@ -47,7 +62,7 @@ export function LeadVolumeCharts({ monthlyVolume, weeklyVolume, avgPerMonth, avg
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(0 0% 22%)" vertical={false} />
                 <XAxis dataKey="label" tick={{ fill: "hsl(234 28% 66%)", fontSize: 11 }} axisLine={false} tickLine={false} />
                 <YAxis allowDecimals={false} tick={{ fill: "hsl(234 28% 66%)", fontSize: 11 }} axisLine={false} tickLine={false} width={30} />
-                <Tooltip content={<ChartTooltip />} cursor={false} />
+                <Tooltip content={<WeeklyTooltip />} cursor={false} />
                 <Bar dataKey="count" fill="hsl(22 77% 70%)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>

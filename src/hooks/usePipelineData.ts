@@ -97,9 +97,9 @@ export function usePipelineData() {
       count,
     }));
 
-    // Lead Volume - Weekly (last 12 weeks)
+    // Lead Volume - Weekly (last 52 weeks)
     const weekBuckets = new Map<string, number>();
-    for (let i = 11; i >= 0; i--) {
+    for (let i = 51; i >= 0; i--) {
       const ws = startOfWeek(subWeeks(now, i), { weekStartsOn: 1 });
       weekBuckets.set(format(ws, "yyyy-MM-dd"), 0);
     }
@@ -110,11 +110,15 @@ export function usePipelineData() {
       const key = format(ws, "yyyy-MM-dd");
       if (weekBuckets.has(key)) weekBuckets.set(key, (weekBuckets.get(key) || 0) + 1);
     });
-    const weeklyVolume: WeeklyLeadVolume[] = Array.from(weekBuckets.entries()).map(([key, count]) => ({
-      label: format(parseISO(key), "MMM d"),
-      count,
-      weekStart: key,
-    }));
+    const weeklyVolume: WeeklyLeadVolume[] = Array.from(weekBuckets.entries()).map(([key, count]) => {
+      const d = parseISO(key);
+      const isFirstWeekOfMonth = d.getDate() <= 7;
+      return {
+        label: isFirstWeekOfMonth ? format(d, "MMM") : "",
+        count,
+        weekStart: key,
+      };
+    });
 
     const totalMonths = monthlyVolume.length || 1;
     const totalWeeks = weeklyVolume.length || 1;
