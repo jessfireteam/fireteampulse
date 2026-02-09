@@ -116,6 +116,7 @@ export function AgencyHeartbeat() {
                   axisLine={false}
                 />
                 <Tooltip
+                  cursor={false}
                   contentStyle={{
                     backgroundColor: "hsl(222, 47%, 10%)",
                     border: "1px solid hsl(217, 33%, 18%)",
