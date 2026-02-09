@@ -148,7 +148,7 @@ function getTaskCategory(taskName: string): string {
   if (name.includes('edit video') || name.includes('video edit')) return 'Video Editing';
   if (name.includes('design') || name.includes('static')) return 'Design';
   if (name.includes('upload')) return 'Upload';
-  if (name.includes('approval') || name.includes('approve')) return 'Approvals';
+  if (name.includes('approve and send brief')) return 'Approvals';
   if (name.includes('assign')) return 'Assignments';
   if (name.includes('footage') || name.includes('pull')) return 'Footage/Assets';
   if (name.includes('revision')) return 'Revisions';
