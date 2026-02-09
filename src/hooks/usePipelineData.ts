@@ -85,8 +85,8 @@ export function usePipelineData() {
       monthBuckets.set(format(d, "yyyy-MM"), 0);
     }
     companies.forEach((c) => {
-      if (!c.creationDate) return;
-      const key = format(parseISO(c.creationDate), "yyyy-MM");
+      if (!c.firstContact) return;
+      const key = format(parseISO(c.firstContact), "yyyy-MM");
       if (monthBuckets.has(key)) monthBuckets.set(key, (monthBuckets.get(key) || 0) + 1);
     });
     const monthlyVolume: MonthlyLeadVolume[] = Array.from(monthBuckets.entries()).map(([key, count]) => ({
@@ -101,8 +101,8 @@ export function usePipelineData() {
       weekBuckets.set(format(ws, "yyyy-MM-dd"), 0);
     }
     companies.forEach((c) => {
-      if (!c.creationDate) return;
-      const ws = startOfWeek(parseISO(c.creationDate), { weekStartsOn: 1 });
+      if (!c.firstContact) return;
+      const ws = startOfWeek(parseISO(c.firstContact), { weekStartsOn: 1 });
       const key = format(ws, "yyyy-MM-dd");
       if (weekBuckets.has(key)) weekBuckets.set(key, (weekBuckets.get(key) || 0) + 1);
     });
