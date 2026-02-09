@@ -29,7 +29,7 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
 const ALLOWED_EMAIL_DOMAIN = '@fireteam.is'
 
 // Whitelisted query types - only these are allowed
-const ALLOWED_QUERY_TYPES = ['projects', 'tasks', 'pending-tasks', 'client-months', 'client-weeks', 'project-completions', 'project-upcoming', 'project-pacing', 'shipped-tasks'] as const
+const ALLOWED_QUERY_TYPES = ['projects', 'tasks', 'pending-tasks', 'client-months', 'client-weeks', 'project-completions', 'project-upcoming', 'project-pacing', 'shipped-tasks', 'client-expenses'] as const
 type QueryType = typeof ALLOWED_QUERY_TYPES[number]
 
 // Predefined queries for security - no arbitrary GraphQL allowed
@@ -125,7 +125,8 @@ const QUERIES: Record<QueryType, string> = {
   }`,
   'project-upcoming': 'DYNAMIC',
   'project-pacing': 'DYNAMIC',
-  'shipped-tasks': 'DYNAMIC'
+  'shipped-tasks': 'DYNAMIC',
+  'client-expenses': 'DYNAMIC'
 }
 
 // Map query types to their Fibery endpoints
@@ -139,6 +140,7 @@ const QUERY_ENDPOINTS: Record<QueryType, string> = {
   'project-upcoming': 'https://fireteam.fibery.io/api/graphql/space/Projects',
   'project-pacing': 'https://fireteam.fibery.io/api/graphql/space/Projects',
   'shipped-tasks': 'https://fireteam.fibery.io/api/graphql/space/Projects',
+  'client-expenses': 'https://fireteam.fibery.io/api/graphql/space/Projects',
 }
 
 // Retry with exponential backoff for rate limiting
@@ -292,6 +294,27 @@ serve(async (req) => {
           name
           doneDate
           project { name client { name } creationDate }
+        }
+      }`
+    }
+
+    // Dynamic query for client-expenses: fetch expenses from last 5 months
+    if (queryType === 'client-expenses') {
+      const now = new Date()
+      const fiveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1)
+      const fiveMonthsAgoDate = fiveMonthsAgo.toISOString().split('T')[0]
+      query = `{
+        findExpenses(
+          limit: 3000
+          date: { greater: "${fiveMonthsAgoDate}" }
+          orderBy: { date: ASC }
+        ) {
+          name
+          amount
+          date
+          paid
+          billedToClient
+          client { name }
         }
       }`
     }

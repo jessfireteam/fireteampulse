@@ -3,15 +3,18 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ProcessedClientWeek } from "@/hooks/useClientWeeksData";
 import { ClientDeliverables } from "@/hooks/useDeliverablesData";
+import { ClientExpenses } from "@/hooks/useExpensesData";
 import { CostPerDeliverableChart, MonthlyData } from "./CostPerDeliverableChart";
 import { AdSpendChart } from "./AdSpendChart";
 import { DeliverablesChart } from "./DeliverablesChart";
+import { CreatorCostsChart } from "./CreatorCostsChart";
 
 interface ClientMonthlyChartProps {
   clientName: string;
   data: MonthlyData[];
   adSpendData?: ProcessedClientWeek[];
   deliverablesData?: ClientDeliverables;
+  expensesData?: ClientExpenses;
 }
 
 export type { MonthlyData };
@@ -21,6 +24,7 @@ export function ClientMonthlyChart({
   data,
   adSpendData,
   deliverablesData,
+  expensesData,
 }: ClientMonthlyChartProps) {
   const [viewMode, setViewMode] = useState<string>("cost");
 
@@ -28,7 +32,9 @@ export function ClientMonthlyChart({
     data.length > 0 ||
     (adSpendData && adSpendData.length > 0) ||
     (deliverablesData &&
-      deliverablesData.months.some((m) => m.count > 0 || m.scheduledCount > 0));
+      deliverablesData.months.some((m) => m.count > 0 || m.scheduledCount > 0)) ||
+    (expensesData &&
+      expensesData.months.some((m) => m.totalCost > 0));
 
   if (!hasAnyData) {
     return null;
@@ -50,21 +56,27 @@ export function ClientMonthlyChart({
           >
             <ToggleGroupItem
               value="cost"
-              className="text-[11px] px-2.5 py-1 h-7 data-[state=on]:bg-secondary data-[state=on]:text-foreground rounded-sm"
+              className="text-[11px] px-2 py-1 h-7 data-[state=on]:bg-secondary data-[state=on]:text-foreground rounded-sm"
             >
-              $/Deliverable
+              $/Deliv
             </ToggleGroupItem>
             <ToggleGroupItem
               value="adspend"
-              className="text-[11px] px-2.5 py-1 h-7 data-[state=on]:bg-secondary data-[state=on]:text-foreground rounded-sm"
+              className="text-[11px] px-2 py-1 h-7 data-[state=on]:bg-secondary data-[state=on]:text-foreground rounded-sm"
             >
               % Ad Spend
             </ToggleGroupItem>
             <ToggleGroupItem
               value="deliverables"
-              className="text-[11px] px-2.5 py-1 h-7 data-[state=on]:bg-secondary data-[state=on]:text-foreground rounded-sm"
+              className="text-[11px] px-2 py-1 h-7 data-[state=on]:bg-secondary data-[state=on]:text-foreground rounded-sm"
             >
               Deliverables
+            </ToggleGroupItem>
+            <ToggleGroupItem
+              value="expenses"
+              className="text-[11px] px-2 py-1 h-7 data-[state=on]:bg-secondary data-[state=on]:text-foreground rounded-sm"
+            >
+              Creator Costs
             </ToggleGroupItem>
           </ToggleGroup>
         </div>
@@ -81,13 +93,24 @@ export function ClientMonthlyChart({
               </p>
             </div>
           )
-        ) : deliverablesData &&
+        ) : viewMode === "deliverables" ? (
+          deliverablesData &&
           deliverablesData.months.some((m) => m.count > 0 || m.scheduledCount > 0) ? (
-          <DeliverablesChart data={deliverablesData} />
+            <DeliverablesChart data={deliverablesData} />
+          ) : (
+            <div className="h-[300px] flex items-center justify-center">
+              <p className="text-muted-foreground text-sm">
+                No deliverables data available
+              </p>
+            </div>
+          )
+        ) : expensesData &&
+          expensesData.months.some((m) => m.totalCost > 0) ? (
+          <CreatorCostsChart data={expensesData} />
         ) : (
           <div className="h-[300px] flex items-center justify-center">
             <p className="text-muted-foreground text-sm">
-              No deliverables data available
+              No creator cost data available
             </p>
           </div>
         )}

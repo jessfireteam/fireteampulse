@@ -11,6 +11,7 @@ import {
 import { useClientMonthsData } from "@/hooks/useFiberyData";
 import { useProcessedClientWeeks } from "@/hooks/useClientWeeksData";
 import { useDeliverablesData } from "@/hooks/useDeliverablesData";
+import { useExpensesData } from "@/hooks/useExpensesData";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ClientMonthlyChart } from "./ClientWeeklyChart";
 import { format, parseISO } from "date-fns";
@@ -145,8 +146,9 @@ export function ClientEconomics() {
   const { data: clientMonthsData, isLoading: monthsLoading, error: monthsError } = useClientMonthsData();
   const { data: clientWeeksData, isLoading: weeksLoading } = useProcessedClientWeeks();
   const { data: deliverablesData, isLoading: deliverablesLoading } = useDeliverablesData();
+  const { data: expensesData, isLoading: expensesLoading } = useExpensesData();
 
-  const isLoading = monthsLoading || weeksLoading || deliverablesLoading;
+  const isLoading = monthsLoading || weeksLoading || deliverablesLoading || expensesLoading;
   const error = monthsError;
 
   // Process using Fibery's pre-calculated data
@@ -251,6 +253,11 @@ export function ClientEconomics() {
               (k) => k.trim().toLowerCase() === client.trim().toLowerCase()
             );
             const clientDeliverables = deliverablesKey ? deliverablesData[deliverablesKey] : undefined;
+            // Match for expenses data
+            const expensesKey = Object.keys(expensesData).find(
+              (k) => k.trim().toLowerCase() === client.trim().toLowerCase()
+            );
+            const clientExpenses = expensesKey ? expensesData[expensesKey] : undefined;
             return (
               <ClientMonthlyChart
                 key={client}
@@ -258,6 +265,7 @@ export function ClientEconomics() {
                 data={data}
                 adSpendData={adSpendData}
                 deliverablesData={clientDeliverables}
+                expensesData={clientExpenses}
               />
             );
           })
