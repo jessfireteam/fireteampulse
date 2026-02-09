@@ -49,12 +49,15 @@ function DataCell({ value }: { value: number }) {
   );
 }
 
-function PersonRow({ name, row }: { name: string; row: TaskTypeRow }) {
+function PersonRow({ name, row, taskLabel }: { name: string; row: TaskTypeRow; taskLabel?: string }) {
   const avg7d = row.avg30Day / 4.3;
   
   return (
     <TableRow className="border-border/30 hover:bg-muted/20">
-      <TableCell className="font-medium text-foreground text-sm py-2 px-3">{name}</TableCell>
+      <TableCell className="py-2 px-3">
+        <div className="font-medium text-foreground text-sm">{name}</div>
+        {taskLabel && <div className="text-xs text-muted-foreground">{taskLabel}</div>}
+      </TableCell>
       <TableCell className="text-center font-mono text-base px-2">
         {row.avg30Day.toFixed(0)}
       </TableCell>
@@ -121,6 +124,7 @@ export function RoleCapacityCard({ group }: RoleCapacityCardProps) {
                   key={person.name}
                   name={person.name}
                   row={primaryRow}
+                  taskLabel={group.role === 'Other' ? person.primaryTaskType : undefined}
                 />
               );
             })}
