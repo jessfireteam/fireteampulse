@@ -1,4 +1,5 @@
 import { Flame } from "lucide-react";
+import { NavLink } from "@/components/NavLink";
 
 export function DashboardHeader() {
   return (
@@ -12,6 +13,23 @@ export function DashboardHeader() {
           <p className="text-sm text-muted-foreground">Agency performance at a glance</p>
         </div>
       </div>
+      <nav className="flex items-center gap-1 rounded-lg bg-muted/30 p-1">
+        <NavLink
+          to="/"
+          end
+          className="px-3 py-1.5 rounded-md text-sm text-muted-foreground transition-colors hover:text-foreground"
+          activeClassName="bg-primary/20 text-primary font-medium"
+        >
+          Dashboard
+        </NavLink>
+        <NavLink
+          to="/creator-costs"
+          className="px-3 py-1.5 rounded-md text-sm text-muted-foreground transition-colors hover:text-foreground"
+          activeClassName="bg-primary/20 text-primary font-medium"
+        >
+          Creator Costs
+        </NavLink>
+      </nav>
     </header>
   );
 }

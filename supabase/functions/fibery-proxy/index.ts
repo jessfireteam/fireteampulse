@@ -29,7 +29,7 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
 const ALLOWED_EMAIL_DOMAIN = '@fireteam.is'
 
 // Whitelisted query types - only these are allowed
-const ALLOWED_QUERY_TYPES = ['projects', 'tasks', 'pending-tasks', 'client-months', 'client-weeks', 'project-completions', 'project-upcoming', 'project-pacing', 'shipped-tasks', 'client-expenses'] as const
+const ALLOWED_QUERY_TYPES = ['projects', 'tasks', 'pending-tasks', 'client-months', 'client-weeks', 'project-completions', 'project-upcoming', 'project-pacing', 'shipped-tasks', 'client-expenses', 'creator-costs'] as const
 type QueryType = typeof ALLOWED_QUERY_TYPES[number]
 
 // Predefined queries for security - no arbitrary GraphQL allowed
@@ -126,7 +126,8 @@ const QUERIES: Record<QueryType, string> = {
   'project-upcoming': 'DYNAMIC',
   'project-pacing': 'DYNAMIC',
   'shipped-tasks': 'DYNAMIC',
-  'client-expenses': 'DYNAMIC'
+  'client-expenses': 'DYNAMIC',
+  'creator-costs': 'DYNAMIC'
 }
 
 // Map query types to their Fibery endpoints
@@ -141,6 +142,7 @@ const QUERY_ENDPOINTS: Record<QueryType, string> = {
   'project-pacing': 'https://fireteam.fibery.io/api/graphql/space/Projects',
   'shipped-tasks': 'https://fireteam.fibery.io/api/graphql/space/Projects',
   'client-expenses': 'https://fireteam.fibery.io/api/graphql/space/Projects',
+  'creator-costs': 'https://fireteam.fibery.io/api/graphql/space/Projects',
 }
 
 // Retry with exponential backoff for rate limiting
@@ -314,6 +316,25 @@ serve(async (req) => {
           date
           paid
           billedToClient
+          client { name }
+        }
+      }`
+    }
+
+    // Dynamic query for creator-costs: fetch expenses from last 12 months with projects
+    if (queryType === 'creator-costs') {
+      const now = new Date()
+      const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 12, 1)
+      const twelveMonthsAgoDate = twelveMonthsAgo.toISOString().split('T')[0]
+      query = `{
+        findExpenses(
+          limit: 3000
+          date: { greater: "${twelveMonthsAgoDate}" }
+          orderBy: { date: ASC }
+        ) {
+          name
+          amount
+          date
           client { name }
         }
       }`
