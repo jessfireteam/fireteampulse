@@ -141,7 +141,7 @@ const ACTIVE_CLIENTS = [
 ];
 
 export function ClientEconomics() {
-  const [clientFilter, setClientFilter] = useState<string>("active");
+  const [clientFilter, setClientFilter] = useState<string>("all");
   const { data: clientMonthsData, isLoading: monthsLoading, error: monthsError } = useClientMonthsData();
   const { data: clientWeeksData, isLoading: weeksLoading } = useProcessedClientWeeks();
   const { data: deliverablesData, isLoading: deliverablesLoading } = useDeliverablesData();
