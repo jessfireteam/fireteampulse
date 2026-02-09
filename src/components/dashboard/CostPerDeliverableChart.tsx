@@ -81,6 +81,7 @@ export function CostPerDeliverableChart({ data }: { data: MonthlyData[] }) {
               width={50}
             />
             <Tooltip
+              cursor={false}
               contentStyle={{
                 backgroundColor: "hsl(0, 0%, 16%)",
                 border: "1px solid hsl(0, 0%, 22%)",
