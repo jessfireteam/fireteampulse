@@ -29,7 +29,7 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
 const ALLOWED_EMAIL_DOMAIN = '@fireteam.is'
 
 // Whitelisted query types - only these are allowed
-const ALLOWED_QUERY_TYPES = ['projects', 'tasks', 'pending-tasks', 'client-months', 'client-weeks', 'project-completions', 'project-upcoming', 'project-pacing', 'shipped-tasks', 'client-expenses', 'creator-costs'] as const
+const ALLOWED_QUERY_TYPES = ['projects', 'tasks', 'pending-tasks', 'client-months', 'client-weeks', 'project-completions', 'project-upcoming', 'project-pacing', 'shipped-tasks', 'client-expenses', 'creator-costs', 'leads'] as const
 type QueryType = typeof ALLOWED_QUERY_TYPES[number]
 
 // Predefined queries for security - no arbitrary GraphQL allowed
@@ -127,7 +127,24 @@ const QUERIES: Record<QueryType, string> = {
   'project-pacing': 'DYNAMIC',
   'shipped-tasks': 'DYNAMIC',
   'client-expenses': 'DYNAMIC',
-  'creator-costs': 'DYNAMIC'
+  'creator-costs': 'DYNAMIC',
+  'leads': `{
+    findCompanies(
+      limit: 500
+      orderBy: { lastContacted: DESC }
+    ) {
+      name
+      email
+      website
+      stage { name }
+      lastContacted
+      firstContact
+      daysSinceLastContact
+      creationDate
+      owner { name }
+      contacts { name normalisedEmail }
+    }
+  }`
 }
 
 // Map query types to their Fibery endpoints
@@ -143,6 +160,7 @@ const QUERY_ENDPOINTS: Record<QueryType, string> = {
   'shipped-tasks': 'https://fireteam.fibery.io/api/graphql/space/Projects',
   'client-expenses': 'https://fireteam.fibery.io/api/graphql/space/Projects',
   'creator-costs': 'https://fireteam.fibery.io/api/graphql/space/Projects',
+  'leads': 'https://fireteam.fibery.io/api/graphql/space/Leads',
 }
 
 // Retry with exponential backoff for rate limiting
