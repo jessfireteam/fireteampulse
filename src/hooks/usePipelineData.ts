@@ -106,6 +106,7 @@ export function usePipelineData() {
     companies.forEach((c) => {
       const dateStr = c.firstContact || c.creationDate;
       if (!dateStr) return;
+      if (!c.firstContact && c.creationDate && c.creationDate.startsWith("2025-08")) return;
       const ws = startOfWeek(parseISO(dateStr), { weekStartsOn: 1 });
       const key = format(ws, "yyyy-MM-dd");
       if (weekBuckets.has(key)) weekBuckets.set(key, (weekBuckets.get(key) || 0) + 1);
