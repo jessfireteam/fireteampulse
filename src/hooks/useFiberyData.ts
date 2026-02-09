@@ -148,7 +148,7 @@ function getTaskCategory(taskName: string): string {
   if (name.includes('edit video') || name.includes('video edit')) return 'Video Editing';
   if (name.includes('design') || name.includes('static')) return 'Design';
   if (name.includes('upload')) return 'Upload';
-  if (name.includes('approve and send brief')) return 'Approvals';
+  if (name.includes('approve and send brief')) return 'Briefs Sent';
   if (name.includes('assign')) return 'Assignments';
   if (name.includes('footage') || name.includes('pull')) return 'Footage/Assets';
   if (name.includes('revision')) return 'Revisions';
@@ -185,9 +185,9 @@ export interface RoleGroup {
 
 // Explicit role assignments with primary task types
 const ROLE_ASSIGNMENTS: Record<string, { role: RoleType; primaryTaskType: string }[]> = {
-  'Niki Brazier': [{ role: 'Account', primaryTaskType: 'Approvals' }],
-  'Emily Peter': [{ role: 'Account', primaryTaskType: 'Approvals' }],
-  'amanda@fireteam.is': [{ role: 'Account', primaryTaskType: 'Approvals' }],
+  'Niki Brazier': [{ role: 'Account', primaryTaskType: 'Briefs Sent' }],
+  'Emily Peter': [{ role: 'Account', primaryTaskType: 'Briefs Sent' }],
+  'amanda@fireteam.is': [{ role: 'Account', primaryTaskType: 'Briefs Sent' }],
   'Jess Bachman': [{ role: 'Copywriters', primaryTaskType: 'Brief Work' }],
   'riteesh@fireteam.is': [{ role: 'Copywriters', primaryTaskType: 'Brief Work' }],
   'shreya8881@gmail.com': [{ role: 'Copywriters', primaryTaskType: 'Brief Work' }],
