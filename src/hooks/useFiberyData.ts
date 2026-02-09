@@ -150,7 +150,9 @@ function getTaskCategory(taskName: string): string {
   if (name.includes('edit video') || name.includes('video edit')) return 'Video Editing';
   if (name.includes('design') || name.includes('static')) return 'Design';
   if (name.includes('upload')) return 'Upload';
+  if (name.includes('assign editor')) return 'Assign Editor';
   if (name.includes('assign')) return 'Assignments';
+  if (name.includes('cast creator')) return 'Cast Creator';
   if (name.includes('footage') || name.includes('pull')) return 'Footage/Assets';
   if (name.includes('revision')) return 'Revisions';
   return 'Other';
@@ -199,9 +201,9 @@ const ROLE_ASSIGNMENTS: Record<string, { role: RoleType; primaryTaskType: string
   'Ike': [{ role: 'Video', primaryTaskType: 'Video Editing' }],
   'Kenny Fisher': [
     { role: 'Video', primaryTaskType: 'Video Editing' },
-    { role: 'Other', primaryTaskType: 'Assignments' },
+    { role: 'Other', primaryTaskType: 'Assign Editor' },
   ],
-  'Nicolle Valladares': [{ role: 'Other', primaryTaskType: 'Other' }],
+  'Nicolle Valladares': [{ role: 'Other', primaryTaskType: 'Cast Creator' }],
   'Jada Hall': [{ role: 'Other', primaryTaskType: 'Upload' }],
 };
 
