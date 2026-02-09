@@ -87,6 +87,8 @@ export function usePipelineData() {
     companies.forEach((c) => {
       const dateStr = c.firstContact || c.creationDate;
       if (!dateStr) return;
+      // Exclude bulk-imported records: no firstContact and creationDate in Aug 2025
+      if (!c.firstContact && c.creationDate && c.creationDate.startsWith("2025-08")) return;
       const key = format(parseISO(dateStr), "yyyy-MM");
       if (monthBuckets.has(key)) monthBuckets.set(key, (monthBuckets.get(key) || 0) + 1);
     });
