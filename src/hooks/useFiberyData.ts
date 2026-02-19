@@ -423,6 +423,42 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
     }
   });
 
+  // Dynamically add anyone with Design completions
+  const existingDesign = new Set(people.filter(p => p.role === 'Design').map(p => p.name));
+  Object.entries(personData).forEach(([name, taskTypes]) => {
+    if (existingDesign.has(name)) return;
+    const d = taskTypes['Design'];
+    if (d && d.last30DaysTotal > 0) {
+      const dRow: TaskTypeRow = {
+        taskType: 'Design',
+        avg30Day: d.last30DaysTotal,
+        weekMinus5: d.weekCounts[4], weekMinus4: d.weekCounts[3],
+        weekMinus3: d.weekCounts[2], weekMinus2: d.weekCounts[1],
+        weekMinus1: d.weekCounts[0],
+        overdue: d.overdue, due7Days: d.due7Days, due30Days: d.due30Days,
+      };
+      people.push({ name, role: 'Design', primaryTaskType: 'Design', taskTypes: [dRow], subtotal: dRow });
+    }
+  });
+
+  // Dynamically add anyone with Video Editing completions
+  const existingVideo = new Set(people.filter(p => p.role === 'Video').map(p => p.name));
+  Object.entries(personData).forEach(([name, taskTypes]) => {
+    if (existingVideo.has(name)) return;
+    const v = taskTypes['Video Editing'];
+    if (v && v.last30DaysTotal > 0) {
+      const vRow: TaskTypeRow = {
+        taskType: 'Video Editing',
+        avg30Day: v.last30DaysTotal,
+        weekMinus5: v.weekCounts[4], weekMinus4: v.weekCounts[3],
+        weekMinus3: v.weekCounts[2], weekMinus2: v.weekCounts[1],
+        weekMinus1: v.weekCounts[0],
+        overdue: v.overdue, due7Days: v.due7Days, due30Days: v.due30Days,
+      };
+      people.push({ name, role: 'Video', primaryTaskType: 'Video Editing', taskTypes: [vRow], subtotal: vRow });
+    }
+  });
+
   people.sort((a, b) => b.subtotal.avg30Day - a.subtotal.avg30Day);
 
   const roleOrder: RoleType[] = ['Account', 'Creative Review', 'Copywriters', 'Design', 'Video', 'Other'];
