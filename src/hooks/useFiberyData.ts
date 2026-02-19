@@ -371,44 +371,26 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
     if (existingCopywriters.has(name)) return;
     const briefWork = taskTypes['Brief Work'];
     if (briefWork && briefWork.last30DaysTotal > 0) {
-      const taskTypeRows: TaskTypeRow[] = Object.entries(taskTypes)
-        .map(([taskType, data]) => ({
-          taskType,
-          avg30Day: data.last30DaysTotal,
-          weekMinus5: data.weekCounts[4],
-          weekMinus4: data.weekCounts[3],
-          weekMinus3: data.weekCounts[2],
-          weekMinus2: data.weekCounts[1],
-          weekMinus1: data.weekCounts[0],
-          overdue: data.overdue,
-          due7Days: data.due7Days,
-          due30Days: data.due30Days,
-        }))
-        .filter(row => {
-          const totalWeeks = row.weekMinus1 + row.weekMinus2 + row.weekMinus3 + row.weekMinus4 + row.weekMinus5;
-          return totalWeeks >= 3 || row.due7Days >= 3 || row.due30Days >= 3 || row.overdue >= 1;
-        })
-        .sort((a, b) => b.avg30Day - a.avg30Day);
-
-      const subtotal: TaskTypeRow = {
-        taskType: 'Subtotal',
-        avg30Day: Math.round(taskTypeRows.reduce((sum, r) => sum + r.avg30Day, 0) * 10) / 10,
-        weekMinus5: taskTypeRows.reduce((sum, r) => sum + r.weekMinus5, 0),
-        weekMinus4: taskTypeRows.reduce((sum, r) => sum + r.weekMinus4, 0),
-        weekMinus3: taskTypeRows.reduce((sum, r) => sum + r.weekMinus3, 0),
-        weekMinus2: taskTypeRows.reduce((sum, r) => sum + r.weekMinus2, 0),
-        weekMinus1: taskTypeRows.reduce((sum, r) => sum + r.weekMinus1, 0),
-        overdue: taskTypeRows.reduce((sum, r) => sum + r.overdue, 0),
-        due7Days: taskTypeRows.reduce((sum, r) => sum + r.due7Days, 0),
-        due30Days: taskTypeRows.reduce((sum, r) => sum + r.due30Days, 0),
+      // Only show the Brief Work row for dynamic copywriters
+      const briefWorkRow: TaskTypeRow = {
+        taskType: 'Brief Work',
+        avg30Day: briefWork.last30DaysTotal,
+        weekMinus5: briefWork.weekCounts[4],
+        weekMinus4: briefWork.weekCounts[3],
+        weekMinus3: briefWork.weekCounts[2],
+        weekMinus2: briefWork.weekCounts[1],
+        weekMinus1: briefWork.weekCounts[0],
+        overdue: briefWork.overdue,
+        due7Days: briefWork.due7Days,
+        due30Days: briefWork.due30Days,
       };
 
       people.push({
         name,
         role: 'Copywriters',
         primaryTaskType: 'Brief Work',
-        taskTypes: taskTypeRows,
-        subtotal,
+        taskTypes: [briefWorkRow],
+        subtotal: briefWorkRow,
       });
     }
   });
