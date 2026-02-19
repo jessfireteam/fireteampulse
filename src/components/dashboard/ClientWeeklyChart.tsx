@@ -56,25 +56,25 @@ export function ClientMonthlyChart({
           >
             <ToggleGroupItem
               value="cost"
-              className="text-[11px] px-2 py-1 h-7 data-[state=on]:bg-secondary data-[state=on]:text-foreground rounded-sm"
+              className="text-[11px] px-2 py-1 h-7 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground rounded-sm"
             >
               $/Deliv
             </ToggleGroupItem>
             <ToggleGroupItem
               value="adspend"
-              className="text-[11px] px-2 py-1 h-7 data-[state=on]:bg-secondary data-[state=on]:text-foreground rounded-sm"
+              className="text-[11px] px-2 py-1 h-7 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground rounded-sm"
             >
               % Ad Spend
             </ToggleGroupItem>
             <ToggleGroupItem
               value="deliverables"
-              className="text-[11px] px-2 py-1 h-7 data-[state=on]:bg-secondary data-[state=on]:text-foreground rounded-sm"
+              className="text-[11px] px-2 py-1 h-7 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground rounded-sm"
             >
               Deliverables
             </ToggleGroupItem>
             <ToggleGroupItem
               value="expenses"
-              className="text-[11px] px-2 py-1 h-7 data-[state=on]:bg-secondary data-[state=on]:text-foreground rounded-sm"
+              className="text-[11px] px-2 py-1 h-7 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground rounded-sm"
             >
               Creator Costs
             </ToggleGroupItem>
