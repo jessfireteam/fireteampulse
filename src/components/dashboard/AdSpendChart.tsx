@@ -82,7 +82,7 @@ export function AdSpendChart({ data }: { data: ProcessedClientWeek[] }) {
                   "% of Ad Spend",
                 ];
               }}
-              labelFormatter={(label) => `Week of ${label}`}
+              labelFormatter={(label) => label}
             />
             <Bar
               dataKey="agencyPercent"
