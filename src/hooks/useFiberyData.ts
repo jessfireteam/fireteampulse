@@ -315,7 +315,6 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
     }
   });
 
-
   const people: PersonCapacity[] = [];
   
   Object.entries(personData).forEach(([name, taskTypes]) => {
@@ -392,6 +391,34 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
         primaryTaskType: 'Brief Work',
         taskTypes: [briefWorkRow],
         subtotal: briefWorkRow,
+      });
+    }
+  });
+
+  // Dynamically add anyone with Creative Review completions
+  const existingCR = new Set(people.filter(p => p.role === 'Creative Review').map(p => p.name));
+  Object.entries(personData).forEach(([name, taskTypes]) => {
+    if (existingCR.has(name)) return;
+    const cr = taskTypes['Creative Review'];
+    if (cr && cr.last30DaysTotal > 0) {
+      const crRow: TaskTypeRow = {
+        taskType: 'Creative Review',
+        avg30Day: cr.last30DaysTotal,
+        weekMinus5: cr.weekCounts[4],
+        weekMinus4: cr.weekCounts[3],
+        weekMinus3: cr.weekCounts[2],
+        weekMinus2: cr.weekCounts[1],
+        weekMinus1: cr.weekCounts[0],
+        overdue: cr.overdue,
+        due7Days: cr.due7Days,
+        due30Days: cr.due30Days,
+      };
+      people.push({
+        name,
+        role: 'Creative Review',
+        primaryTaskType: 'Creative Review',
+        taskTypes: [crRow],
+        subtotal: crRow,
       });
     }
   });
