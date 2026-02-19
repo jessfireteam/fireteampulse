@@ -92,6 +92,7 @@ function SinglePacingChart({
                 stroke={COLOR}
                 strokeWidth={2.5}
                 dot={false}
+                connectNulls={false}
                 activeDot={{ r: 4, fill: COLOR }}
               />
               {/* Previous month — dashed */}
