@@ -9,8 +9,7 @@ interface TrendSparklineProps {
   className?: string;
 }
 
-// Current date for the dashboard
-const CURRENT_DATE = new Date(2026, 1, 4); // February 4, 2026
+// Use current date dynamically
 
 export function TrendSparkline({ data, className }: TrendSparklineProps) {
   const total = data.reduce((sum, v) => sum + v, 0);
@@ -18,7 +17,7 @@ export function TrendSparkline({ data, className }: TrendSparklineProps) {
   // Calculate week dates for each data point
   const chartData = data.map((value, index) => {
     const weeksAgo = 5 - index; // index 0 = 5 weeks ago, index 4 = 1 week ago
-    const weekStart = startOfWeek(subWeeks(CURRENT_DATE, weeksAgo), { weekStartsOn: 1 });
+    const weekStart = startOfWeek(subWeeks(new Date(), weeksAgo), { weekStartsOn: 1 });
     return {
       week: index,
       value,
