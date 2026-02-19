@@ -59,15 +59,19 @@ function processClientEconomicsData(
     const deliverables = ppm.deliverablesShipped || 0;
     const revenue = ppm.revenue || 0;
 
+    // Calculate cost per deliverable: use Fibery's value, or derive from revenue/deliverables
+    const effectiveCPD = costPerDeliverable > 0
+      ? costPerDeliverable
+      : (deliverables > 0 && revenue > 0 ? revenue / deliverables : 0);
 
-    // Only include if we have valid cost per deliverable
-    if (costPerDeliverable > 0) {
+    // Include if we have any meaningful data
+    if (effectiveCPD > 0 || deliverables > 0) {
       processed.push({
         client: clientName,
         month: monthStr,
         deliverables,
         revenue,
-        costPerDeliverable,
+        costPerDeliverable: effectiveCPD,
       });
     }
   });
