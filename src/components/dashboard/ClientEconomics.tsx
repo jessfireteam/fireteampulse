@@ -106,7 +106,7 @@ function groupByClient(
 
     let monthLabel = item.month;
     try {
-      monthLabel = format(parseISO(`${item.month}-01`), "MMM yy");
+      monthLabel = format(parseISO(`${item.month}-01`), "MMM ''yy");
     } catch {
       // Keep original
     }

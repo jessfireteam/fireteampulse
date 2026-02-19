@@ -5,7 +5,7 @@ import { format, parseISO, subMonths } from "date-fns";
 
 export interface MonthDeliverables {
   monthKey: string; // "2026-01"
-  monthLabel: string; // "Jan 26"
+  monthLabel: string; // "Jan '26"
   count: number; // completed projects
   scheduledCount: number; // due but not yet done (current month only)
 }
@@ -55,7 +55,7 @@ export function useDeliverablesData(): {
       const d = subMonths(now, i);
       months.push({
         key: format(d, "yyyy-MM"),
-        label: format(d, "MMM yyyy"),
+        label: format(d, "MMM ''yy"),
       });
     }
 

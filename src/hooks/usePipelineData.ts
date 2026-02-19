@@ -93,7 +93,7 @@ export function usePipelineData() {
       if (monthBuckets.has(key)) monthBuckets.set(key, (monthBuckets.get(key) || 0) + 1);
     });
     const monthlyVolume: MonthlyLeadVolume[] = Array.from(monthBuckets.entries()).map(([key, count]) => ({
-      label: format(parseISO(key + "-01"), "MMM yy"),
+      label: format(parseISO(key + "-01"), "MMM ''yy"),
       count,
     }));
 

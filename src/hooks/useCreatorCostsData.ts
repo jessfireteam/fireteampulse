@@ -64,7 +64,7 @@ export function useCreatorCostsData() {
       const d = subMonths(now, i);
       months.push({
         key: format(d, "yyyy-MM"),
-        label: format(d, "MMM yy"),
+        label: format(d, "MMM ''yy"),
       });
     }
 
