@@ -133,11 +133,11 @@ export function ClientSmallMultiples({ tableData, clients }: ClientSmallMultiple
                     textAnchor="end"
                     height={40}
                     tickFormatter={(value) => {
-                      // Show abbreviated month: "2025-01" -> "Jan"
+                      // "2025-01" -> "Jan '25"
                       try {
                         const [year, month] = value.split("-");
                         const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-                        return months[parseInt(month, 10) - 1] || value;
+                        return `${months[parseInt(month, 10) - 1]} '${year.slice(2)}`;
                       } catch {
                         return value;
                       }

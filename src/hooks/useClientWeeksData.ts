@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { queryFibery, ClientWeeksResponse } from "@/lib/fibery";
 import { useMemo } from "react";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, addDays } from "date-fns";
 
 export interface ProcessedClientWeek {
   weekLabel: string;
@@ -83,7 +83,9 @@ export function useProcessedClientWeeks(): {
       let weekLabel = "Unknown";
       if (weekStart) {
         try {
-          weekLabel = format(parseISO(weekStart), "MMM d");
+          const start = parseISO(weekStart);
+          const end = addDays(start, 6);
+          weekLabel = `${format(start, "MMM d")}–${format(end, "d")}`;
         } catch {
           weekLabel = weekStart;
         }
