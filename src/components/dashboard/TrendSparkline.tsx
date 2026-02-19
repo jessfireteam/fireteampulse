@@ -18,11 +18,13 @@ export function TrendSparkline({ data, className }: TrendSparklineProps) {
   const chartData = data.map((value, index) => {
     const weeksAgo = 5 - index; // index 0 = 5 weeks ago, index 4 = 1 week ago
     const weekStart = startOfWeek(subWeeks(new Date(), weeksAgo), { weekStartsOn: 1 });
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 6); // Sunday
     return {
       week: index,
       value,
-      weekLabel: format(weekStart, "MMM d"),
-      fullDate: format(weekStart, "MMM d, yyyy"),
+      weekLabel: `${format(weekStart, "MMM d")}-${format(weekEnd, "d")}`,
+      fullDate: `${format(weekStart, "MMM d")}–${format(weekEnd, "MMM d, yyyy")}`,
     };
   });
   
@@ -125,7 +127,7 @@ export function TrendSparkline({ data, className }: TrendSparklineProps) {
                   formatter={(value: number) => [`${value} completed`, ""]}
                   labelFormatter={(_, payload) => {
                     if (payload && payload[0]) {
-                      return `Week of ${payload[0].payload.fullDate}`;
+                      return payload[0].payload.fullDate;
                     }
                     return "";
                   }}
