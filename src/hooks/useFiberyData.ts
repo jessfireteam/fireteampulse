@@ -226,8 +226,9 @@ function parseTaskDate(dateStr: string | null | undefined): Date | null {
 
 // Process tasks data for Team Capacity with task type breakdown
 export function processTasksForCapacity(tasks: Task[], roleFilter: string): RoleGroup[] {
-  const todayStart = new Date(2026, 1, 4, 0, 0, 0);
-  const today = new Date(2026, 1, 4, 23, 59, 59);
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
   const next7Days = addDays(todayStart, 7);
   const next30Days = addDays(todayStart, 30);
   const last30Days = subDays(todayStart, 30);
