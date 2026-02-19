@@ -241,12 +241,6 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
     getWeekBoundaries(todayStart, 5),
   ];
 
-  // DEBUG: Log week buckets
-  console.log('[WeekBuckets] Reference date (todayStart):', format(todayStart, 'yyyy-MM-dd'));
-  console.log('[WeekBuckets] now:', format(now, 'yyyy-MM-dd HH:mm:ss'));
-  weeks.forEach((week, i) => {
-    console.log(`[WeekBuckets] Week index ${i} (weeksAgo=${i + 1}): ${format(week.start, 'yyyy-MM-dd')} to ${format(week.end, 'yyyy-MM-dd')}`);
-  });
 
   let filteredTasks = tasks;
   if (roleFilter === "video") {
@@ -322,20 +316,6 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
     }
   });
 
-  // DEBUG: Log aggregate task counts per week bucket
-  const weekTotals = [0, 0, 0, 0, 0];
-  let total30d = 0;
-  Object.entries(personData).forEach(([name, taskTypes]) => {
-    Object.entries(taskTypes).forEach(([taskType, data]) => {
-      data.weekCounts.forEach((c, i) => { weekTotals[i] += c; });
-      total30d += data.last30DaysTotal;
-    });
-  });
-  weeks.forEach((week, i) => {
-    console.log(`[WeekBuckets] Week ${i} (${format(week.start, 'MMM d')} - ${format(week.end, 'MMM d')}): ${weekTotals[i]} tasks completed`);
-  });
-  console.log(`[WeekBuckets] Total 30d completions: ${total30d}`);
-  console.log(`[WeekBuckets] Last 30d range: ${format(last30Days, 'yyyy-MM-dd')} to ${format(today, 'yyyy-MM-dd')}`);
 
   const people: PersonCapacity[] = [];
   
