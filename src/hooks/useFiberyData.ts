@@ -144,7 +144,7 @@ function getWeekBoundaries(referenceDate: Date, weeksAgo: number) {
 function getTaskCategory(taskName: string): string {
   const name = taskName?.toLowerCase() || '';
   if (name.includes('approve and send brief')) return 'Briefs Sent';
-  if (name.includes('brief')) return 'Brief Work';
+  if (name.includes('write brief') || name.includes('write the brief') || name.includes('draft brief')) return 'Brief Work';
   if (name.includes('review creative')) return 'Creative Review';
   if (name.includes('review')) return 'Review';
   if (name.includes('edit video') || name.includes('video edit')) return 'Video Editing';
@@ -313,6 +313,7 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
       }
     }
   });
+
 
   const people: PersonCapacity[] = [];
   
