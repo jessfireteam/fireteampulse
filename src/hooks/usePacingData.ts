@@ -5,10 +5,10 @@ import { parseISO, startOfMonth, endOfMonth, getDaysInMonth, getDate, format, su
 
 export interface PacingDayPoint {
   day: number;
-  createdCurrent: number;
-  createdPrevious: number;
-  shippedCurrent: number;
-  shippedPrevious: number;
+  createdCurrent: number | null;
+  createdPrevious: number | null;
+  shippedCurrent: number | null;
+  shippedPrevious: number | null;
 }
 
 export interface PacingChartData {
@@ -110,18 +110,23 @@ export function usePacingData(): PacingChartData {
     let cumShippedCurrent = 0;
     let cumShippedPrevious = 0;
 
+    const todayDay = getDate(now); // e.g. 19 for Feb 19
+
     for (let i = 0; i < maxDays; i++) {
       cumCreatedCurrent += createdCurrentDaily[i];
       cumCreatedPrevious += createdPreviousDaily[i];
       cumShippedCurrent += shippedCurrentDaily[i];
       cumShippedPrevious += shippedPreviousDaily[i];
 
+      const dayNum = i + 1;
+      const isFutureCurrentMonth = dayNum > todayDay;
+
       points.push({
-        day: i + 1,
-        createdCurrent: cumCreatedCurrent,
-        createdPrevious: cumCreatedPrevious,
-        shippedCurrent: cumShippedCurrent,
-        shippedPrevious: cumShippedPrevious,
+        day: dayNum,
+        createdCurrent: isFutureCurrentMonth ? null : cumCreatedCurrent,
+        createdPrevious: dayNum > totalDaysPreviousMonth ? null : cumCreatedPrevious,
+        shippedCurrent: isFutureCurrentMonth ? null : cumShippedCurrent,
+        shippedPrevious: dayNum > totalDaysPreviousMonth ? null : cumShippedPrevious,
       });
     }
 
