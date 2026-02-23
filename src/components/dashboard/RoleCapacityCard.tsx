@@ -115,7 +115,13 @@ export function RoleCapacityCard({ group }: RoleCapacityCardProps) {
               <TableHead className="text-center text-muted-foreground font-semibold text-xs px-2 w-10">30d</TableHead>
               <TableHead className="text-center text-muted-foreground font-semibold text-xs px-2 w-12">7d Avg</TableHead>
               <TableHead className="text-center text-muted-foreground font-semibold text-xs px-1 w-20">Trend</TableHead>
-              <TableHead className="text-center text-muted-foreground font-semibold text-xs px-2 w-14" title="Red = true overdue, Amber = inherited from upstream delays">Overdue</TableHead>
+              <TableHead className="text-center text-muted-foreground font-semibold text-xs px-2 w-14">
+                <div>Overdue</div>
+                <div className="flex items-center justify-center gap-1.5 mt-0.5 font-normal text-[10px]">
+                  <span className="flex items-center gap-0.5"><span className="inline-block w-1.5 h-1.5 rounded-full bg-destructive" />true</span>
+                  <span className="flex items-center gap-0.5"><span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500" />inherited</span>
+                </div>
+              </TableHead>
               <TableHead className="text-center text-muted-foreground font-semibold text-xs px-2 w-14">Next 7d</TableHead>
               <TableHead className="text-center text-muted-foreground font-semibold text-xs px-2 w-14">Next 30d</TableHead>
             </TableRow>
