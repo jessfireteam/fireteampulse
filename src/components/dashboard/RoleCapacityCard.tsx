@@ -11,13 +11,20 @@ import { RoleGroup, TaskTypeRow } from "@/hooks/useFiberyData";
 import { cn } from "@/lib/utils";
 import { TrendSparkline } from "./TrendSparkline";
 
-function OverdueCell({ value }: { value: number }) {
+function OverdueCell({ inherited, true: trueOD }: { inherited: number; true: number }) {
+  const total = inherited + trueOD;
   return (
     <TableCell className={cn(
       "text-center font-mono text-base font-semibold px-2",
-      value > 0 ? "text-destructive" : "text-muted-foreground/50"
+      total > 0 ? "text-destructive" : "text-muted-foreground/50"
     )}>
-      {value}
+      {total === 0 ? "0" : (
+        <span title={`${trueOD} true + ${inherited} inherited`}>
+          {trueOD > 0 && <span>{trueOD}</span>}
+          {trueOD > 0 && inherited > 0 && <span className="text-muted-foreground/60">+</span>}
+          {inherited > 0 && <span className="text-amber-500">{inherited}</span>}
+        </span>
+      )}
     </TableCell>
   );
 }
@@ -69,7 +76,7 @@ function PersonRow({ name, row, taskLabel }: { name: string; row: TaskTypeRow; t
           data={[row.weekMinus5, row.weekMinus4, row.weekMinus3, row.weekMinus2, row.weekMinus1]} 
         />
       </TableCell>
-      <OverdueCell value={row.overdue} />
+      <OverdueCell inherited={row.inheritedOverdue} true={row.trueOverdue} />
       <Due7dCell due7d={row.due7Days} avg7d={avg7d} />
       <DataCell value={row.due30Days} />
     </TableRow>
@@ -108,7 +115,7 @@ export function RoleCapacityCard({ group }: RoleCapacityCardProps) {
               <TableHead className="text-center text-muted-foreground font-semibold text-xs px-2 w-10">30d</TableHead>
               <TableHead className="text-center text-muted-foreground font-semibold text-xs px-2 w-12">7d Avg</TableHead>
               <TableHead className="text-center text-muted-foreground font-semibold text-xs px-1 w-20">Trend</TableHead>
-              <TableHead className="text-center text-muted-foreground font-semibold text-xs px-2 w-14">Overdue</TableHead>
+              <TableHead className="text-center text-muted-foreground font-semibold text-xs px-2 w-14" title="Red = true overdue, Amber = inherited from upstream delays">Overdue</TableHead>
               <TableHead className="text-center text-muted-foreground font-semibold text-xs px-2 w-14">Next 7d</TableHead>
               <TableHead className="text-center text-muted-foreground font-semibold text-xs px-2 w-14">Next 30d</TableHead>
             </TableRow>
