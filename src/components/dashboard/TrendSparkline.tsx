@@ -6,12 +6,13 @@ import { format, subWeeks, startOfWeek } from "date-fns";
 
 interface TrendSparklineProps {
   data: number[]; // 8 weeks of data, oldest to newest (week -8 to week -1)
+  maxWeek26?: number; // highest single-week completions over last 26 weeks
   className?: string;
 }
 
 // Use current date dynamically
 
-export function TrendSparkline({ data, className }: TrendSparklineProps) {
+export function TrendSparkline({ data, maxWeek26, className }: TrendSparklineProps) {
   const total = data.reduce((sum, v) => sum + v, 0);
   
   // Calculate week dates for each data point
@@ -148,6 +149,7 @@ export function TrendSparkline({ data, className }: TrendSparklineProps) {
           <div className="flex justify-between text-xs text-muted-foreground pt-1 border-t border-border/30">
             <span>Total: {total} items</span>
             <span>Avg: {(total / data.length).toFixed(1)} / week</span>
+            {maxWeek26 !== undefined && <span>Peak: {maxWeek26} / week</span>}
           </div>
         </div>
       </HoverCardContent>
