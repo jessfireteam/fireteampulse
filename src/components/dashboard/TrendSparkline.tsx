@@ -5,7 +5,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/h
 import { format, subWeeks, startOfWeek } from "date-fns";
 
 interface TrendSparklineProps {
-  data: number[]; // 5 weeks of data, oldest to newest (week -5 to week -1)
+  data: number[]; // 8 weeks of data, oldest to newest (week -8 to week -1)
   className?: string;
 }
 
@@ -16,7 +16,7 @@ export function TrendSparkline({ data, className }: TrendSparklineProps) {
   
   // Calculate week dates for each data point
   const chartData = data.map((value, index) => {
-    const weeksAgo = 5 - index; // index 0 = 5 weeks ago, index 4 = 1 week ago
+    const weeksAgo = data.length - index; // index 0 = oldest, last index = 1 week ago
     const weekStart = startOfWeek(subWeeks(new Date(), weeksAgo), { weekStartsOn: 1 });
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekEnd.getDate() + 6); // Sunday
@@ -29,8 +29,10 @@ export function TrendSparkline({ data, className }: TrendSparklineProps) {
   });
   
   // Calculate trend direction
-  const recentAvg = (data[3] + data[4]) / 2; // Last 2 weeks
-  const olderAvg = (data[0] + data[1] + data[2]) / 3; // First 3 weeks
+  const len = data.length;
+  const recentAvg = (data[len - 2] + data[len - 1]) / 2; // Last 2 weeks
+  const olderSlice = data.slice(0, len - 2);
+  const olderAvg = olderSlice.length > 0 ? olderSlice.reduce((s, v) => s + v, 0) / olderSlice.length : 0;
   
   const getTrendColor = () => {
     if (olderAvg === 0 && recentAvg === 0) return "text-muted-foreground";
@@ -93,7 +95,7 @@ export function TrendSparkline({ data, className }: TrendSparklineProps) {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-semibold text-foreground">Weekly Completions</h4>
-            <span className="text-xs text-muted-foreground">Last 5 weeks</span>
+            <span className="text-xs text-muted-foreground">Last {data.length} weeks</span>
           </div>
           <div className="h-40">
             <ResponsiveContainer width="100%" height="100%">
@@ -145,7 +147,7 @@ export function TrendSparkline({ data, className }: TrendSparklineProps) {
           </div>
           <div className="flex justify-between text-xs text-muted-foreground pt-1 border-t border-border/30">
             <span>Total: {total} items</span>
-            <span>Avg: {(total / 5).toFixed(1)} / week</span>
+            <span>Avg: {(total / data.length).toFixed(1)} / week</span>
           </div>
         </div>
       </HoverCardContent>
