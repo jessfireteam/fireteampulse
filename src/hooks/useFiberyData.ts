@@ -161,11 +161,7 @@ function getTaskCategory(taskName: string): string {
 export interface TaskTypeRow {
   taskType: string;
   avg30Day: number;
-  weekMinus5: number;
-  weekMinus4: number;
-  weekMinus3: number;
-  weekMinus2: number;
-  weekMinus1: number;
+  weekCounts: number[]; // 8 weeks, index 0 = oldest (week -8), index 7 = most recent (week -1)
   inheritedOverdue: number;
   trueOverdue: number;
   due7Days: number;
@@ -234,13 +230,7 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
   const next30Days = addDays(todayStart, 30);
   const last30Days = subDays(todayStart, 30);
 
-  const weeks = [
-    getWeekBoundaries(todayStart, 1),
-    getWeekBoundaries(todayStart, 2),
-    getWeekBoundaries(todayStart, 3),
-    getWeekBoundaries(todayStart, 4),
-    getWeekBoundaries(todayStart, 5),
-  ];
+  const weeks = Array.from({ length: 8 }, (_, i) => getWeekBoundaries(todayStart, i + 1));
 
 
   let filteredTasks = tasks;
@@ -308,7 +298,7 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
     }
     if (!personData[assigneeName][taskType]) {
       personData[assigneeName][taskType] = {
-        weekCounts: [0, 0, 0, 0, 0],
+        weekCounts: [0, 0, 0, 0, 0, 0, 0, 0],
         inheritedOverdue: 0,
         trueOverdue: 0,
         due7Days: 0,
@@ -368,19 +358,14 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
       .map(([taskType, data]) => ({
         taskType,
         avg30Day: data.last30DaysTotal,
-        weekMinus5: data.weekCounts[4],
-        weekMinus4: data.weekCounts[3],
-        weekMinus3: data.weekCounts[2],
-        weekMinus2: data.weekCounts[1],
-        weekMinus1: data.weekCounts[0],
+        weekCounts: [...data.weekCounts].reverse(), // reverse so index 0 = oldest
         inheritedOverdue: data.inheritedOverdue,
         trueOverdue: data.trueOverdue,
         due7Days: data.due7Days,
         due30Days: data.due30Days,
       }))
       .filter(row => {
-        const totalWeeks = row.weekMinus1 + row.weekMinus2 + row.weekMinus3 + 
-                          row.weekMinus4 + row.weekMinus5;
+        const totalWeeks = row.weekCounts.reduce((s, v) => s + v, 0);
         return totalWeeks >= 3 || row.due7Days >= 3 || row.due30Days >= 3 || (row.inheritedOverdue + row.trueOverdue) >= 1;
       })
       .sort((a, b) => b.avg30Day - a.avg30Day);
@@ -388,11 +373,7 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
     const subtotal: TaskTypeRow = {
       taskType: 'Subtotal',
       avg30Day: Math.round(taskTypeRows.reduce((sum, r) => sum + r.avg30Day, 0) * 10) / 10,
-      weekMinus5: taskTypeRows.reduce((sum, r) => sum + r.weekMinus5, 0),
-      weekMinus4: taskTypeRows.reduce((sum, r) => sum + r.weekMinus4, 0),
-      weekMinus3: taskTypeRows.reduce((sum, r) => sum + r.weekMinus3, 0),
-      weekMinus2: taskTypeRows.reduce((sum, r) => sum + r.weekMinus2, 0),
-      weekMinus1: taskTypeRows.reduce((sum, r) => sum + r.weekMinus1, 0),
+      weekCounts: Array.from({ length: 8 }, (_, i) => taskTypeRows.reduce((sum, r) => sum + r.weekCounts[i], 0)),
       inheritedOverdue: taskTypeRows.reduce((sum, r) => sum + r.inheritedOverdue, 0),
       trueOverdue: taskTypeRows.reduce((sum, r) => sum + r.trueOverdue, 0),
       due7Days: taskTypeRows.reduce((sum, r) => sum + r.due7Days, 0),
@@ -420,11 +401,7 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
       const briefWorkRow: TaskTypeRow = {
         taskType: 'Brief Work',
         avg30Day: briefWork.last30DaysTotal,
-        weekMinus5: briefWork.weekCounts[4],
-        weekMinus4: briefWork.weekCounts[3],
-        weekMinus3: briefWork.weekCounts[2],
-        weekMinus2: briefWork.weekCounts[1],
-        weekMinus1: briefWork.weekCounts[0],
+        weekCounts: [...briefWork.weekCounts].reverse(),
         inheritedOverdue: briefWork.inheritedOverdue,
         trueOverdue: briefWork.trueOverdue,
         due7Days: briefWork.due7Days,
@@ -450,11 +427,7 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
       const crRow: TaskTypeRow = {
         taskType: 'Creative Review',
         avg30Day: cr.last30DaysTotal,
-        weekMinus5: cr.weekCounts[4],
-        weekMinus4: cr.weekCounts[3],
-        weekMinus3: cr.weekCounts[2],
-        weekMinus2: cr.weekCounts[1],
-        weekMinus1: cr.weekCounts[0],
+        weekCounts: [...cr.weekCounts].reverse(),
         inheritedOverdue: cr.inheritedOverdue,
         trueOverdue: cr.trueOverdue,
         due7Days: cr.due7Days,
@@ -479,9 +452,7 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
       const dRow: TaskTypeRow = {
         taskType: 'Design',
         avg30Day: d.last30DaysTotal,
-        weekMinus5: d.weekCounts[4], weekMinus4: d.weekCounts[3],
-        weekMinus3: d.weekCounts[2], weekMinus2: d.weekCounts[1],
-        weekMinus1: d.weekCounts[0],
+        weekCounts: [...d.weekCounts].reverse(),
         inheritedOverdue: d.inheritedOverdue, trueOverdue: d.trueOverdue, due7Days: d.due7Days, due30Days: d.due30Days,
       };
       people.push({ name, role: 'Design', primaryTaskType: 'Design', taskTypes: [dRow], subtotal: dRow });
@@ -497,9 +468,7 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
       const vRow: TaskTypeRow = {
         taskType: 'Video Editing',
         avg30Day: v.last30DaysTotal,
-        weekMinus5: v.weekCounts[4], weekMinus4: v.weekCounts[3],
-        weekMinus3: v.weekCounts[2], weekMinus2: v.weekCounts[1],
-        weekMinus1: v.weekCounts[0],
+        weekCounts: [...v.weekCounts].reverse(),
         inheritedOverdue: v.inheritedOverdue, trueOverdue: v.trueOverdue, due7Days: v.due7Days, due30Days: v.due30Days,
       };
       people.push({ name, role: 'Video', primaryTaskType: 'Video Editing', taskTypes: [vRow], subtotal: vRow });
