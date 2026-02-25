@@ -162,6 +162,7 @@ export interface TaskTypeRow {
   taskType: string;
   avg30Day: number;
   weekCounts: number[]; // 8 weeks, index 0 = oldest (week -8), index 7 = most recent (week -1)
+  maxWeek26: number; // highest single-week completions over last 26 weeks
   inheritedOverdue: number;
   trueOverdue: number;
   due7Days: number;
@@ -231,6 +232,7 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
   const last30Days = subDays(todayStart, 30);
 
   const weeks = Array.from({ length: 8 }, (_, i) => getWeekBoundaries(todayStart, i + 1));
+  const weeks26 = Array.from({ length: 26 }, (_, i) => getWeekBoundaries(todayStart, i + 1));
 
 
   let filteredTasks = tasks;
@@ -280,6 +282,7 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
 
   const personData: Record<string, Record<string, {
     weekCounts: number[];
+    weekCounts26: number[];
     inheritedOverdue: number;
     trueOverdue: number;
     due7Days: number;
@@ -299,6 +302,7 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
     if (!personData[assigneeName][taskType]) {
       personData[assigneeName][taskType] = {
         weekCounts: [0, 0, 0, 0, 0, 0, 0, 0],
+        weekCounts26: new Array(26).fill(0),
         inheritedOverdue: 0,
         trueOverdue: 0,
         due7Days: 0,
@@ -320,6 +324,11 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
       weeks.forEach((week, index) => {
         if (isWithinInterval(doneDate, { start: week.start, end: week.end })) {
           data.weekCounts[index]++;
+        }
+      });
+      weeks26.forEach((week, index) => {
+        if (isWithinInterval(doneDate, { start: week.start, end: week.end })) {
+          data.weekCounts26[index]++;
         }
       });
     }
@@ -358,7 +367,8 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
       .map(([taskType, data]) => ({
         taskType,
         avg30Day: data.last30DaysTotal,
-        weekCounts: [...data.weekCounts].reverse(), // reverse so index 0 = oldest
+        weekCounts: [...data.weekCounts].reverse(),
+        maxWeek26: Math.max(...data.weekCounts26),
         inheritedOverdue: data.inheritedOverdue,
         trueOverdue: data.trueOverdue,
         due7Days: data.due7Days,
@@ -374,6 +384,7 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
       taskType: 'Subtotal',
       avg30Day: Math.round(taskTypeRows.reduce((sum, r) => sum + r.avg30Day, 0) * 10) / 10,
       weekCounts: Array.from({ length: 8 }, (_, i) => taskTypeRows.reduce((sum, r) => sum + r.weekCounts[i], 0)),
+      maxWeek26: Math.max(...taskTypeRows.map(r => r.maxWeek26)),
       inheritedOverdue: taskTypeRows.reduce((sum, r) => sum + r.inheritedOverdue, 0),
       trueOverdue: taskTypeRows.reduce((sum, r) => sum + r.trueOverdue, 0),
       due7Days: taskTypeRows.reduce((sum, r) => sum + r.due7Days, 0),
@@ -402,6 +413,7 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
         taskType: 'Brief Work',
         avg30Day: briefWork.last30DaysTotal,
         weekCounts: [...briefWork.weekCounts].reverse(),
+        maxWeek26: Math.max(...briefWork.weekCounts26),
         inheritedOverdue: briefWork.inheritedOverdue,
         trueOverdue: briefWork.trueOverdue,
         due7Days: briefWork.due7Days,
@@ -428,6 +440,7 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
         taskType: 'Creative Review',
         avg30Day: cr.last30DaysTotal,
         weekCounts: [...cr.weekCounts].reverse(),
+        maxWeek26: Math.max(...cr.weekCounts26),
         inheritedOverdue: cr.inheritedOverdue,
         trueOverdue: cr.trueOverdue,
         due7Days: cr.due7Days,
@@ -453,6 +466,7 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
         taskType: 'Design',
         avg30Day: d.last30DaysTotal,
         weekCounts: [...d.weekCounts].reverse(),
+        maxWeek26: Math.max(...d.weekCounts26),
         inheritedOverdue: d.inheritedOverdue, trueOverdue: d.trueOverdue, due7Days: d.due7Days, due30Days: d.due30Days,
       };
       people.push({ name, role: 'Design', primaryTaskType: 'Design', taskTypes: [dRow], subtotal: dRow });
@@ -469,6 +483,7 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
         taskType: 'Video Editing',
         avg30Day: v.last30DaysTotal,
         weekCounts: [...v.weekCounts].reverse(),
+        maxWeek26: Math.max(...v.weekCounts26),
         inheritedOverdue: v.inheritedOverdue, trueOverdue: v.trueOverdue, due7Days: v.due7Days, due30Days: v.due30Days,
       };
       people.push({ name, role: 'Video', primaryTaskType: 'Video Editing', taskTypes: [vRow], subtotal: vRow });

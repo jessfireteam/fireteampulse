@@ -72,7 +72,7 @@ function PersonRow({ name, row, taskLabel }: { name: string; row: TaskTypeRow; t
         {avg7d.toFixed(1)}
       </TableCell>
       <TableCell className="text-center px-1">
-        <TrendSparkline data={row.weekCounts} />
+        <TrendSparkline data={row.weekCounts} maxWeek26={row.maxWeek26} />
       </TableCell>
       <OverdueCell inherited={row.inheritedOverdue} true={row.trueOverdue} />
       <Due7dCell due7d={row.due7Days} avg7d={avg7d} />
