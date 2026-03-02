@@ -289,12 +289,10 @@ serve(async (req) => {
     if (queryType === 'project-timeline-upcoming') {
       const now = new Date()
       const todayDate = now.toISOString().split('T')[0]
-      const sixWeeksOut = new Date(now.getTime() + 42 * 24 * 60 * 60 * 1000)
-      const sixWeeksDate = sixWeeksOut.toISOString().split('T')[0]
       query = `{
         findProjects(
-          limit: 1000
-          dueDate: { greaterOrEquals: "${todayDate}", less: "${sixWeeksDate}" }
+          limit: 3000
+          dueDate: { greaterOrEquals: "${todayDate}" }
           doneDate: { isNull: true }
           orderBy: { dueDate: ASC }
         ) {

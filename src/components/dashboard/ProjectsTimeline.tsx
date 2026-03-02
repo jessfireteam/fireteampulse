@@ -60,7 +60,19 @@ export function ProjectsTimeline() {
     const now = new Date();
     const currentWeekStart = startOfWeek(now, { weekStartsOn: 1 });
 
-    // Build week buckets: 12 past weeks + current week + 5 future weeks
+    // Determine how many future weeks we need based on upcoming data
+    let maxFutureWeeks = 5;
+    if (upcomingData?.findProjects) {
+      upcomingData.findProjects.forEach((p) => {
+        if (!p.dueDate) return;
+        const dueDate = parseISO(p.dueDate);
+        const ws = startOfWeek(dueDate, { weekStartsOn: 1 });
+        const weeksOut = Math.ceil((ws.getTime() - currentWeekStart.getTime()) / (7 * 24 * 60 * 60 * 1000));
+        if (weeksOut > maxFutureWeeks) maxFutureWeeks = weeksOut;
+      });
+    }
+
+    // Build week buckets: 12 past weeks + current week + dynamic future weeks
     const weeks: WeekData[] = [];
 
     for (let i = 12; i >= 1; i--) {
@@ -83,7 +95,7 @@ export function ProjectsTimeline() {
       isFuture: false,
     });
 
-    for (let i = 1; i <= 5; i++) {
+    for (let i = 1; i <= maxFutureWeeks; i++) {
       const ws = addWeeks(currentWeekStart, i);
       weeks.push({
         weekLabel: format(ws, "MMM d"),
