@@ -23,6 +23,13 @@ export function DashboardHeader() {
           Dashboard
         </NavLink>
         <NavLink
+          to="/team-capacity"
+          className="px-3 py-1.5 rounded-md text-sm text-muted-foreground transition-colors hover:text-foreground"
+          activeClassName="bg-primary/20 text-primary font-medium"
+        >
+          Team Capacity
+        </NavLink>
+        <NavLink
           to="/creator-costs"
           className="px-3 py-1.5 rounded-md text-sm text-muted-foreground transition-colors hover:text-foreground"
           activeClassName="bg-primary/20 text-primary font-medium"

@@ -1,6 +1,6 @@
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { AgencyHeartbeat } from "@/components/dashboard/AgencyHeartbeat";
-import { TeamCapacity } from "@/components/dashboard/TeamCapacity";
+import { RoleCapacitySummary } from "@/components/dashboard/RoleCapacitySummary";
 import { ClientEconomics } from "@/components/dashboard/ClientEconomics";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
@@ -30,9 +30,9 @@ const Index = () => {
             <AgencyHeartbeat />
           </section>
 
-          {/* Team Capacity Section */}
+          {/* Role Capacity Section */}
           <section>
-            <TeamCapacity />
+            <RoleCapacitySummary />
           </section>
 
           {/* Client Economics Section */}
