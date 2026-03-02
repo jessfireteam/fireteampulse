@@ -29,7 +29,7 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
 const ALLOWED_EMAIL_DOMAIN = '@fireteam.is'
 
 // Whitelisted query types - only these are allowed
-const ALLOWED_QUERY_TYPES = ['projects', 'tasks', 'pending-tasks', 'client-months', 'client-weeks', 'project-completions', 'project-upcoming', 'project-pacing', 'shipped-tasks', 'client-expenses', 'creator-costs', 'leads'] as const
+const ALLOWED_QUERY_TYPES = ['projects', 'tasks', 'pending-tasks', 'client-months', 'client-weeks', 'project-completions', 'project-upcoming', 'project-timeline-upcoming', 'project-pacing', 'shipped-tasks', 'client-expenses', 'creator-costs', 'leads'] as const
 type QueryType = typeof ALLOWED_QUERY_TYPES[number]
 
 // Predefined queries for security - no arbitrary GraphQL allowed
@@ -121,9 +121,11 @@ const QUERIES: Record<QueryType, string> = {
       name
       doneDate
       dueDate
+      type { name }
     }
   }`,
   'project-upcoming': 'DYNAMIC',
+  'project-timeline-upcoming': 'DYNAMIC',
   'project-pacing': 'DYNAMIC',
   'shipped-tasks': 'DYNAMIC',
   'client-expenses': 'DYNAMIC',
@@ -156,6 +158,7 @@ const QUERY_ENDPOINTS: Record<QueryType, string> = {
   'client-weeks': 'https://fireteam.fibery.io/api/graphql/space/Stats',
   'project-completions': 'https://fireteam.fibery.io/api/graphql/space/Projects',
   'project-upcoming': 'https://fireteam.fibery.io/api/graphql/space/Projects',
+  'project-timeline-upcoming': 'https://fireteam.fibery.io/api/graphql/space/Projects',
   'project-pacing': 'https://fireteam.fibery.io/api/graphql/space/Projects',
   'shipped-tasks': 'https://fireteam.fibery.io/api/graphql/space/Projects',
   'client-expenses': 'https://fireteam.fibery.io/api/graphql/space/Projects',
@@ -278,6 +281,27 @@ serve(async (req) => {
           client { name }
           name
           dueDate
+        }
+      }`
+    }
+
+    // Dynamic query for project-timeline-upcoming: fetch undone projects due in next 6 weeks
+    if (queryType === 'project-timeline-upcoming') {
+      const now = new Date()
+      const todayDate = now.toISOString().split('T')[0]
+      const sixWeeksOut = new Date(now.getTime() + 42 * 24 * 60 * 60 * 1000)
+      const sixWeeksDate = sixWeeksOut.toISOString().split('T')[0]
+      query = `{
+        findProjects(
+          limit: 1000
+          dueDate: { greaterOrEquals: "${todayDate}", less: "${sixWeeksDate}" }
+          doneDate: { isNull: true }
+          orderBy: { dueDate: ASC }
+        ) {
+          client { name }
+          name
+          dueDate
+          type { name }
         }
       }`
     }
