@@ -71,10 +71,15 @@ function UtilizationBar({ role, current, peak }: RoleBar) {
           className="absolute inset-y-0 bg-emerald-500/15 border-l border-r border-emerald-500/30"
           style={{ left: `${greenStart}%`, width: `${greenEnd - greenStart}%` }}
         />
-        {/* Red zone band (75-100%) */}
+        {/* Amber transition zone (75-85%) */}
         <div
-          className="absolute inset-y-0 bg-destructive/10 border-l border-r border-destructive/30"
-          style={{ left: `${redStart}%`, width: `${100 - redStart}%` }}
+          className="absolute inset-y-0 bg-amber-500/10 border-l border-amber-500/20"
+          style={{ left: `${redStart}%`, width: `10%` }}
+        />
+        {/* Red zone band (85-100%) */}
+        <div
+          className="absolute inset-y-0 bg-destructive/10 border-r border-destructive/30"
+          style={{ left: `85%`, width: `15%` }}
         />
 
         {/* Filled bar */}
@@ -83,11 +88,13 @@ function UtilizationBar({ role, current, peak }: RoleBar) {
             "absolute inset-y-0 left-0 rounded-md transition-all duration-500",
             overflow
               ? "bg-destructive"
-              : pct >= 75
+              : pct >= 85
                 ? "bg-destructive/80"
-                : pct >= 50
-                  ? "bg-emerald-500"
-                  : "bg-primary/70"
+                : pct >= 75
+                  ? "bg-amber-500"
+                  : pct >= 50
+                    ? "bg-emerald-500"
+                    : "bg-muted-foreground/30"
           )}
           style={{ width: `${clampedPct}%` }}
         />
