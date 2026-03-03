@@ -11,55 +11,74 @@ import {
   TooltipTrigger,
   TooltipProvider,
 } from "@/components/ui/tooltip";
-import { parseISO, format, startOfMonth } from "date-fns";
+import { subDays, parseISO, isAfter } from "date-fns";
 
 type ProjectTypeFilter = "Static" | "Video - LoFi";
 
-// Stage orders per project type (position = display order left-to-right)
-const STATIC_STAGE_ORDER: Record<string, number> = {
-  "Needs Concept": 1,
-  "Concept Pending Approval": 2,
-  "Needs Brief Written": 3,
-  "Need to send brief to client": 4,
-  "Brief Pending Client Approval": 5,
-  "Ad Needs Naming": 6,
-  "Assign Designer": 7,
-  "With Designer": 8,
-  "Creative Review": 9,
-  "Approved Internally": 10,
-  "Ready For Upload": 11,
-  "Need to send ad to client": 12,
-  "Ad Pending Client Approval": 13,
-  "Needs To Go To Market": 14,
-  "Final Deliverables": 15,
-};
+const STATIC_STAGES = [
+  "Needs Concept",
+  "Concept Pending Approval",
+  "Needs Brief Written",
+  "Need to send brief to client",
+  "Brief Pending Client Approval",
+  "Ad Needs Naming",
+  "Assign Designer",
+  "With Designer",
+  "Creative Review",
+  "Approved Internally",
+  "Ready For Upload",
+  "Need to send ad to client",
+  "Ad Pending Client Approval",
+  "Needs To Go To Market",
+  "Final Deliverables",
+];
 
-const VIDEO_STAGE_ORDER: Record<string, number> = {
-  "Needs Concept": 1,
-  "Concept Pending Approval": 2,
-  "Needs Brief Written": 3,
-  "Need to send to client": 4,
-  "Brief Pending Client Approval": 5,
-  "Ad Needs Naming": 6,
-  "Cast Creator": 7,
-  "Awaiting deliverables": 8,
-  "Assign Editor": 9,
-  "With Editor": 10,
-  "Creative Review": 11,
-  "Approved Internally": 12,
-  "Ready For Upload": 13,
-  "Send ad to client for review": 14,
-  "Ad Pending Client Approval": 15,
-  "Needs To Go To Market": 16,
-  "Final Deliverables": 17,
-};
+const VIDEO_STAGES = [
+  "Needs Concept",
+  "Concept Pending Approval",
+  "Needs Brief Written",
+  "Need to send to client",
+  "Brief Pending Client Approval",
+  "Ad Needs Naming",
+  "Cast Creator",
+  "Awaiting deliverables",
+  "Assign Editor",
+  "With Editor",
+  "Creative Review",
+  "Approved Internally",
+  "Ready For Upload",
+  "Send ad to client for review",
+  "Ad Pending Client Approval",
+  "Needs To Go To Market",
+  "Final Deliverables",
+];
 
 const EXCLUDED_STAGES = new Set(["Approved"]);
 
-function getStagePosition(stageName: string, typeFilter: ProjectTypeFilter): number {
-  const order = typeFilter === "Static" ? STATIC_STAGE_ORDER : VIDEO_STAGE_ORDER;
-  return order[stageName] ?? 99;
-}
+// Abbreviate long stage names for x-axis
+const STAGE_ABBREV: Record<string, string> = {
+  "Concept Pending Approval": "Concept Approval",
+  "Needs Brief Written": "Write Brief",
+  "Need to send brief to client": "Send Brief",
+  "Need to send to client": "Send to Client",
+  "Brief Pending Client Approval": "Brief Approval",
+  "Ad Needs Naming": "Naming",
+  "Assign Designer": "Assign Designer",
+  "Assign Editor": "Assign Editor",
+  "Awaiting deliverables": "Await Deliverables",
+  "Cast Creator": "Cast Creator",
+  "With Designer": "With Designer",
+  "With Editor": "With Editor",
+  "Creative Review": "Creative Review",
+  "Approved Internally": "Internal Approval",
+  "Ready For Upload": "Ready Upload",
+  "Need to send ad to client": "Send Ad",
+  "Send ad to client for review": "Send Ad",
+  "Ad Pending Client Approval": "Ad Approval",
+  "Needs To Go To Market": "Go To Market",
+  "Final Deliverables": "Final",
+  "Needs Concept": "Concept",
+};
 
 function classifyProjectType(typeName: string | null | undefined): ProjectTypeFilter | null {
   if (!typeName) return null;
@@ -69,47 +88,12 @@ function classifyProjectType(typeName: string | null | undefined): ProjectTypeFi
   return null;
 }
 
-interface StageSegment {
+interface StageBar {
   stageName: string;
-  avgDuration: number;
-  position: number;
+  abbrev: string;
+  avgDays: number;
+  prevAvgDays: number | null;
   count: number;
-}
-
-interface MonthRow {
-  monthLabel: string;
-  monthKey: string;
-  segments: StageSegment[];
-  totalDays: number;
-}
-
-// Stage color palette
-const STAGE_COLORS: Record<string, string> = {
-  "Needs Concept": "bg-slate-500/70",
-  "Concept Pending Approval": "bg-slate-400/70",
-  "Needs Brief Written": "bg-sky-700/70",
-  "Need to send brief to client": "bg-sky-600/70",
-  "Need to send to client": "bg-sky-600/70",
-  "Brief Pending Client Approval": "bg-sky-500/70",
-  "Ad Needs Naming": "bg-cyan-500/70",
-  "Assign Designer": "bg-violet-500/70",
-  "Assign Editor": "bg-violet-500/70",
-  "Cast Creator": "bg-purple-500/70",
-  "Awaiting deliverables": "bg-purple-400/70",
-  "With Designer": "bg-indigo-500/70",
-  "With Editor": "bg-indigo-500/70",
-  "Creative Review": "bg-amber-500/70",
-  "Approved Internally": "bg-yellow-500/70",
-  "Ready For Upload": "bg-emerald-500/70",
-  "Need to send ad to client": "bg-orange-500/70",
-  "Send ad to client for review": "bg-orange-500/70",
-  "Ad Pending Client Approval": "bg-orange-400/70",
-  "Needs To Go To Market": "bg-teal-500/70",
-  "Final Deliverables": "bg-green-500/70",
-};
-
-function getStageColor(stageName: string): string {
-  return STAGE_COLORS[stageName] ?? "bg-muted-foreground/30";
 }
 
 export function StageDurationTimeline() {
@@ -122,72 +106,71 @@ export function StageDurationTimeline() {
     retry: 2,
   });
 
-  const monthRows = useMemo(() => {
-    if (!data?.findStageTrackings) return [];
+  const { bars, totalCurrent, totalPrev } = useMemo(() => {
+    if (!data?.findStageTrackings) return { bars: [], totalCurrent: 0, totalPrev: null };
 
-    const filtered = data.findStageTrackings.filter((entry) => {
-      if (!entry.project || !entry.creationDate || !entry.stage) return false;
-      if (entry.duration == null || entry.duration <= 0) return false;
-      if (EXCLUDED_STAGES.has(entry.stage.name)) return false;
-      const pType = classifyProjectType(entry.project.type?.name);
-      return pType === typeFilter;
-    });
+    const now = new Date();
+    const cutoff30 = subDays(now, 30);
+    const cutoff60 = subDays(now, 60);
+    const stages = typeFilter === "Static" ? STATIC_STAGES : VIDEO_STAGES;
 
-    // Group by month → stage
-    const monthStageMap: Record<string, Record<string, { totalDuration: number; count: number }>> = {};
+    // Bucket entries into current (last 30d) and previous (30-60d)
+    const currentMap: Record<string, { total: number; count: number }> = {};
+    const prevMap: Record<string, { total: number; count: number }> = {};
 
-    filtered.forEach((entry) => {
-      if (!entry.creationDate || !entry.stage) return;
+    data.findStageTrackings.forEach((entry) => {
+      if (!entry.project || !entry.creationDate || !entry.stage) return;
+      if (entry.duration == null || entry.duration <= 0) return;
+      if (EXCLUDED_STAGES.has(entry.stage.name)) return;
+      if (classifyProjectType(entry.project.type?.name) !== typeFilter) return;
+
       const date = parseISO(entry.creationDate);
-      const monthKey = format(startOfMonth(date), "yyyy-MM");
       const stageName = entry.stage.name;
-      const duration = entry.duration ?? 0;
 
-      if (!monthStageMap[monthKey]) monthStageMap[monthKey] = {};
-      if (!monthStageMap[monthKey][stageName]) {
-        monthStageMap[monthKey][stageName] = { totalDuration: 0, count: 0 };
+      if (isAfter(date, cutoff30)) {
+        if (!currentMap[stageName]) currentMap[stageName] = { total: 0, count: 0 };
+        currentMap[stageName].total += entry.duration;
+        currentMap[stageName].count++;
+      } else if (isAfter(date, cutoff60)) {
+        if (!prevMap[stageName]) prevMap[stageName] = { total: 0, count: 0 };
+        prevMap[stageName].total += entry.duration;
+        prevMap[stageName].count++;
       }
-      monthStageMap[monthKey][stageName].totalDuration += duration;
-      monthStageMap[monthKey][stageName].count++;
     });
 
-    const rows: MonthRow[] = Object.entries(monthStageMap)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([monthKey, stages]) => {
-        const segments: StageSegment[] = Object.entries(stages)
-          .map(([stageName, data]) => {
-            const avg = data.count > 0 ? data.totalDuration / data.count : 0;
-            return {
-              stageName,
-              avgDuration: Math.round(avg * 10) / 10,
-              position: getStagePosition(stageName, typeFilter),
-              count: data.count,
-            };
-          })
-          .sort((a, b) => a.position - b.position);
-
-        const totalDays = segments.reduce((sum, s) => sum + s.avgDuration, 0);
-        const date = parseISO(monthKey + "-01");
+    const result: StageBar[] = stages
+      .filter((s) => !EXCLUDED_STAGES.has(s))
+      .map((stageName) => {
+        const cur = currentMap[stageName];
+        const prev = prevMap[stageName];
+        const avgDays = cur && cur.count > 0 ? Math.round((cur.total / cur.count) * 10) / 10 : 0;
+        const prevAvgDays = prev && prev.count > 0 ? Math.round((prev.total / prev.count) * 10) / 10 : null;
         return {
-          monthLabel: format(date, "MMM ''yy"),
-          monthKey,
-          segments,
-          totalDays: Math.round(totalDays * 10) / 10,
+          stageName,
+          abbrev: STAGE_ABBREV[stageName] ?? stageName,
+          avgDays,
+          prevAvgDays,
+          count: cur?.count ?? 0,
         };
       });
 
-    return rows;
+    const totalC = result.reduce((s, b) => s + b.avgDays, 0);
+    const totalP = result.every((b) => b.prevAvgDays != null)
+      ? result.reduce((s, b) => s + (b.prevAvgDays ?? 0), 0)
+      : null;
+
+    return { bars: result, totalCurrent: Math.round(totalC * 10) / 10, totalPrev: totalP != null ? Math.round(totalP * 10) / 10 : null };
   }, [data, typeFilter]);
 
   const maxDays = useMemo(() => {
-    if (monthRows.length === 0) return 30;
-    return Math.max(...monthRows.map((r) => r.totalDays), 30);
-  }, [monthRows]);
+    if (bars.length === 0) return 10;
+    return Math.max(...bars.map((b) => b.avgDays), 1);
+  }, [bars]);
 
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <SectionHeader title="Stage Duration Timeline" />
+        <SectionHeader title="Stage Duration" />
         <Skeleton className="h-96" />
       </div>
     );
@@ -196,7 +179,7 @@ export function StageDurationTimeline() {
   if (error) {
     return (
       <div className="space-y-6">
-        <SectionHeader title="Stage Duration Timeline" />
+        <SectionHeader title="Stage Duration" />
         <Card className="border-destructive/50 bg-destructive/10">
           <CardContent className="p-6">
             <p className="text-destructive">Failed to load stage tracking data</p>
@@ -206,102 +189,97 @@ export function StageDurationTimeline() {
     );
   }
 
-  // Collect all unique stages for the legend
-  const allStages = new Map<string, number>();
-  monthRows.forEach((row) =>
-    row.segments.forEach((seg) => {
-      if (!allStages.has(seg.stageName)) allStages.set(seg.stageName, seg.position);
-    })
-  );
-  const legendStages = [...allStages.entries()].sort((a, b) => a[1] - b[1]);
+  const totalDelta = totalPrev != null ? Math.round((totalCurrent - totalPrev) * 10) / 10 : null;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <SectionHeader title="Stage Duration Timeline" />
-        <ToggleGroup
-          type="single"
-          value={typeFilter}
-          onValueChange={(val) => {
-            if (val) setTypeFilter(val as ProjectTypeFilter);
-          }}
-          className="bg-muted/50 rounded-lg p-1"
-        >
-          <ToggleGroupItem value="Static" className="text-xs px-3 py-1 rounded-md data-[state=on]:bg-background data-[state=on]:shadow-sm">
-            Static
-          </ToggleGroupItem>
-          <ToggleGroupItem value="Video - LoFi" className="text-xs px-3 py-1 rounded-md data-[state=on]:bg-background data-[state=on]:shadow-sm">
-            Video - LoFi
-          </ToggleGroupItem>
-        </ToggleGroup>
+        <SectionHeader title="Stage Duration" />
+        <div className="flex items-center gap-4">
+          {/* Total cycle time */}
+          <div className="text-sm font-mono text-muted-foreground">
+            Total: <span className="text-foreground font-semibold">{Math.round(totalCurrent)}d</span>
+            {totalDelta != null && totalDelta !== 0 && (
+              <span className={`ml-1.5 text-xs font-semibold ${totalDelta < 0 ? "text-emerald-500" : "text-red-400"}`}>
+                {totalDelta < 0 ? "↓" : "↑"}{Math.abs(totalDelta)}d
+              </span>
+            )}
+          </div>
+          <ToggleGroup
+            type="single"
+            value={typeFilter}
+            onValueChange={(val) => { if (val) setTypeFilter(val as ProjectTypeFilter); }}
+            className="bg-muted/50 rounded-lg p-1"
+          >
+            <ToggleGroupItem value="Static" className="text-xs px-3 py-1 rounded-md data-[state=on]:bg-background data-[state=on]:shadow-sm">
+              Static
+            </ToggleGroupItem>
+            <ToggleGroupItem value="Video - LoFi" className="text-xs px-3 py-1 rounded-md data-[state=on]:bg-background data-[state=on]:shadow-sm">
+              Video - LoFi
+            </ToggleGroupItem>
+          </ToggleGroup>
+        </div>
       </div>
 
       <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
         <CardContent className="p-6">
-          {monthRows.length === 0 ? (
+          {bars.length === 0 ? (
             <p className="text-muted-foreground text-sm text-center py-8">
               No stage tracking data found for {typeFilter} projects
             </p>
           ) : (
             <TooltipProvider delayDuration={100}>
-              <div className="space-y-1.5">
-                <div className="flex items-center pl-16 mb-1">
-                  <span className="text-[10px] text-muted-foreground">Days →</span>
-                </div>
+              <div className="flex items-end gap-1 h-64" style={{ minWidth: bars.length * 48 }}>
+                {bars.map((bar) => {
+                  const heightPct = maxDays > 0 ? (bar.avgDays / maxDays) * 100 : 0;
+                  const delta = bar.prevAvgDays != null ? Math.round((bar.avgDays - bar.prevAvgDays) * 10) / 10 : null;
 
-                {monthRows.map((row) => (
-                  <div key={row.monthKey} className="flex items-center gap-2">
-                    <div className="w-14 shrink-0 text-right">
-                      <span className="text-[11px] text-muted-foreground font-medium">{row.monthLabel}</span>
-                    </div>
-
-                    <div className="flex-1 flex items-center gap-0 h-6 relative">
-                      {row.segments.map((seg, i) => {
-                        const widthPct = (seg.avgDuration / maxDays) * 100;
-                        if (widthPct < 0.3) return null;
-                        const showLabel = widthPct > 8;
-
-                        return (
-                          <Tooltip key={`${row.monthKey}-${seg.stageName}-${i}`}>
-                            <TooltipTrigger asChild>
-                              <div
-                                className={`h-full flex items-center justify-center cursor-default transition-colors ${getStageColor(seg.stageName)} hover:brightness-125 ${
-                                  i === 0 ? "rounded-l-md" : ""
-                                } ${i === row.segments.length - 1 ? "rounded-r-md" : ""} border-r border-background/40`}
-                                style={{ width: `${widthPct}%`, minWidth: "2px" }}
-                              >
-                                {showLabel && (
-                                  <span className="text-[8px] font-medium truncate px-0.5 text-white/90">
-                                    {seg.stageName}
-                                  </span>
-                                )}
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent side="top" className="text-xs space-y-1 max-w-xs">
-                              <p className="font-semibold">{seg.stageName}</p>
-                              <p>Avg: <span className="font-mono">{seg.avgDuration}</span> days</p>
-                              <p className="text-muted-foreground">{seg.count} projects</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        );
-                      })}
-
-                      <span className="ml-2 text-[10px] font-mono text-muted-foreground whitespace-nowrap">
-                        {row.totalDays}d
-                      </span>
-                    </div>
+                  return (
+                    <Tooltip key={bar.stageName}>
+                      <TooltipTrigger asChild>
+                        <div className="flex-1 flex flex-col items-center gap-1 min-w-0 cursor-default">
+                          {/* Change indicator */}
+                          <div className="h-5 flex items-center justify-center">
+                            {delta != null && delta !== 0 && (
+                              <span className={`text-[9px] font-bold whitespace-nowrap ${delta < 0 ? "text-emerald-500" : "text-red-400"}`}>
+                                {delta < 0 ? "↓" : "↑"}{Math.abs(delta)}d
+                              </span>
+                            )}
+                          </div>
+                          {/* Value label */}
+                          <span className="text-[10px] font-mono text-muted-foreground">
+                            {bar.avgDays > 0 ? bar.avgDays : ""}
+                          </span>
+                          {/* Bar */}
+                          <div
+                            className={`w-full rounded-t transition-all ${
+                              delta != null && delta > 0 ? "bg-red-400/70" : "bg-primary/60"
+                            }`}
+                            style={{ height: `${Math.max(heightPct, 1)}%`, minHeight: bar.avgDays > 0 ? "4px" : "0px" }}
+                          />
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="text-xs space-y-1 max-w-xs">
+                        <p className="font-semibold">{bar.stageName}</p>
+                        <p>Avg: <span className="font-mono">{bar.avgDays}</span> days (last 30d)</p>
+                        {bar.prevAvgDays != null && (
+                          <p>Previous: <span className="font-mono">{bar.prevAvgDays}</span> days</p>
+                        )}
+                        <p className="text-muted-foreground">{bar.count} projects</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  );
+                })}
+              </div>
+              {/* X-axis labels */}
+              <div className="flex gap-1 mt-2" style={{ minWidth: bars.length * 48 }}>
+                {bars.map((bar) => (
+                  <div key={bar.stageName} className="flex-1 min-w-0">
+                    <p className="text-[8px] text-muted-foreground text-center leading-tight truncate -rotate-45 origin-top-left translate-x-3 w-16">
+                      {bar.abbrev}
+                    </p>
                   </div>
                 ))}
-
-                {/* Legend */}
-                <div className="flex flex-wrap items-center gap-3 pt-3 pl-16">
-                  {legendStages.map(([name]) => (
-                    <div key={name} className="flex items-center gap-1">
-                      <div className={`w-2.5 h-2.5 rounded-sm ${getStageColor(name)}`} />
-                      <span className="text-[9px] text-muted-foreground">{name}</span>
-                    </div>
-                  ))}
-                </div>
               </div>
             </TooltipProvider>
           )}
