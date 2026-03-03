@@ -267,7 +267,7 @@ export function StageDurationTimeline() {
                           </div>
                         </div>
                       </TooltipTrigger>
-                      <TooltipContent side="right" className="text-xs space-y-1 max-w-xs">
+                      <TooltipContent side="top" align="start" sideOffset={8} collisionPadding={16} className="text-xs space-y-1 max-w-xs">
                         <p className="font-semibold">{bar.stageName}</p>
                         <p>Avg: <span className="font-mono">{bar.avgDays}</span> days (last 30d)</p>
                         {bar.prevAvgDays != null && (
