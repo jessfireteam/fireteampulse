@@ -55,31 +55,6 @@ const VIDEO_STAGES = [
 
 const EXCLUDED_STAGES = new Set(["Approved"]);
 
-// Abbreviate long stage names for x-axis
-const STAGE_ABBREV: Record<string, string> = {
-  "Concept Pending Approval": "Concept Approval",
-  "Needs Brief Written": "Write Brief",
-  "Need to send brief to client": "Send Brief",
-  "Need to send to client": "Send to Client",
-  "Brief Pending Client Approval": "Brief Approval",
-  "Ad Needs Naming": "Naming",
-  "Assign Designer": "Assign Designer",
-  "Assign Editor": "Assign Editor",
-  "Awaiting deliverables": "Await Deliverables",
-  "Cast Creator": "Cast Creator",
-  "With Designer": "With Designer",
-  "With Editor": "With Editor",
-  "Creative Review": "Creative Review",
-  "Approved Internally": "Internal Approval",
-  "Ready For Upload": "Ready Upload",
-  "Need to send ad to client": "Send Ad",
-  "Send ad to client for review": "Send Ad",
-  "Ad Pending Client Approval": "Ad Approval",
-  "Needs To Go To Market": "Go To Market",
-  "Final Deliverables": "Final",
-  "Needs Concept": "Concept",
-};
-
 function classifyProjectType(typeName: string | null | undefined): ProjectTypeFilter | null {
   if (!typeName) return null;
   const t = typeName.toUpperCase();
@@ -90,7 +65,6 @@ function classifyProjectType(typeName: string | null | undefined): ProjectTypeFi
 
 interface StageBar {
   stageName: string;
-  abbrev: string;
   avgDays: number;
   prevAvgDays: number | null;
   count: number;
@@ -101,7 +75,14 @@ export function StageDurationTimeline() {
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["fibery-stage-tracking"],
-    queryFn: () => queryFibery<StageTrackingResponse>("stage-tracking"),
+    queryFn: async () => {
+      const result = await queryFibery<StageTrackingResponse>("stage-tracking");
+      console.log("[StageDuration] Raw data count:", result?.findStageTrackings?.length);
+      if (result?.findStageTrackings?.length > 0) {
+        console.log("[StageDuration] Sample entries:", result.findStageTrackings.slice(0, 5));
+      }
+      return result;
+    },
     staleTime: 5 * 60 * 1000,
     retry: 2,
   });
@@ -114,9 +95,28 @@ export function StageDurationTimeline() {
     const cutoff60 = subDays(now, 60);
     const stages = typeFilter === "Static" ? STATIC_STAGES : VIDEO_STAGES;
 
+    // Debug: log how many entries match the type filter
+    const typeMatches = data.findStageTrackings.filter((e) => {
+      const pType = classifyProjectType(e.project?.type?.name);
+      return pType === typeFilter;
+    });
+    console.log(`[StageDuration] ${typeFilter} matches: ${typeMatches.length}, total entries: ${data.findStageTrackings.length}`);
+
+    // Also log date range of data
+    const dates = data.findStageTrackings
+      .filter((e) => e.creationDate)
+      .map((e) => new Date(e.creationDate!).getTime());
+    if (dates.length > 0) {
+      console.log(`[StageDuration] Date range: ${new Date(Math.min(...dates)).toISOString()} to ${new Date(Math.max(...dates)).toISOString()}`);
+      console.log(`[StageDuration] Cutoff30: ${cutoff30.toISOString()}, Cutoff60: ${cutoff60.toISOString()}`);
+    }
+
     // Bucket entries into current (last 30d) and previous (30-60d)
     const currentMap: Record<string, { total: number; count: number }> = {};
     const prevMap: Record<string, { total: number; count: number }> = {};
+
+    let currentCount = 0;
+    let prevCount = 0;
 
     data.findStageTrackings.forEach((entry) => {
       if (!entry.project || !entry.creationDate || !entry.stage) return;
@@ -131,12 +131,17 @@ export function StageDurationTimeline() {
         if (!currentMap[stageName]) currentMap[stageName] = { total: 0, count: 0 };
         currentMap[stageName].total += entry.duration;
         currentMap[stageName].count++;
+        currentCount++;
       } else if (isAfter(date, cutoff60)) {
         if (!prevMap[stageName]) prevMap[stageName] = { total: 0, count: 0 };
         prevMap[stageName].total += entry.duration;
         prevMap[stageName].count++;
+        prevCount++;
       }
     });
+
+    console.log(`[StageDuration] Current period entries: ${currentCount}, Previous period: ${prevCount}`);
+    console.log(`[StageDuration] Current stages:`, Object.keys(currentMap));
 
     const result: StageBar[] = stages
       .filter((s) => !EXCLUDED_STAGES.has(s))
@@ -145,13 +150,7 @@ export function StageDurationTimeline() {
         const prev = prevMap[stageName];
         const avgDays = cur && cur.count > 0 ? Math.round((cur.total / cur.count) * 10) / 10 : 0;
         const prevAvgDays = prev && prev.count > 0 ? Math.round((prev.total / prev.count) * 10) / 10 : null;
-        return {
-          stageName,
-          abbrev: STAGE_ABBREV[stageName] ?? stageName,
-          avgDays,
-          prevAvgDays,
-          count: cur?.count ?? 0,
-        };
+        return { stageName, avgDays, prevAvgDays, count: cur?.count ?? 0 };
       });
 
     const totalC = result.reduce((s, b) => s + b.avgDays, 0);
@@ -159,7 +158,11 @@ export function StageDurationTimeline() {
       ? result.reduce((s, b) => s + (b.prevAvgDays ?? 0), 0)
       : null;
 
-    return { bars: result, totalCurrent: Math.round(totalC * 10) / 10, totalPrev: totalP != null ? Math.round(totalP * 10) / 10 : null };
+    return {
+      bars: result,
+      totalCurrent: Math.round(totalC * 10) / 10,
+      totalPrev: totalP != null ? Math.round(totalP * 10) / 10 : null,
+    };
   }, [data, typeFilter]);
 
   const maxDays = useMemo(() => {
@@ -196,7 +199,6 @@ export function StageDurationTimeline() {
       <div className="flex items-center justify-between">
         <SectionHeader title="Stage Duration" />
         <div className="flex items-center gap-4">
-          {/* Total cycle time */}
           <div className="text-sm font-mono text-muted-foreground">
             Total: <span className="text-foreground font-semibold">{Math.round(totalCurrent)}d</span>
             {totalDelta != null && totalDelta !== 0 && (
@@ -229,37 +231,43 @@ export function StageDurationTimeline() {
             </p>
           ) : (
             <TooltipProvider delayDuration={100}>
-              <div className="flex items-end gap-1 h-64" style={{ minWidth: bars.length * 48 }}>
+              <div className="space-y-1.5">
                 {bars.map((bar) => {
-                  const heightPct = maxDays > 0 ? (bar.avgDays / maxDays) * 100 : 0;
+                  const widthPct = maxDays > 0 ? (bar.avgDays / maxDays) * 100 : 0;
                   const delta = bar.prevAvgDays != null ? Math.round((bar.avgDays - bar.prevAvgDays) * 10) / 10 : null;
 
                   return (
                     <Tooltip key={bar.stageName}>
                       <TooltipTrigger asChild>
-                        <div className="flex-1 flex flex-col items-center gap-1 min-w-0 cursor-default">
-                          {/* Change indicator */}
-                          <div className="h-5 flex items-center justify-center">
-                            {delta != null && delta !== 0 && (
-                              <span className={`text-[9px] font-bold whitespace-nowrap ${delta < 0 ? "text-emerald-500" : "text-red-400"}`}>
-                                {delta < 0 ? "↓" : "↑"}{Math.abs(delta)}d
-                              </span>
-                            )}
+                        <div className="flex items-center gap-3 cursor-default group">
+                          <div className="w-44 shrink-0 text-right">
+                            <span className="text-[11px] text-muted-foreground font-medium">{bar.stageName}</span>
                           </div>
-                          {/* Value label */}
-                          <span className="text-[10px] font-mono text-muted-foreground">
-                            {bar.avgDays > 0 ? bar.avgDays : ""}
-                          </span>
-                          {/* Bar */}
-                          <div
-                            className={`w-full rounded-t transition-all ${
-                              delta != null && delta > 0 ? "bg-red-400/70" : "bg-primary/60"
-                            }`}
-                            style={{ height: `${Math.max(heightPct, 1)}%`, minHeight: bar.avgDays > 0 ? "4px" : "0px" }}
-                          />
+                          <div className="flex-1 flex items-center gap-2">
+                            <div className="flex-1 h-5 relative">
+                              {bar.avgDays > 0 && (
+                                <div
+                                  className={`h-full rounded transition-all ${
+                                    delta != null && delta > 0 ? "bg-red-400/70" : "bg-primary/60"
+                                  } group-hover:brightness-125`}
+                                  style={{ width: `${Math.max(widthPct, 1)}%`, minWidth: "4px" }}
+                                />
+                              )}
+                            </div>
+                            <div className="w-20 shrink-0 flex items-center gap-1.5">
+                              <span className="text-[11px] font-mono text-muted-foreground">
+                                {bar.avgDays > 0 ? `${bar.avgDays}d` : "—"}
+                              </span>
+                              {delta != null && delta !== 0 && (
+                                <span className={`text-[10px] font-bold ${delta < 0 ? "text-emerald-500" : "text-red-400"}`}>
+                                  {delta < 0 ? "↓" : "↑"}{Math.abs(delta)}d
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       </TooltipTrigger>
-                      <TooltipContent side="top" className="text-xs space-y-1 max-w-xs">
+                      <TooltipContent side="right" className="text-xs space-y-1 max-w-xs">
                         <p className="font-semibold">{bar.stageName}</p>
                         <p>Avg: <span className="font-mono">{bar.avgDays}</span> days (last 30d)</p>
                         {bar.prevAvgDays != null && (
@@ -270,16 +278,6 @@ export function StageDurationTimeline() {
                     </Tooltip>
                   );
                 })}
-              </div>
-              {/* X-axis labels */}
-              <div className="flex gap-1 mt-2" style={{ minWidth: bars.length * 48 }}>
-                {bars.map((bar) => (
-                  <div key={bar.stageName} className="flex-1 min-w-0">
-                    <p className="text-[8px] text-muted-foreground text-center leading-tight truncate -rotate-45 origin-top-left translate-x-3 w-16">
-                      {bar.abbrev}
-                    </p>
-                  </div>
-                ))}
               </div>
             </TooltipProvider>
           )}
