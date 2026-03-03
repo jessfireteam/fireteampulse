@@ -2,6 +2,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { TeamCapacity as TeamCapacitySection } from "@/components/dashboard/TeamCapacity";
 import { ProjectsTimeline } from "@/components/dashboard/ProjectsTimeline";
+import { StageDurationTimeline } from "@/components/dashboard/StageDurationTimeline";
 import { Loader2 } from "lucide-react";
 
 const OpsPage = () => {
@@ -23,6 +24,9 @@ const OpsPage = () => {
         <div className="space-y-12">
           <section>
             <ProjectsTimeline />
+          </section>
+          <section>
+            <StageDurationTimeline />
           </section>
           <section>
             <TeamCapacitySection />

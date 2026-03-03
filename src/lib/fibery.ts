@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 
 // Query types that match the edge function whitelist
-type QueryType = 'projects' | 'tasks' | 'pending-tasks' | 'client-months' | 'client-weeks' | 'project-completions' | 'project-upcoming' | 'project-timeline-upcoming' | 'project-pacing' | 'shipped-tasks' | 'client-expenses' | 'creator-costs' | 'leads';
+type QueryType = 'projects' | 'tasks' | 'pending-tasks' | 'client-months' | 'client-weeks' | 'project-completions' | 'project-upcoming' | 'project-timeline-upcoming' | 'project-pacing' | 'shipped-tasks' | 'client-expenses' | 'creator-costs' | 'leads' | 'stage-tracking';
 
 export async function queryFibery<T>(queryType: QueryType): Promise<T> {
   const { data, error } = await supabase.functions.invoke('fibery-proxy', {
@@ -176,4 +176,22 @@ export interface LeadCompany {
 
 export interface LeadsResponse {
   findCompanies: LeadCompany[];
+}
+
+export interface StageTrackingEntry {
+  stage: {
+    name: string;
+    positionInType: number | null;
+    daysItShouldTake: number | null;
+  } | null;
+  duration: number | null;
+  project: {
+    name: string;
+    type: { name: string } | null;
+  } | null;
+  creationDate: string | null;
+}
+
+export interface StageTrackingResponse {
+  findStageTrackings: StageTrackingEntry[];
 }
