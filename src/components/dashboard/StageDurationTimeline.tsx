@@ -83,8 +83,8 @@ export function StageDurationTimeline() {
     retry: 2,
   });
 
-  const { bars, totalCurrent, totalPrev } = useMemo(() => {
-    if (!data?.findStageTrackings) return { bars: [], totalCurrent: 0, totalPrev: null };
+  const { bars, totalCurrent, totalPrev, total6mo } = useMemo(() => {
+    if (!data?.findStageTrackings) return { bars: [], totalCurrent: 0, totalPrev: null, total6mo: null };
 
     const now = new Date();
     const cutoff30 = subDays(now, 30);
@@ -164,11 +164,15 @@ export function StageDurationTimeline() {
     const totalP = result.every((b) => b.prevAvgDays != null)
       ? result.reduce((s, b) => s + (b.prevAvgDays ?? 0), 0)
       : null;
+    const total6mo = result.some((b) => b.avg6mo != null)
+      ? result.reduce((s, b) => s + (b.avg6mo ?? 0), 0)
+      : null;
 
     return {
       bars: result,
       totalCurrent: Math.round(totalC * 10) / 10,
       totalPrev: totalP != null ? Math.round(totalP * 10) / 10 : null,
+      total6mo: total6mo != null ? Math.round(total6mo * 10) / 10 : null,
     };
   }, [data, typeFilter]);
 
@@ -287,6 +291,44 @@ export function StageDurationTimeline() {
                   </HoverCard>
                 );
               })}
+
+              {/* Total row */}
+              <div className="flex items-center gap-3 pt-2 mt-2 border-t border-border/50">
+                <div className="w-44 shrink-0 text-right">
+                  <span className="text-xs font-semibold text-foreground">Total</span>
+                </div>
+                <div className="flex-1 flex items-center gap-2">
+                  <div className="flex-1" />
+                  <div className="w-20 shrink-0 flex items-center gap-1.5">
+                    <span className="text-xs font-mono font-semibold text-foreground">
+                      {Math.round(totalCurrent)}d
+                    </span>
+                    {totalPrev != null && totalPrev !== totalCurrent && (() => {
+                      const d = Math.round((totalCurrent - totalPrev) * 10) / 10;
+                      return d !== 0 ? (
+                        <span className={`text-[11px] font-bold ${d < 0 ? "text-emerald-500" : "text-red-400"}`}>
+                          {d < 0 ? "↓" : "↑"}{Math.abs(d)}d
+                        </span>
+                      ) : null;
+                    })()}
+                  </div>
+                </div>
+              </div>
+              {total6mo != null && (
+                <div className="flex items-center gap-3">
+                  <div className="w-44 shrink-0 text-right">
+                    <span className="text-xs text-muted-foreground">6-month avg total</span>
+                  </div>
+                  <div className="flex-1 flex items-center gap-2">
+                    <div className="flex-1" />
+                    <div className="w-20 shrink-0">
+                      <span className="text-xs font-mono text-muted-foreground">
+                        {Math.round(total6mo)}d
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
