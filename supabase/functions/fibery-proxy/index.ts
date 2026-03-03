@@ -389,7 +389,7 @@ serve(async (req) => {
       const sixtyDaysAgoDate = sixtyDaysAgo.toISOString().split('T')[0]
       query = `{
         findStageTrackings(
-          limit: 5000
+          limit: 3000
           creationDate: { greater: "${sixtyDaysAgoDate}" }
           orderBy: { creationDate: DESC }
         ) {
