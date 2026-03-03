@@ -62,6 +62,7 @@ interface StageBar {
   stageName: string;
   avgDays: number;
   prevAvgDays: number | null;
+  avg6mo: number | null;
   count: number;
 }
 
@@ -106,9 +107,11 @@ export function StageDurationTimeline() {
       console.log(`[StageDuration] Cutoff30: ${cutoff30.toISOString()}, Cutoff60: ${cutoff60.toISOString()}`);
     }
 
-    // Bucket entries into current (last 30d) and previous (30-60d)
+    // Bucket entries into current (last 30d), previous (30-60d), and 6-month window
+    const cutoff6mo = subDays(now, 180);
     const currentMap: Record<string, { total: number; count: number }> = {};
     const prevMap: Record<string, { total: number; count: number }> = {};
+    const sixMoMap: Record<string, { total: number; count: number }> = {};
 
     let currentCount = 0;
     let prevCount = 0;
@@ -121,6 +124,13 @@ export function StageDurationTimeline() {
 
       const date = parseISO(entry.creationDate);
       const stageName = entry.stage.name;
+
+      // 6-month bucket (includes everything in window)
+      if (isAfter(date, cutoff6mo)) {
+        if (!sixMoMap[stageName]) sixMoMap[stageName] = { total: 0, count: 0 };
+        sixMoMap[stageName].total += entry.duration;
+        sixMoMap[stageName].count++;
+      }
 
       if (isAfter(date, cutoff30)) {
         if (!currentMap[stageName]) currentMap[stageName] = { total: 0, count: 0 };
@@ -143,9 +153,11 @@ export function StageDurationTimeline() {
       .map((stageName) => {
         const cur = currentMap[stageName];
         const prev = prevMap[stageName];
+        const sixMo = sixMoMap[stageName];
         const avgDays = cur && cur.count > 0 ? Math.round((cur.total / cur.count) * 10) / 10 : 0;
         const prevAvgDays = prev && prev.count > 0 ? Math.round((prev.total / prev.count) * 10) / 10 : null;
-        return { stageName, avgDays, prevAvgDays, count: cur?.count ?? 0 };
+        const avg6mo = sixMo && sixMo.count > 0 ? Math.round((sixMo.total / sixMo.count) * 10) / 10 : null;
+        return { stageName, avgDays, prevAvgDays, avg6mo, count: cur?.count ?? 0 };
       });
 
     const totalC = result.reduce((s, b) => s + b.avgDays, 0);
@@ -265,7 +277,10 @@ export function StageDurationTimeline() {
                       <p className="font-semibold">{bar.stageName}</p>
                       <p>Avg: <span className="font-mono">{bar.avgDays}</span> days (last 30d)</p>
                       {bar.prevAvgDays != null && (
-                        <p>Previous: <span className="font-mono">{bar.prevAvgDays}</span> days</p>
+                        <p>Previous 30d: <span className="font-mono">{bar.prevAvgDays}</span> days</p>
+                      )}
+                      {bar.avg6mo != null && (
+                        <p>6-month avg: <span className="font-mono">{bar.avg6mo}</span> days</p>
                       )}
                       <p className="text-muted-foreground">{bar.count} projects</p>
                     </HoverCardContent>
