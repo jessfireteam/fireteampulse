@@ -26,10 +26,10 @@ const OpsPage = () => {
             <ProjectsTimeline />
           </section>
           <section>
-            <StageDurationTimeline />
+            <TeamCapacitySection />
           </section>
           <section>
-            <TeamCapacitySection />
+            <StageDurationTimeline />
           </section>
         </div>
       </div>
