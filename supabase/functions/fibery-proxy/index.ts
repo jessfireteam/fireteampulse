@@ -389,14 +389,12 @@ serve(async (req) => {
       const twelveMonthsAgoDate = twelveMonthsAgo.toISOString().split('T')[0]
       query = `{
         findStageTrackings(
-          limit: 5000
+          limit: 3000
           creationDate: { greater: "${twelveMonthsAgoDate}" }
           orderBy: { creationDate: ASC }
         ) {
           stage {
             name
-            positionInType
-            daysItShouldTake
           }
           duration
           project {
