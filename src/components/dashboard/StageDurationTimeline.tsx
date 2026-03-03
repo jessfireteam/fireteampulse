@@ -199,7 +199,7 @@ export function StageDurationTimeline() {
       <div className="flex items-center justify-between">
         <SectionHeader title="Stage Duration" />
         <div className="flex items-center gap-4">
-          <div className="text-sm font-mono text-muted-foreground">
+          <div className="text-base font-mono text-muted-foreground">
             Total: <span className="text-foreground font-semibold">{Math.round(totalCurrent)}d</span>
             {totalDelta != null && totalDelta !== 0 && (
               <span className={`ml-1.5 text-xs font-semibold ${totalDelta < 0 ? "text-emerald-500" : "text-red-400"}`}>
@@ -241,7 +241,7 @@ export function StageDurationTimeline() {
                       <TooltipTrigger asChild>
                         <div className="flex items-center gap-3 cursor-default group">
                           <div className="w-44 shrink-0 text-right">
-                            <span className="text-[11px] text-muted-foreground font-medium">{bar.stageName}</span>
+                            <span className="text-xs text-muted-foreground font-medium">{bar.stageName}</span>
                           </div>
                           <div className="flex-1 flex items-center gap-2">
                             <div className="flex-1 h-5 relative">
@@ -255,11 +255,11 @@ export function StageDurationTimeline() {
                               )}
                             </div>
                             <div className="w-20 shrink-0 flex items-center gap-1.5">
-                              <span className="text-[11px] font-mono text-muted-foreground">
+                              <span className="text-xs font-mono text-muted-foreground">
                                 {bar.avgDays > 0 ? `${bar.avgDays}d` : "—"}
                               </span>
                               {delta != null && delta !== 0 && (
-                                <span className={`text-[10px] font-bold ${delta < 0 ? "text-emerald-500" : "text-red-400"}`}>
+                                <span className={`text-[11px] font-bold ${delta < 0 ? "text-emerald-500" : "text-red-400"}`}>
                                   {delta < 0 ? "↓" : "↑"}{Math.abs(delta)}d
                                 </span>
                               )}
