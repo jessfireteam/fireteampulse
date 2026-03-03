@@ -181,8 +181,6 @@ export interface LeadsResponse {
 export interface StageTrackingEntry {
   stage: {
     name: string;
-    positionInType: number | null;
-    daysItShouldTake: number | null;
   } | null;
   duration: number | null;
   project: {

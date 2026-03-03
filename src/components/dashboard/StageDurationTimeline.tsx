@@ -15,25 +15,37 @@ import { parseISO, format, startOfMonth } from "date-fns";
 
 type ProjectTypeFilter = "Static" | "Video - LoFi";
 
-function classifyProjectType(typeName: string | null | undefined, projectName: string): ProjectTypeFilter | null {
-  if (typeName) {
-    const t = typeName.toLowerCase();
-    if (t.includes("video") || t.includes("ugc") || t.includes("lofi") || t.includes("lo-fi")) return "Video - LoFi";
-    if (t.includes("static") || t.includes("graphic") || t.includes("design")) return "Static";
-  }
-  const n = projectName.toLowerCase();
-  if (n.includes("video") || n.includes("ugc") || n.includes("reel") || n.includes("tiktok")) return "Video - LoFi";
-  if (n.includes("static") || n.includes("design") || n.includes("graphic")) return "Static";
+// Define workflow order for stages (lower = earlier in pipeline)
+const STAGE_ORDER: Record<string, number> = {
+  "Needs Brief/Edit notes": 1,
+  "Assign Designer": 2,
+  "Assign Editor": 2,
+  "With Designer": 3,
+  "With Editor": 3,
+  "Creative Review": 4,
+  "Client Review": 5,
+  "Revisions": 6,
+  "Upload": 7,
+  "Shipped": 8,
+};
+
+function getStagePosition(stageName: string): number {
+  return STAGE_ORDER[stageName] ?? 50;
+}
+
+function classifyProjectType(typeName: string | null | undefined): ProjectTypeFilter | null {
+  if (!typeName) return null;
+  const t = typeName.toUpperCase();
+  if (t.includes("VIDEO") || t.includes("LOFI") || t.includes("LO-FI") || t.includes("UGC")) return "Video - LoFi";
+  if (t.includes("STATIC") || t.includes("CAROUSEL") || t.includes("GRAPHIC") || t.includes("DESIGN")) return "Static";
   return null;
 }
 
 interface StageSegment {
   stageName: string;
   avgDuration: number;
-  targetDays: number | null;
   position: number;
   count: number;
-  exceeds: boolean;
 }
 
 interface MonthRow {
@@ -56,38 +68,32 @@ export function StageDurationTimeline() {
   const monthRows = useMemo(() => {
     if (!data?.findStageTrackings) return [];
 
-    // Filter by project type
     const filtered = data.findStageTrackings.filter((entry) => {
       if (!entry.project || !entry.creationDate || !entry.stage) return false;
-      const pType = classifyProjectType(entry.project.type?.name, entry.project.name);
+      if (entry.duration == null || entry.duration <= 0) return false;
+      const pType = classifyProjectType(entry.project.type?.name);
       return pType === typeFilter;
     });
 
     // Group by month → stage
-    const monthStageMap: Record<string, Record<string, { totalDuration: number; count: number; target: number | null; position: number }>> = {};
+    const monthStageMap: Record<string, Record<string, { totalDuration: number; count: number; position: number }>> = {};
 
     filtered.forEach((entry) => {
       if (!entry.creationDate || !entry.stage) return;
       const date = parseISO(entry.creationDate);
       const monthKey = format(startOfMonth(date), "yyyy-MM");
       const stageName = entry.stage.name;
-      const position = entry.stage.positionInType ?? 999;
-      const target = entry.stage.daysItShouldTake ?? null;
+      const position = getStagePosition(stageName);
       const duration = entry.duration ?? 0;
 
       if (!monthStageMap[monthKey]) monthStageMap[monthKey] = {};
       if (!monthStageMap[monthKey][stageName]) {
-        monthStageMap[monthKey][stageName] = { totalDuration: 0, count: 0, target, position };
+        monthStageMap[monthKey][stageName] = { totalDuration: 0, count: 0, position };
       }
       monthStageMap[monthKey][stageName].totalDuration += duration;
       monthStageMap[monthKey][stageName].count++;
-      // Keep the lowest position (most authoritative)
-      if (position < monthStageMap[monthKey][stageName].position) {
-        monthStageMap[monthKey][stageName].position = position;
-      }
     });
 
-    // Build rows sorted oldest → newest (top to bottom)
     const rows: MonthRow[] = Object.entries(monthStageMap)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([monthKey, stages]) => {
@@ -97,10 +103,8 @@ export function StageDurationTimeline() {
             return {
               stageName,
               avgDuration: Math.round(avg * 10) / 10,
-              targetDays: data.target,
               position: data.position,
               count: data.count,
-              exceeds: data.target != null && avg > data.target,
             };
           })
           .sort((a, b) => a.position - b.position);
@@ -118,11 +122,28 @@ export function StageDurationTimeline() {
     return rows;
   }, [data, typeFilter]);
 
-  // Find max total for scaling
   const maxDays = useMemo(() => {
     if (monthRows.length === 0) return 30;
     return Math.max(...monthRows.map((r) => r.totalDays), 30);
   }, [monthRows]);
+
+  // Generate consistent colors for stages
+  const stageColors: Record<string, string> = {
+    "Needs Brief/Edit notes": "bg-sky-600/70",
+    "Assign Designer": "bg-violet-500/70",
+    "Assign Editor": "bg-violet-500/70",
+    "With Designer": "bg-indigo-500/70",
+    "With Editor": "bg-indigo-500/70",
+    "Creative Review": "bg-amber-500/70",
+    "Client Review": "bg-orange-500/70",
+    "Revisions": "bg-rose-500/70",
+    "Upload": "bg-emerald-500/70",
+    "Shipped": "bg-green-500/70",
+  };
+
+  function getStageColor(stageName: string): string {
+    return stageColors[stageName] ?? "bg-muted-foreground/30";
+  }
 
   if (isLoading) {
     return (
@@ -145,6 +166,15 @@ export function StageDurationTimeline() {
       </div>
     );
   }
+
+  // Collect all unique stages for the legend
+  const allStages = new Map<string, number>();
+  monthRows.forEach((row) =>
+    row.segments.forEach((seg) => {
+      if (!allStages.has(seg.stageName)) allStages.set(seg.stageName, seg.position);
+    })
+  );
+  const legendStages = [...allStages.entries()].sort((a, b) => a[1] - b[1]);
 
   return (
     <div className="space-y-6">
@@ -175,43 +205,35 @@ export function StageDurationTimeline() {
             </p>
           ) : (
             <TooltipProvider delayDuration={100}>
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 {/* X-axis label */}
-                <div className="flex items-center pl-20 mb-1">
+                <div className="flex items-center pl-16 mb-1">
                   <span className="text-[10px] text-muted-foreground">Days →</span>
                 </div>
 
                 {monthRows.map((row) => (
                   <div key={row.monthKey} className="flex items-center gap-2">
-                    {/* Month label */}
-                    <div className="w-16 shrink-0 text-right">
-                      <span className="text-xs text-muted-foreground font-medium">{row.monthLabel}</span>
+                    <div className="w-14 shrink-0 text-right">
+                      <span className="text-[11px] text-muted-foreground font-medium">{row.monthLabel}</span>
                     </div>
 
-                    {/* Stacked bar */}
-                    <div className="flex-1 flex items-center gap-0 h-7 relative">
+                    <div className="flex-1 flex items-center gap-0 h-6 relative">
                       {row.segments.map((seg, i) => {
                         const widthPct = (seg.avgDuration / maxDays) * 100;
-                        if (widthPct < 0.5) return null;
+                        if (widthPct < 0.3) return null;
                         const showLabel = widthPct > 8;
 
                         return (
                           <Tooltip key={`${row.monthKey}-${seg.stageName}-${i}`}>
                             <TooltipTrigger asChild>
                               <div
-                                className={`h-full flex items-center justify-center cursor-default transition-colors ${
-                                  seg.exceeds
-                                    ? "bg-destructive/80 hover:bg-destructive"
-                                    : "bg-muted-foreground/25 hover:bg-muted-foreground/35"
-                                } ${i === 0 ? "rounded-l-md" : ""} ${
-                                  i === row.segments.length - 1 ? "rounded-r-md" : ""
-                                } border-r border-background/50`}
+                                className={`h-full flex items-center justify-center cursor-default transition-colors ${getStageColor(seg.stageName)} hover:brightness-125 ${
+                                  i === 0 ? "rounded-l-md" : ""
+                                } ${i === row.segments.length - 1 ? "rounded-r-md" : ""} border-r border-background/40`}
                                 style={{ width: `${widthPct}%`, minWidth: "2px" }}
                               >
                                 {showLabel && (
-                                  <span className={`text-[9px] font-medium truncate px-1 ${
-                                    seg.exceeds ? "text-destructive-foreground" : "text-foreground/70"
-                                  }`}>
+                                  <span className="text-[8px] font-medium truncate px-0.5 text-white/90">
                                     {seg.stageName}
                                   </span>
                                 )}
@@ -220,19 +242,12 @@ export function StageDurationTimeline() {
                             <TooltipContent side="top" className="text-xs space-y-1 max-w-xs">
                               <p className="font-semibold">{seg.stageName}</p>
                               <p>Avg: <span className="font-mono">{seg.avgDuration}</span> days</p>
-                              {seg.targetDays != null && (
-                                <p>
-                                  Target: <span className="font-mono">{seg.targetDays}</span> days
-                                  {seg.exceeds && <span className="text-destructive ml-1">(exceeded)</span>}
-                                </p>
-                              )}
                               <p className="text-muted-foreground">{seg.count} projects</p>
                             </TooltipContent>
                           </Tooltip>
                         );
                       })}
 
-                      {/* Total at end */}
                       <span className="ml-2 text-[10px] font-mono text-muted-foreground whitespace-nowrap">
                         {row.totalDays}d
                       </span>
@@ -241,15 +256,13 @@ export function StageDurationTimeline() {
                 ))}
 
                 {/* Legend */}
-                <div className="flex items-center gap-4 pt-3 pl-20">
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-3 h-3 rounded-sm bg-muted-foreground/25" />
-                    <span className="text-[10px] text-muted-foreground">Within target</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-3 h-3 rounded-sm bg-destructive/80" />
-                    <span className="text-[10px] text-muted-foreground">Exceeds target</span>
-                  </div>
+                <div className="flex flex-wrap items-center gap-3 pt-3 pl-16">
+                  {legendStages.map(([name]) => (
+                    <div key={name} className="flex items-center gap-1">
+                      <div className={`w-2.5 h-2.5 rounded-sm ${getStageColor(name)}`} />
+                      <span className="text-[9px] text-muted-foreground">{name}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </TooltipProvider>
