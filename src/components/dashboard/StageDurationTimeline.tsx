@@ -15,28 +15,56 @@ import { parseISO, format, startOfMonth } from "date-fns";
 
 type ProjectTypeFilter = "Static" | "Video - LoFi";
 
-// Define workflow order for stages (lower = earlier in pipeline)
-const STAGE_ORDER: Record<string, number> = {
-  "Needs Brief/Edit notes": 1,
-  "Assign Designer": 2,
-  "Assign Editor": 2,
-  "With Designer": 3,
-  "With Editor": 3,
-  "Creative Review": 4,
-  "Client Review": 5,
-  "Revisions": 6,
-  "Upload": 7,
-  "Shipped": 8,
+// Stage orders per project type (position = display order left-to-right)
+const STATIC_STAGE_ORDER: Record<string, number> = {
+  "Needs Concept": 1,
+  "Concept Pending Approval": 2,
+  "Needs Brief Written": 3,
+  "Need to send brief to client": 4,
+  "Brief Pending Client Approval": 5,
+  "Ad Needs Naming": 6,
+  "Assign Designer": 7,
+  "With Designer": 8,
+  "Creative Review": 9,
+  "Approved Internally": 10,
+  "Ready For Upload": 11,
+  "Need to send ad to client": 12,
+  "Ad Pending Client Approval": 13,
+  "Needs To Go To Market": 14,
+  "Final Deliverables": 15,
 };
 
-function getStagePosition(stageName: string): number {
-  return STAGE_ORDER[stageName] ?? 50;
+const VIDEO_STAGE_ORDER: Record<string, number> = {
+  "Needs Concept": 1,
+  "Concept Pending Approval": 2,
+  "Needs Brief Written": 3,
+  "Need to send to client": 4,
+  "Brief Pending Client Approval": 5,
+  "Ad Needs Naming": 6,
+  "Cast Creator": 7,
+  "Awaiting deliverables": 8,
+  "Assign Editor": 9,
+  "With Editor": 10,
+  "Creative Review": 11,
+  "Approved Internally": 12,
+  "Ready For Upload": 13,
+  "Send ad to client for review": 14,
+  "Ad Pending Client Approval": 15,
+  "Needs To Go To Market": 16,
+  "Final Deliverables": 17,
+};
+
+const EXCLUDED_STAGES = new Set(["Approved"]);
+
+function getStagePosition(stageName: string, typeFilter: ProjectTypeFilter): number {
+  const order = typeFilter === "Static" ? STATIC_STAGE_ORDER : VIDEO_STAGE_ORDER;
+  return order[stageName] ?? 99;
 }
 
 function classifyProjectType(typeName: string | null | undefined): ProjectTypeFilter | null {
   if (!typeName) return null;
   const t = typeName.toUpperCase();
-  if (t.includes("VIDEO") || t.includes("LOFI") || t.includes("LO-FI") || t.includes("UGC")) return "Video - LoFi";
+  if (t.includes("VIDEO") || t.includes("LOFI") || t.includes("LO-FI") || t.includes("UGC") || t.includes("EDIT")) return "Video - LoFi";
   if (t.includes("STATIC") || t.includes("CAROUSEL") || t.includes("GRAPHIC") || t.includes("DESIGN")) return "Static";
   return null;
 }
@@ -55,6 +83,35 @@ interface MonthRow {
   totalDays: number;
 }
 
+// Stage color palette
+const STAGE_COLORS: Record<string, string> = {
+  "Needs Concept": "bg-slate-500/70",
+  "Concept Pending Approval": "bg-slate-400/70",
+  "Needs Brief Written": "bg-sky-700/70",
+  "Need to send brief to client": "bg-sky-600/70",
+  "Need to send to client": "bg-sky-600/70",
+  "Brief Pending Client Approval": "bg-sky-500/70",
+  "Ad Needs Naming": "bg-cyan-500/70",
+  "Assign Designer": "bg-violet-500/70",
+  "Assign Editor": "bg-violet-500/70",
+  "Cast Creator": "bg-purple-500/70",
+  "Awaiting deliverables": "bg-purple-400/70",
+  "With Designer": "bg-indigo-500/70",
+  "With Editor": "bg-indigo-500/70",
+  "Creative Review": "bg-amber-500/70",
+  "Approved Internally": "bg-yellow-500/70",
+  "Ready For Upload": "bg-emerald-500/70",
+  "Need to send ad to client": "bg-orange-500/70",
+  "Send ad to client for review": "bg-orange-500/70",
+  "Ad Pending Client Approval": "bg-orange-400/70",
+  "Needs To Go To Market": "bg-teal-500/70",
+  "Final Deliverables": "bg-green-500/70",
+};
+
+function getStageColor(stageName: string): string {
+  return STAGE_COLORS[stageName] ?? "bg-muted-foreground/30";
+}
+
 export function StageDurationTimeline() {
   const [typeFilter, setTypeFilter] = useState<ProjectTypeFilter>("Static");
 
@@ -71,24 +128,24 @@ export function StageDurationTimeline() {
     const filtered = data.findStageTrackings.filter((entry) => {
       if (!entry.project || !entry.creationDate || !entry.stage) return false;
       if (entry.duration == null || entry.duration <= 0) return false;
+      if (EXCLUDED_STAGES.has(entry.stage.name)) return false;
       const pType = classifyProjectType(entry.project.type?.name);
       return pType === typeFilter;
     });
 
     // Group by month → stage
-    const monthStageMap: Record<string, Record<string, { totalDuration: number; count: number; position: number }>> = {};
+    const monthStageMap: Record<string, Record<string, { totalDuration: number; count: number }>> = {};
 
     filtered.forEach((entry) => {
       if (!entry.creationDate || !entry.stage) return;
       const date = parseISO(entry.creationDate);
       const monthKey = format(startOfMonth(date), "yyyy-MM");
       const stageName = entry.stage.name;
-      const position = getStagePosition(stageName);
       const duration = entry.duration ?? 0;
 
       if (!monthStageMap[monthKey]) monthStageMap[monthKey] = {};
       if (!monthStageMap[monthKey][stageName]) {
-        monthStageMap[monthKey][stageName] = { totalDuration: 0, count: 0, position };
+        monthStageMap[monthKey][stageName] = { totalDuration: 0, count: 0 };
       }
       monthStageMap[monthKey][stageName].totalDuration += duration;
       monthStageMap[monthKey][stageName].count++;
@@ -103,7 +160,7 @@ export function StageDurationTimeline() {
             return {
               stageName,
               avgDuration: Math.round(avg * 10) / 10,
-              position: data.position,
+              position: getStagePosition(stageName, typeFilter),
               count: data.count,
             };
           })
@@ -126,24 +183,6 @@ export function StageDurationTimeline() {
     if (monthRows.length === 0) return 30;
     return Math.max(...monthRows.map((r) => r.totalDays), 30);
   }, [monthRows]);
-
-  // Generate consistent colors for stages
-  const stageColors: Record<string, string> = {
-    "Needs Brief/Edit notes": "bg-sky-600/70",
-    "Assign Designer": "bg-violet-500/70",
-    "Assign Editor": "bg-violet-500/70",
-    "With Designer": "bg-indigo-500/70",
-    "With Editor": "bg-indigo-500/70",
-    "Creative Review": "bg-amber-500/70",
-    "Client Review": "bg-orange-500/70",
-    "Revisions": "bg-rose-500/70",
-    "Upload": "bg-emerald-500/70",
-    "Shipped": "bg-green-500/70",
-  };
-
-  function getStageColor(stageName: string): string {
-    return stageColors[stageName] ?? "bg-muted-foreground/30";
-  }
 
   if (isLoading) {
     return (
@@ -206,7 +245,6 @@ export function StageDurationTimeline() {
           ) : (
             <TooltipProvider delayDuration={100}>
               <div className="space-y-1.5">
-                {/* X-axis label */}
                 <div className="flex items-center pl-16 mb-1">
                   <span className="text-[10px] text-muted-foreground">Days →</span>
                 </div>
