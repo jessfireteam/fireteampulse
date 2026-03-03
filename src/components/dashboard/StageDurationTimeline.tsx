@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { SectionHeader } from "./SectionHeader";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card";
 import { subDays, parseISO, isAfter } from "date-fns";
 
 type ProjectTypeFilter = "Static" | "Video - LoFi";
@@ -230,37 +231,45 @@ export function StageDurationTimeline() {
                 const delta = bar.prevAvgDays != null ? Math.round((bar.avgDays - bar.prevAvgDays) * 10) / 10 : null;
 
                 return (
-                  <div
-                    key={bar.stageName}
-                    className="flex items-center gap-3 cursor-default group"
-                    title={`${bar.stageName} — Avg: ${bar.avgDays}d (last 30d)${bar.prevAvgDays != null ? ` | Prev: ${bar.prevAvgDays}d` : ""} | ${bar.count} projects`}
-                  >
-                    <div className="w-44 shrink-0 text-right">
-                      <span className="text-xs text-muted-foreground font-medium">{bar.stageName}</span>
-                    </div>
-                    <div className="flex-1 flex items-center gap-2">
-                      <div className="flex-1 h-5 relative">
-                        {bar.avgDays > 0 && (
-                          <div
-                            className={`h-full rounded transition-all ${
-                              delta != null && delta > 0 ? "bg-red-400/70" : "bg-primary/60"
-                            } group-hover:brightness-125`}
-                            style={{ width: `${Math.max(widthPct, 1)}%`, minWidth: "4px" }}
-                          />
-                        )}
+                  <HoverCard key={bar.stageName} openDelay={150} closeDelay={50}>
+                    <HoverCardTrigger asChild>
+                      <div className="flex items-center gap-3 cursor-default group">
+                        <div className="w-44 shrink-0 text-right">
+                          <span className="text-xs text-muted-foreground font-medium">{bar.stageName}</span>
+                        </div>
+                        <div className="flex-1 flex items-center gap-2">
+                          <div className="flex-1 h-5 relative">
+                            {bar.avgDays > 0 && (
+                              <div
+                                className={`h-full rounded transition-all ${
+                                  delta != null && delta > 0 ? "bg-red-400/70" : "bg-primary/60"
+                                } group-hover:brightness-125`}
+                                style={{ width: `${Math.max(widthPct, 1)}%`, minWidth: "4px" }}
+                              />
+                            )}
+                          </div>
+                          <div className="w-20 shrink-0 flex items-center gap-1.5">
+                            <span className="text-xs font-mono text-muted-foreground">
+                              {bar.avgDays > 0 ? `${bar.avgDays}d` : "—"}
+                            </span>
+                            {delta != null && delta !== 0 && (
+                              <span className={`text-[11px] font-bold ${delta < 0 ? "text-emerald-500" : "text-red-400"}`}>
+                                {delta < 0 ? "↓" : "↑"}{Math.abs(delta)}d
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div className="w-20 shrink-0 flex items-center gap-1.5">
-                        <span className="text-xs font-mono text-muted-foreground">
-                          {bar.avgDays > 0 ? `${bar.avgDays}d` : "—"}
-                        </span>
-                        {delta != null && delta !== 0 && (
-                          <span className={`text-[11px] font-bold ${delta < 0 ? "text-emerald-500" : "text-red-400"}`}>
-                            {delta < 0 ? "↓" : "↑"}{Math.abs(delta)}d
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+                    </HoverCardTrigger>
+                    <HoverCardContent side="top" align="center" sideOffset={4} className="w-auto p-3 text-xs space-y-1">
+                      <p className="font-semibold">{bar.stageName}</p>
+                      <p>Avg: <span className="font-mono">{bar.avgDays}</span> days (last 30d)</p>
+                      {bar.prevAvgDays != null && (
+                        <p>Previous: <span className="font-mono">{bar.prevAvgDays}</span> days</p>
+                      )}
+                      <p className="text-muted-foreground">{bar.count} projects</p>
+                    </HoverCardContent>
+                  </HoverCard>
                 );
               })}
             </div>
