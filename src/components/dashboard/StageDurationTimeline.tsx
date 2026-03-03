@@ -5,12 +5,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { SectionHeader } from "./SectionHeader";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-  TooltipProvider,
-} from "@/components/ui/tooltip";
 import { subDays, parseISO, isAfter } from "date-fns";
 
 type ProjectTypeFilter = "Static" | "Video - LoFi";
@@ -230,56 +224,46 @@ export function StageDurationTimeline() {
               No stage tracking data found for {typeFilter} projects
             </p>
           ) : (
-            <TooltipProvider delayDuration={100}>
-              <div className="space-y-1.5">
-                {bars.map((bar) => {
-                  const widthPct = maxDays > 0 ? (bar.avgDays / maxDays) * 100 : 0;
-                  const delta = bar.prevAvgDays != null ? Math.round((bar.avgDays - bar.prevAvgDays) * 10) / 10 : null;
+            <div className="space-y-1.5">
+              {bars.map((bar) => {
+                const widthPct = maxDays > 0 ? (bar.avgDays / maxDays) * 100 : 0;
+                const delta = bar.prevAvgDays != null ? Math.round((bar.avgDays - bar.prevAvgDays) * 10) / 10 : null;
 
-                  return (
-                    <Tooltip key={bar.stageName}>
-                      <TooltipTrigger asChild>
-                        <div className="flex items-center gap-3 cursor-default group">
-                          <div className="w-44 shrink-0 text-right">
-                            <span className="text-xs text-muted-foreground font-medium">{bar.stageName}</span>
-                          </div>
-                          <div className="flex-1 flex items-center gap-2">
-                            <div className="flex-1 h-5 relative">
-                              {bar.avgDays > 0 && (
-                                <div
-                                  className={`h-full rounded transition-all ${
-                                    delta != null && delta > 0 ? "bg-red-400/70" : "bg-primary/60"
-                                  } group-hover:brightness-125`}
-                                  style={{ width: `${Math.max(widthPct, 1)}%`, minWidth: "4px" }}
-                                />
-                              )}
-                            </div>
-                            <div className="w-20 shrink-0 flex items-center gap-1.5">
-                              <span className="text-xs font-mono text-muted-foreground">
-                                {bar.avgDays > 0 ? `${bar.avgDays}d` : "—"}
-                              </span>
-                              {delta != null && delta !== 0 && (
-                                <span className={`text-[11px] font-bold ${delta < 0 ? "text-emerald-500" : "text-red-400"}`}>
-                                  {delta < 0 ? "↓" : "↑"}{Math.abs(delta)}d
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" align="start" sideOffset={8} collisionPadding={16} className="text-xs space-y-1 max-w-xs">
-                        <p className="font-semibold">{bar.stageName}</p>
-                        <p>Avg: <span className="font-mono">{bar.avgDays}</span> days (last 30d)</p>
-                        {bar.prevAvgDays != null && (
-                          <p>Previous: <span className="font-mono">{bar.prevAvgDays}</span> days</p>
+                return (
+                  <div
+                    key={bar.stageName}
+                    className="flex items-center gap-3 cursor-default group"
+                    title={`${bar.stageName} — Avg: ${bar.avgDays}d (last 30d)${bar.prevAvgDays != null ? ` | Prev: ${bar.prevAvgDays}d` : ""} | ${bar.count} projects`}
+                  >
+                    <div className="w-44 shrink-0 text-right">
+                      <span className="text-xs text-muted-foreground font-medium">{bar.stageName}</span>
+                    </div>
+                    <div className="flex-1 flex items-center gap-2">
+                      <div className="flex-1 h-5 relative">
+                        {bar.avgDays > 0 && (
+                          <div
+                            className={`h-full rounded transition-all ${
+                              delta != null && delta > 0 ? "bg-red-400/70" : "bg-primary/60"
+                            } group-hover:brightness-125`}
+                            style={{ width: `${Math.max(widthPct, 1)}%`, minWidth: "4px" }}
+                          />
                         )}
-                        <p className="text-muted-foreground">{bar.count} projects</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  );
-                })}
-              </div>
-            </TooltipProvider>
+                      </div>
+                      <div className="w-20 shrink-0 flex items-center gap-1.5">
+                        <span className="text-xs font-mono text-muted-foreground">
+                          {bar.avgDays > 0 ? `${bar.avgDays}d` : "—"}
+                        </span>
+                        {delta != null && delta !== 0 && (
+                          <span className={`text-[11px] font-bold ${delta < 0 ? "text-emerald-500" : "text-red-400"}`}>
+                            {delta < 0 ? "↓" : "↑"}{Math.abs(delta)}d
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </CardContent>
       </Card>
