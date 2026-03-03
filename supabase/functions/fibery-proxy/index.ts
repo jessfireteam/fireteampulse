@@ -382,16 +382,16 @@ serve(async (req) => {
       }`
     }
 
-    // Dynamic query for stage-tracking: fetch stage tracking entries from last 12 months
+    // Dynamic query for stage-tracking: fetch stage tracking entries from last 60 days (for current + previous 30d comparison)
     if (queryType === 'stage-tracking') {
       const now = new Date()
-      const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 12, 1)
-      const twelveMonthsAgoDate = twelveMonthsAgo.toISOString().split('T')[0]
+      const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000)
+      const sixtyDaysAgoDate = sixtyDaysAgo.toISOString().split('T')[0]
       query = `{
         findStageTrackings(
-          limit: 3000
-          creationDate: { greater: "${twelveMonthsAgoDate}" }
-          orderBy: { creationDate: ASC }
+          limit: 5000
+          creationDate: { greater: "${sixtyDaysAgoDate}" }
+          orderBy: { creationDate: DESC }
         ) {
           stage {
             name
@@ -418,9 +418,9 @@ serve(async (req) => {
     const responseText = await response.text()
 
     if (!response.ok) {
-      console.error('External API error')
+      console.error(`External API error: status=${response.status}, body=${responseText.substring(0, 500)}, queryType=${queryType}`)
       return new Response(
-        JSON.stringify({ error: 'External API error' }),
+        JSON.stringify({ error: 'External API error', status: response.status, detail: responseText.substring(0, 200) }),
         { 
           status: 502, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
