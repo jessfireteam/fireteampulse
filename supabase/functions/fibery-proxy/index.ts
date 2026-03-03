@@ -385,12 +385,13 @@ serve(async (req) => {
     // Dynamic query for stage-tracking: fetch stage tracking entries from last 60 days (for current + previous 30d comparison)
     if (queryType === 'stage-tracking') {
       const now = new Date()
-      const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000)
-      const sixtyDaysAgoDate = sixtyDaysAgo.toISOString().split('T')[0]
+      const lookbackDays = 200 // ~6.5 months to cover 6-month average + current 30d
+      const lookbackDate = new Date(now.getTime() - lookbackDays * 24 * 60 * 60 * 1000)
+      const lookbackDateStr = lookbackDate.toISOString().split('T')[0]
       query = `{
         findStageTrackings(
           limit: 3000
-          creationDate: { greater: "${sixtyDaysAgoDate}" }
+          creationDate: { greater: "${lookbackDateStr}" }
           orderBy: { creationDate: DESC }
         ) {
           stage {
