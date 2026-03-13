@@ -98,19 +98,7 @@ const QUERIES: Record<QueryType, string> = {
       }
     }
   }`,
-  'client-weeks': `{
-    findClientWeeks(
-      limit: 500
-      orderBy: { dateRange: { start: ASC } }
-      dateRange: { start: { greaterOrEquals: "2025-12-01", less: "2026-02-10" } }
-    ) {
-      client { name }
-      totalSpend
-      agencySpend
-      dateRange { start end }
-      week { name isoWeeknum current }
-    }
-  }`,
+  'client-weeks': 'DYNAMIC',
   'project-completions': `{
     findProjects(
       limit: 3000
@@ -265,6 +253,27 @@ serve(async (req) => {
 
     let query = QUERIES[queryType as QueryType]
     const url = QUERY_ENDPOINTS[queryType as QueryType]
+
+    // Dynamic query for client-weeks: fetch last ~10 weeks of data
+    if (queryType === 'client-weeks') {
+      const now = new Date()
+      const tenWeeksAgo = new Date(now.getTime() - 10 * 7 * 24 * 60 * 60 * 1000)
+      const startDate = tenWeeksAgo.toISOString().split('T')[0]
+      const endDate = now.toISOString().split('T')[0]
+      query = `{
+        findClientWeeks(
+          limit: 500
+          orderBy: { dateRange: { start: ASC } }
+          dateRange: { start: { greaterOrEquals: "${startDate}", less: "${endDate}" } }
+        ) {
+          client { name }
+          totalSpend
+          agencySpend
+          dateRange { start end }
+          week { name isoWeeknum current }
+        }
+      }`
+    }
 
     // Dynamic query for project-upcoming: fetch projects due in current calendar month that aren't done
     if (queryType === 'project-upcoming') {
