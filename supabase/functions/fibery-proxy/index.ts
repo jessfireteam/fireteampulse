@@ -98,19 +98,7 @@ const QUERIES: Record<QueryType, string> = {
       }
     }
   }`,
-  'client-weeks': `{
-    findClientWeeks(
-      limit: 500
-      orderBy: { dateRange: { start: ASC } }
-      dateRange: { start: { greaterOrEquals: "2025-12-01", less: "2026-02-10" } }
-    ) {
-      client { name }
-      totalSpend
-      agencySpend
-      dateRange { start end }
-      week { name isoWeeknum current }
-    }
-  }`,
+  'client-weeks': 'DYNAMIC',
   'project-completions': `{
     findProjects(
       limit: 3000
