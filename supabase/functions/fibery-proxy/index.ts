@@ -84,20 +84,7 @@ const QUERIES: Record<QueryType, string> = {
       }
     }
   }`,
-  'client-months': `{
-    findClientMonths(limit: 200) {
-      id
-      name
-      client { name }
-      totalSpend
-      fireTeamSpend
-      pricingPlanMonths {
-        revenue
-        costPerDeliverable
-        deliverablesShipped
-      }
-    }
-  }`,
+  'client-months': 'DYNAMIC',
   'client-weeks': 'DYNAMIC',
   'project-completions': `{
     findProjects(
