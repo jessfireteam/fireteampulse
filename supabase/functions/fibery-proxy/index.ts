@@ -263,15 +263,19 @@ serve(async (req) => {
     }
 
     // Dynamic query for client-months: fetch last 6 months of data
+    // Name format is "YYYY-MM - ClientName", so we filter by name range
     if (queryType === 'client-months') {
       const now = new Date()
       const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1)
-      const sixMonthsAgoDate = sixMonthsAgo.toISOString().split('T')[0]
+      const lowerBound = `${sixMonthsAgo.getFullYear()}-${String(sixMonthsAgo.getMonth() + 1).padStart(2, '0')}`
+      // Upper bound: next month (to include current month)
+      const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+      const upperBound = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}`
       query = `{
         findClientMonths(
-          limit: 500
+          limit: 1000
           orderBy: { name: DESC }
-          dateRange: { start: { greaterOrEquals: "${sixMonthsAgoDate}" } }
+          name: { greaterOrEquals: "${lowerBound}", less: "${upperBound}" }
         ) {
           id
           name
