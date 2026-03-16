@@ -262,6 +262,31 @@ serve(async (req) => {
       }`
     }
 
+    // Dynamic query for client-months: fetch last 6 months of data
+    if (queryType === 'client-months') {
+      const now = new Date()
+      const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1)
+      const sixMonthsAgoDate = sixMonthsAgo.toISOString().split('T')[0]
+      query = `{
+        findClientMonths(
+          limit: 500
+          orderBy: { name: DESC }
+          dateRange: { start: { greaterOrEquals: "${sixMonthsAgoDate}" } }
+        ) {
+          id
+          name
+          client { name }
+          totalSpend
+          fireTeamSpend
+          pricingPlanMonths {
+            revenue
+            costPerDeliverable
+            deliverablesShipped
+          }
+        }
+      }`
+    }
+
     // Dynamic query for project-upcoming: fetch projects due in current calendar month that aren't done
     if (queryType === 'project-upcoming') {
       const now = new Date()
