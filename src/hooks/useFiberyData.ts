@@ -145,16 +145,16 @@ function getTaskCategory(taskName: string): string {
   const name = taskName?.toLowerCase() || '';
   if (name.includes('approve and send brief')) return 'Briefs Sent';
   if (name.includes('write brief') || name.includes('write the brief') || name.includes('draft brief')) return 'Brief Work';
+  if (name.includes('revision')) return 'Revisions';
   if (name.includes('review creative')) return 'Creative Review';
   if (name.includes('review')) return 'Review';
-  if (name.includes('edit video') || name.includes('video edit')) return 'Video Editing';
+  if ((name.includes('edit video') || name.includes('video edit'))) return 'Video Editing';
   if (name.includes('design') || name.includes('static')) return 'Design';
   if (name.includes('upload')) return 'Upload';
   if (name.includes('assign editor')) return 'Assign Editor';
   if (name.includes('assign')) return 'Assignments';
   if (name.includes('cast creator')) return 'Cast Creator';
   if (name.includes('footage') || name.includes('pull')) return 'Footage/Assets';
-  if (name.includes('revision')) return 'Revisions';
   return 'Other';
 }
 
