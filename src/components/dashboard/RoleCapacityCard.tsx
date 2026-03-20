@@ -105,6 +105,7 @@ interface RoleCapacityCardProps {
 
 export function RoleCapacityCard({ group }: RoleCapacityCardProps) {
   const roleInfo = ROLE_LABELS[group.role];
+  const showRevisions = group.role === 'Video';
   
   return (
     <Card className="border-border/50 bg-card">
@@ -121,6 +122,9 @@ export function RoleCapacityCard({ group }: RoleCapacityCardProps) {
               <TableHead className="text-muted-foreground font-semibold text-xs py-2 px-3">Person</TableHead>
               <TableHead className="text-center text-muted-foreground font-semibold text-xs px-2 w-10">30d</TableHead>
               <TableHead className="text-center text-muted-foreground font-semibold text-xs px-2 w-12">7d Avg</TableHead>
+              {showRevisions && (
+                <TableHead className="text-center text-muted-foreground font-semibold text-xs px-2 w-12">Rev 7d</TableHead>
+              )}
               <TableHead className="text-center text-muted-foreground font-semibold text-xs px-1 w-20">Trend</TableHead>
               <TableHead className="text-center text-muted-foreground font-semibold text-xs px-2 w-14">
                 <div>Overdue</div>
@@ -139,12 +143,18 @@ export function RoleCapacityCard({ group }: RoleCapacityCardProps) {
                 t => t.taskType === person.primaryTaskType
               ) || person.subtotal;
               
+              const revisionRow = showRevisions
+                ? person.taskTypes.find(t => t.taskType === 'Revisions')
+                : undefined;
+              
               return (
                 <PersonRow 
                   key={person.name}
                   name={person.name}
                   row={primaryRow}
                   taskLabel={group.role === 'Other' ? person.primaryTaskType : undefined}
+                  revisionRow={revisionRow}
+                  showRevisions={showRevisions}
                 />
               );
             })}
