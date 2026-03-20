@@ -56,8 +56,9 @@ function DataCell({ value }: { value: number }) {
   );
 }
 
-function PersonRow({ name, row, taskLabel }: { name: string; row: TaskTypeRow; taskLabel?: string }) {
+function PersonRow({ name, row, taskLabel, revisionRow, showRevisions }: { name: string; row: TaskTypeRow; taskLabel?: string; revisionRow?: TaskTypeRow; showRevisions?: boolean }) {
   const avg7d = row.avg30Day / 4.3;
+  const revAvg7d = revisionRow ? revisionRow.avg30Day / 4.3 : 0;
   
   return (
     <TableRow className="border-border/30 hover:bg-muted/20">
@@ -71,6 +72,14 @@ function PersonRow({ name, row, taskLabel }: { name: string; row: TaskTypeRow; t
       <TableCell className="text-center font-mono text-base px-2">
         {avg7d.toFixed(1)}
       </TableCell>
+      {showRevisions && (
+        <TableCell className={cn(
+          "text-center font-mono text-base px-2",
+          revAvg7d === 0 && "text-muted-foreground/50"
+        )}>
+          {revAvg7d.toFixed(1)}
+        </TableCell>
+      )}
       <TableCell className="text-center px-1">
         <TrendSparkline data={row.weekCounts} maxWeek26={row.maxWeek26} />
       </TableCell>
