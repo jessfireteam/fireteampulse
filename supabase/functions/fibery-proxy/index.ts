@@ -46,44 +46,8 @@ const QUERIES: Record<QueryType, string> = {
       type { name }
     }
   }`,
-  'tasks': `{
-    findProjectSpecificTasks(
-      limit: 2000
-      done: { is: true }
-      doneDate: { greater: "2026-01-01" }
-    ) {
-      id
-      name
-      done
-      doneDate
-      dueDate
-      assignee { name }
-      taskTemplateRole { name }
-      project { 
-        name 
-        client { name }
-      }
-    }
-  }`,
-  'pending-tasks': `{
-    findProjectSpecificTasks(
-      limit: 1000
-      done: { is: false }
-      dueDate: { greater: "2026-01-01" }
-    ) {
-      id
-      name
-      done
-      doneDate
-      dueDate
-      assignee { name }
-      taskTemplateRole { name }
-      project { 
-        name 
-        client { name }
-      }
-    }
-  }`,
+  'tasks': 'DYNAMIC',
+  'pending-tasks': 'DYNAMIC',
   'client-months': 'DYNAMIC',
   'client-weeks': 'DYNAMIC',
   'project-completions': `{
