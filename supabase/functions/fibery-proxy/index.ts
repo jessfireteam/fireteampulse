@@ -46,44 +46,8 @@ const QUERIES: Record<QueryType, string> = {
       type { name }
     }
   }`,
-  'tasks': `{
-    findProjectSpecificTasks(
-      limit: 2000
-      done: { is: true }
-      doneDate: { greater: "2026-01-01" }
-    ) {
-      id
-      name
-      done
-      doneDate
-      dueDate
-      assignee { name }
-      taskTemplateRole { name }
-      project { 
-        name 
-        client { name }
-      }
-    }
-  }`,
-  'pending-tasks': `{
-    findProjectSpecificTasks(
-      limit: 1000
-      done: { is: false }
-      dueDate: { greater: "2026-01-01" }
-    ) {
-      id
-      name
-      done
-      doneDate
-      dueDate
-      assignee { name }
-      taskTemplateRole { name }
-      project { 
-        name 
-        client { name }
-      }
-    }
-  }`,
+  'tasks': 'DYNAMIC',
+  'pending-tasks': 'DYNAMIC',
   'client-months': 'DYNAMIC',
   'client-weeks': 'DYNAMIC',
   'project-completions': `{
@@ -240,6 +204,60 @@ serve(async (req) => {
 
     let query = QUERIES[queryType as QueryType]
     const url = QUERY_ENDPOINTS[queryType as QueryType]
+
+    // Dynamic query for tasks: fetch completed tasks from last 7 months (covers 26-week peak calc)
+    if (queryType === 'tasks') {
+      const now = new Date()
+      const sevenMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 7, 1)
+      const sevenMonthsAgoDate = sevenMonthsAgo.toISOString().split('T')[0]
+      query = `{
+        findProjectSpecificTasks(
+          limit: 3000
+          done: { is: true }
+          doneDate: { greater: "${sevenMonthsAgoDate}" }
+          orderBy: { doneDate: DESC }
+        ) {
+          id
+          name
+          done
+          doneDate
+          dueDate
+          assignee { name }
+          taskTemplateRole { name }
+          project { 
+            name 
+            client { name }
+          }
+        }
+      }`
+    }
+
+    // Dynamic query for pending-tasks: fetch all undone tasks with due dates
+    if (queryType === 'pending-tasks') {
+      const now = new Date()
+      const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, 1)
+      const threeMonthsAgoDate = threeMonthsAgo.toISOString().split('T')[0]
+      query = `{
+        findProjectSpecificTasks(
+          limit: 3000
+          done: { is: false }
+          dueDate: { greater: "${threeMonthsAgoDate}" }
+          orderBy: { dueDate: DESC }
+        ) {
+          id
+          name
+          done
+          doneDate
+          dueDate
+          assignee { name }
+          taskTemplateRole { name }
+          project { 
+            name 
+            client { name }
+          }
+        }
+      }`
+    }
 
     // Dynamic query for client-weeks: fetch last ~10 weeks of data
     if (queryType === 'client-weeks') {
