@@ -264,7 +264,9 @@ serve(async (req) => {
       const now = new Date()
       const tenWeeksAgo = new Date(now.getTime() - 10 * 7 * 24 * 60 * 60 * 1000)
       const startDate = tenWeeksAgo.toISOString().split('T')[0]
-      const endDate = now.toISOString().split('T')[0]
+      // Use end of current week to include current week's data
+      const endOfWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+      const endDate = endOfWeek.toISOString().split('T')[0]
       query = `{
         findClientWeeks(
           limit: 500
