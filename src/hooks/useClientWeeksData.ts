@@ -80,11 +80,12 @@ export function useProcessedClientWeeks(): {
       const agencyDollars = totalSpend > 0 ? agencySpendRaw * totalSpend : 0;
 
       const weekStart = cw.dateRange?.start ?? "";
+      const weekEnd = cw.dateRange?.end ?? "";
       let weekLabel = "Unknown";
       if (weekStart) {
         try {
           const start = parseISO(weekStart);
-          const end = addDays(start, 6);
+          const end = weekEnd ? parseISO(weekEnd) : addDays(start, 6);
           weekLabel = `${format(start, "MMM d")}–${format(end, "d")}`;
         } catch {
           weekLabel = weekStart;
