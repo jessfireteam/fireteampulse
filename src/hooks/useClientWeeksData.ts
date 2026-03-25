@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { queryFibery, ClientWeeksResponse } from "@/lib/fibery";
 import { useMemo } from "react";
-import { format, parseISO, addDays } from "date-fns";
+import { format, parseISO, subDays, differenceInCalendarDays, startOfDay } from "date-fns";
 
 export interface ProcessedClientWeek {
   weekLabel: string;
@@ -36,6 +36,8 @@ export function useProcessedClientWeeks(): {
 
   const processed = useMemo(() => {
     if (!rawData?.findClientWeeks) return {};
+
+    const today = startOfDay(new Date());
 
     // Debug: log raw dateRange and week info before any processing
     console.log("[ClientWeeks] Raw response count:", rawData.findClientWeeks.length);
@@ -74,23 +76,34 @@ export function useProcessedClientWeeks(): {
       const clientName = cw.client?.name?.trim();
       if (!clientName) return;
 
+      const weekStart = cw.dateRange?.start ?? "";
+      const weekEndExclusive = cw.dateRange?.end ?? "";
+
+      if (!weekStart || !weekEndExclusive) return;
+
+      let weekStartDate: Date;
+      let weekEndExclusiveDate: Date;
+
+      try {
+        weekStartDate = parseISO(weekStart);
+        weekEndExclusiveDate = parseISO(weekEndExclusive);
+      } catch {
+        return;
+      }
+
+      const spanDays = differenceInCalendarDays(weekEndExclusiveDate, weekStartDate);
+      const isFullWeek = spanDays === 7;
+      const isCompletedWeek = weekEndExclusiveDate <= today;
+
+      if (!isFullWeek || !isCompletedWeek) return;
+
       const totalSpend = cw.totalSpend ?? 0;
       const agencySpendRaw = cw.agencySpend ?? 0;
       const agencyPercent = agencySpendRaw * 100;
       const agencyDollars = totalSpend > 0 ? agencySpendRaw * totalSpend : 0;
 
-      const weekStart = cw.dateRange?.start ?? "";
-      const weekEnd = cw.dateRange?.end ?? "";
-      let weekLabel = "Unknown";
-      if (weekStart) {
-        try {
-          const start = parseISO(weekStart);
-          const end = weekEnd ? parseISO(weekEnd) : addDays(start, 6);
-          weekLabel = `${format(start, "MMM d")}–${format(end, "d")}`;
-        } catch {
-          weekLabel = weekStart;
-        }
-      }
+      const weekEndInclusiveDate = subDays(weekEndExclusiveDate, 1);
+      const weekLabel = `${format(weekStartDate, "MMM d")}–${format(weekEndInclusiveDate, "MMM d")}`;
 
       if (!grouped[clientName]) {
         grouped[clientName] = [];
