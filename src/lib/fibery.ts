@@ -43,6 +43,7 @@ export interface Task {
   project: {
     name: string;
     client: { name: string } | null;
+    status: { name: string } | null;
   } | null;
 }
 
