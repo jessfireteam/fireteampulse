@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { SectionHeader } from "./SectionHeader";
 import {
@@ -18,20 +19,17 @@ import { CostPerDeliverableChart, MonthlyData } from "./CostPerDeliverableChart"
 import { AdSpendChart } from "./AdSpendChart";
 import { DeliverablesChart } from "./DeliverablesChart";
 import { CreatorCostsChart } from "./CreatorCostsChart";
+import { queryFibery, ClientsResponse } from "@/lib/fibery";
 import { format, parseISO } from "date-fns";
 
-// Active clients list
-const ACTIVE_CLIENTS = [
-  "Rejuvia",
-  "FabFitFun",
-  "Bambu Earth",
-  "Adapt Naturals",
-  "After.com",
-  "Paperlike",
-  "OMGYES",
-  "Nutrisense",
-  "NOBL Travel",
-];
+function useClientsData() {
+  return useQuery({
+    queryKey: ["fibery-clients"],
+    queryFn: () => queryFibery<ClientsResponse>("clients"),
+    staleTime: 10 * 60 * 1000,
+    retry: 2,
+  });
+}
 
 // Process ClientMonths using Fibery's pre-calculated costPerDeliverable
 function processClientEconomicsData(
@@ -137,14 +135,36 @@ function groupByClient(
 
 export function ClientEconomics() {
   const [viewMode, setViewMode] = useState<string>("cost");
-  const [selectedClient, setSelectedClient] = useState<string>(ACTIVE_CLIENTS[0]);
+  const [selectedClient, setSelectedClient] = useState<string>("");
   const { data: clientMonthsData, isLoading: monthsLoading, error: monthsError } = useClientMonthsData();
   const { data: clientWeeksData, isLoading: weeksLoading } = useProcessedClientWeeks();
   const { data: deliverablesData, isLoading: deliverablesLoading } = useDeliverablesData();
   const { data: expensesData, isLoading: expensesLoading } = useExpensesData();
+  const { data: clientsData, isLoading: clientsLoading } = useClientsData();
 
-  const isLoading = monthsLoading || weeksLoading || deliverablesLoading || expensesLoading;
+  const isLoading = monthsLoading || weeksLoading || deliverablesLoading || expensesLoading || clientsLoading;
   const error = monthsError;
+
+  // Build active/inactive client names from Fibery
+  const clientStatuses = useMemo(() => {
+    const active: string[] = [];
+    const inactive: string[] = [];
+    if (clientsData?.findClients) {
+      clientsData.findClients.forEach((c) => {
+        const name = c.name?.trim();
+        if (!name) return;
+        const status = c.status?.name?.toLowerCase();
+        if (status === "active") {
+          active.push(name);
+        } else {
+          inactive.push(name);
+        }
+      });
+    }
+    active.sort((a, b) => a.localeCompare(b));
+    inactive.sort((a, b) => a.localeCompare(b));
+    return { active, inactive };
+  }, [clientsData]);
 
   const combinedData = useMemo(() => {
     if (!clientMonthsData?.findClientMonths) return [];
@@ -159,17 +179,15 @@ export function ClientEconomics() {
   const allClientsWithData = useMemo(() => {
     const clientSet = new Set<string>();
     
-    // Gather clients from all data sources
     Object.keys(clientChartData).forEach(c => clientSet.add(c));
     Object.keys(clientWeeksData).forEach(c => clientSet.add(c));
     Object.keys(deliverablesData).forEach(c => clientSet.add(c));
     Object.keys(expensesData).forEach(c => clientSet.add(c));
 
-    const activeLC = ACTIVE_CLIENTS.map(c => c.toLowerCase());
+    const activeLC = clientStatuses.active.map(c => c.toLowerCase());
     const all = Array.from(clientSet);
     
-    // Sort: active clients first (in ACTIVE_CLIENTS order), then rest alphabetically
-    const active = ACTIVE_CLIENTS.filter(ac => 
+    const active = clientStatuses.active.filter(ac => 
       all.some(c => c.toLowerCase() === ac.toLowerCase())
     );
     const inactive = all
@@ -177,12 +195,16 @@ export function ClientEconomics() {
       .sort((a, b) => a.localeCompare(b));
 
     return { active, inactive, all: [...active, ...inactive] };
-  }, [clientChartData, clientWeeksData, deliverablesData, expensesData]);
+  }, [clientChartData, clientWeeksData, deliverablesData, expensesData, clientStatuses]);
+
+  // Auto-select first active client when data loads
+  const effectiveClient = selectedClient || allClientsWithData.active[0] || allClientsWithData.all[0] || "";
 
   // Get data for selected client (case-insensitive matching)
   const currentData = useMemo(() => {
+    if (!effectiveClient) return { cpd: [], adSpend: undefined, deliverables: undefined, expenses: undefined };
     const find = (obj: Record<string, any>) =>
-      Object.keys(obj).find(k => k.trim().toLowerCase() === selectedClient.trim().toLowerCase());
+      Object.keys(obj).find(k => k.trim().toLowerCase() === effectiveClient.trim().toLowerCase());
 
     const cpdKey = find(clientChartData);
     const adKey = find(clientWeeksData);
@@ -195,7 +217,7 @@ export function ClientEconomics() {
       deliverables: delKey ? deliverablesData[delKey] : undefined,
       expenses: expKey ? expensesData[expKey] : undefined,
     };
-  }, [selectedClient, clientChartData, clientWeeksData, deliverablesData, expensesData]);
+  }, [effectiveClient, clientChartData, clientWeeksData, deliverablesData, expensesData]);
 
   if (isLoading) {
     return (
@@ -228,7 +250,7 @@ export function ClientEconomics() {
           {/* Controls row */}
           <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
             {/* Client selector */}
-            <Select value={selectedClient} onValueChange={setSelectedClient}>
+            <Select value={effectiveClient} onValueChange={setSelectedClient}>
               <SelectTrigger className="w-52 bg-secondary/50 border-border/50">
                 <SelectValue />
               </SelectTrigger>
