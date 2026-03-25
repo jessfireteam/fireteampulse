@@ -250,7 +250,7 @@ export function ClientEconomics() {
           {/* Controls row */}
           <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
             {/* Client selector */}
-            <Select value={selectedClient} onValueChange={setSelectedClient}>
+            <Select value={effectiveClient} onValueChange={setSelectedClient}>
               <SelectTrigger className="w-52 bg-secondary/50 border-border/50">
                 <SelectValue />
               </SelectTrigger>
