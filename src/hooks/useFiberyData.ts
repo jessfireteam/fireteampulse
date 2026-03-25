@@ -197,10 +197,7 @@ const ROLE_ASSIGNMENTS: Record<string, { role: RoleType; primaryTaskType: string
   'Vaiv Singh': [{ role: 'Video', primaryTaskType: 'Video Editing' }],
   'Sanchit': [{ role: 'Video', primaryTaskType: 'Video Editing' }],
   'Ike': [{ role: 'Video', primaryTaskType: 'Video Editing' }],
-  'Kenny Fisher': [
-    { role: 'Video', primaryTaskType: 'Video Editing' },
-    { role: 'Other', primaryTaskType: 'Assign Editor' },
-  ],
+  'Kenny Fisher': [{ role: 'Other', primaryTaskType: 'Assign Editor' }],
   'Nicolle Valladares': [{ role: 'Other', primaryTaskType: 'Cast Creator' }],
   'Jada Hall': [{ role: 'Other', primaryTaskType: 'Upload' }],
 };
