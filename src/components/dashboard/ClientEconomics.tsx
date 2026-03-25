@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { SectionHeader } from "./SectionHeader";
 import {
@@ -18,20 +19,17 @@ import { CostPerDeliverableChart, MonthlyData } from "./CostPerDeliverableChart"
 import { AdSpendChart } from "./AdSpendChart";
 import { DeliverablesChart } from "./DeliverablesChart";
 import { CreatorCostsChart } from "./CreatorCostsChart";
+import { queryFibery, ClientsResponse } from "@/lib/fibery";
 import { format, parseISO } from "date-fns";
 
-// Active clients list
-const ACTIVE_CLIENTS = [
-  "Rejuvia",
-  "FabFitFun",
-  "Bambu Earth",
-  "Adapt Naturals",
-  "After.com",
-  "Paperlike",
-  "OMGYES",
-  "Nutrisense",
-  "NOBL Travel",
-];
+function useClientsData() {
+  return useQuery({
+    queryKey: ["fibery-clients"],
+    queryFn: () => queryFibery<ClientsResponse>("clients"),
+    staleTime: 10 * 60 * 1000,
+    retry: 2,
+  });
+}
 
 // Process ClientMonths using Fibery's pre-calculated costPerDeliverable
 function processClientEconomicsData(
