@@ -8,13 +8,30 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useClientMonthsData } from "@/hooks/useFiberyData";
 import { useProcessedClientWeeks } from "@/hooks/useClientWeeksData";
 import { useDeliverablesData } from "@/hooks/useDeliverablesData";
 import { useExpensesData } from "@/hooks/useExpensesData";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ClientMonthlyChart } from "./ClientWeeklyChart";
+import { CostPerDeliverableChart, MonthlyData } from "./CostPerDeliverableChart";
+import { AdSpendChart } from "./AdSpendChart";
+import { DeliverablesChart } from "./DeliverablesChart";
+import { CreatorCostsChart } from "./CreatorCostsChart";
 import { format, parseISO } from "date-fns";
+
+// Active clients list
+const ACTIVE_CLIENTS = [
+  "Rejuvia",
+  "FabFitFun",
+  "Bambu Earth",
+  "Adapt Naturals",
+  "After.com",
+  "Paperlike",
+  "OMGYES",
+  "Nutrisense",
+  "NOBL Travel",
+];
 
 // Process ClientMonths using Fibery's pre-calculated costPerDeliverable
 function processClientEconomicsData(
@@ -43,15 +60,12 @@ function processClientEconomicsData(
   }> = [];
 
   clientMonths.forEach((cm) => {
-    // Extract month from name (format: "2026-01 - ClientName")
     const monthMatch = cm.name?.match(/^(\d{4}-\d{2})/);
     const monthStr = monthMatch ? monthMatch[1] : "";
     const clientName = cm.client?.name || "Unknown";
 
-    // Skip future months or invalid data
     if (!monthStr || monthStr > currentMonthStr) return;
 
-    // Get data from pricingPlanMonths relationship
     const ppm = cm.pricingPlanMonths?.[0];
     if (!ppm) return;
 
@@ -59,12 +73,10 @@ function processClientEconomicsData(
     const deliverables = ppm.deliverablesShipped || 0;
     const revenue = ppm.revenue || 0;
 
-    // Calculate cost per deliverable: use Fibery's value, or derive from revenue/deliverables
     const effectiveCPD = costPerDeliverable > 0
       ? costPerDeliverable
       : (deliverables > 0 && revenue > 0 ? revenue / deliverables : 0);
 
-    // Include if we have any meaningful data
     if (effectiveCPD > 0 || deliverables > 0) {
       processed.push({
         client: clientName,
@@ -76,13 +88,11 @@ function processClientEconomicsData(
     }
   });
 
-  // Sort by month descending
   processed.sort((a, b) => b.month.localeCompare(a.month));
-
   return processed;
 }
 
-// Group data by client for charts
+// Group data by client
 function groupByClient(
   data: Array<{
     client: string;
@@ -94,13 +104,7 @@ function groupByClient(
 ) {
   const clientData: Record<
     string,
-    Array<{
-      month: string;
-      monthLabel: string;
-      costPerDeliverable: number;
-      deliverables: number;
-      fireTeamSpend: number;
-    }>
+    MonthlyData[]
   > = {};
 
   data.forEach((item) => {
@@ -120,11 +124,10 @@ function groupByClient(
       monthLabel,
       costPerDeliverable: item.costPerDeliverable,
       deliverables: item.deliverables,
-      fireTeamSpend: item.revenue, // Using revenue as the fee
+      fireTeamSpend: item.revenue,
     });
   });
 
-  // Sort each client's data chronologically
   Object.keys(clientData).forEach((client) => {
     clientData[client].sort((a, b) => a.month.localeCompare(b.month));
   });
@@ -132,21 +135,9 @@ function groupByClient(
   return clientData;
 }
 
-// Active clients list - clients with ongoing work (matching actual data names)
-const ACTIVE_CLIENTS = [
-  "Rejuvia",
-  "FabFitFun",
-  "Bambu Earth",
-  "Adapt Naturals",
-  "After.com",
-  "Paperlike",
-  "OMGYES",
-  "Nutrisense",
-  "NOBL Travel",
-];
-
 export function ClientEconomics() {
-  const [clientFilter, setClientFilter] = useState<string>("all");
+  const [viewMode, setViewMode] = useState<string>("cost");
+  const [selectedClient, setSelectedClient] = useState<string>(ACTIVE_CLIENTS[0]);
   const { data: clientMonthsData, isLoading: monthsLoading, error: monthsError } = useClientMonthsData();
   const { data: clientWeeksData, isLoading: weeksLoading } = useProcessedClientWeeks();
   const { data: deliverablesData, isLoading: deliverablesLoading } = useDeliverablesData();
@@ -155,50 +146,62 @@ export function ClientEconomics() {
   const isLoading = monthsLoading || weeksLoading || deliverablesLoading || expensesLoading;
   const error = monthsError;
 
-  // Process using Fibery's pre-calculated data
   const combinedData = useMemo(() => {
     if (!clientMonthsData?.findClientMonths) return [];
     return processClientEconomicsData(clientMonthsData.findClientMonths);
   }, [clientMonthsData]);
 
-  // Group by client
   const clientChartData = useMemo(() => {
     return groupByClient(combinedData);
   }, [combinedData]);
 
-  // Get clients sorted by total deliverables
-  const sortedClients = useMemo(() => {
-    return Object.entries(clientChartData)
-      .map(([client, data]) => ({
-        client,
-        totalDeliverables: data.reduce((sum, d) => sum + d.deliverables, 0),
-        data,
-      }))
-      .sort((a, b) => b.totalDeliverables - a.totalDeliverables);
-  }, [clientChartData]);
+  // Build list of all clients that have any data, sorted with active first
+  const allClientsWithData = useMemo(() => {
+    const clientSet = new Set<string>();
+    
+    // Gather clients from all data sources
+    Object.keys(clientChartData).forEach(c => clientSet.add(c));
+    Object.keys(clientWeeksData).forEach(c => clientSet.add(c));
+    Object.keys(deliverablesData).forEach(c => clientSet.add(c));
+    Object.keys(expensesData).forEach(c => clientSet.add(c));
 
-  const allClients = sortedClients.map((c) => c.client);
+    const activeLC = ACTIVE_CLIENTS.map(c => c.toLowerCase());
+    const all = Array.from(clientSet);
+    
+    // Sort: active clients first (in ACTIVE_CLIENTS order), then rest alphabetically
+    const active = ACTIVE_CLIENTS.filter(ac => 
+      all.some(c => c.toLowerCase() === ac.toLowerCase())
+    );
+    const inactive = all
+      .filter(c => !activeLC.includes(c.toLowerCase()))
+      .sort((a, b) => a.localeCompare(b));
 
-  // Filter clients for display - use case-insensitive matching
-  const displayClients = useMemo(() => {
-    if (clientFilter === "active") {
-      const activeClientsLower = ACTIVE_CLIENTS.map(c => c.toLowerCase());
-      return sortedClients.filter((c) => 
-        activeClientsLower.includes(c.client.toLowerCase())
-      );
-    } else if (clientFilter === "all") {
-      return sortedClients;
-    } else {
-      return sortedClients.filter((c) => c.client === clientFilter);
-    }
-  }, [sortedClients, clientFilter]);
+    return { active, inactive, all: [...active, ...inactive] };
+  }, [clientChartData, clientWeeksData, deliverablesData, expensesData]);
+
+  // Get data for selected client (case-insensitive matching)
+  const currentData = useMemo(() => {
+    const find = (obj: Record<string, any>) =>
+      Object.keys(obj).find(k => k.trim().toLowerCase() === selectedClient.trim().toLowerCase());
+
+    const cpdKey = find(clientChartData);
+    const adKey = find(clientWeeksData);
+    const delKey = find(deliverablesData);
+    const expKey = find(expensesData);
+
+    return {
+      cpd: cpdKey ? clientChartData[cpdKey] : [],
+      adSpend: adKey ? clientWeeksData[adKey] : undefined,
+      deliverables: delKey ? deliverablesData[delKey] : undefined,
+      expenses: expKey ? expensesData[expKey] : undefined,
+    };
+  }, [selectedClient, clientChartData, clientWeeksData, deliverablesData, expensesData]);
 
   if (isLoading) {
     return (
       <div className="space-y-6">
         <SectionHeader title="Client Economics" />
-        <Skeleton className="h-[300px]" />
-        <Skeleton className="h-[300px]" />
+        <Skeleton className="h-[400px]" />
       </div>
     );
   }
@@ -218,63 +221,114 @@ export function ClientEconomics() {
 
   return (
     <div className="space-y-6">
-      <SectionHeader title="Client Economics ($/Deliverable)">
-        <Select value={clientFilter} onValueChange={setClientFilter}>
-          <SelectTrigger className="w-48 bg-secondary/50 border-border/50">
-            <SelectValue placeholder="Filter by client" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="active">Active Clients</SelectItem>
-            <SelectItem value="all">All Clients</SelectItem>
-            {allClients.map((client) => (
-              <SelectItem key={client} value={client}>
-                {client}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </SectionHeader>
+      <SectionHeader title="Client Economics" />
 
-      {/* Full-width stacked charts - one per client */}
-      <div className="space-y-6">
-        {displayClients.length === 0 ? (
-          <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
-            <CardContent className="p-6">
-              <p className="text-center text-muted-foreground">
-                No data available for selected clients
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          displayClients.map(({ client, data }) => {
-            // Match client name case-insensitively for ad spend data
-            const adSpendKey = Object.keys(clientWeeksData).find(
-              (k) => k.trim().toLowerCase() === client.trim().toLowerCase()
-            );
-            const adSpendData = adSpendKey ? clientWeeksData[adSpendKey] : undefined;
-            // Match client name case-insensitively for deliverables data
-            const deliverablesKey = Object.keys(deliverablesData).find(
-              (k) => k.trim().toLowerCase() === client.trim().toLowerCase()
-            );
-            const clientDeliverables = deliverablesKey ? deliverablesData[deliverablesKey] : undefined;
-            // Match for expenses data
-            const expensesKey = Object.keys(expensesData).find(
-              (k) => k.trim().toLowerCase() === client.trim().toLowerCase()
-            );
-            const clientExpenses = expensesKey ? expensesData[expensesKey] : undefined;
-            return (
-              <ClientMonthlyChart
-                key={client}
-                clientName={client}
-                data={data}
-                adSpendData={adSpendData}
-                deliverablesData={clientDeliverables}
-                expensesData={clientExpenses}
-              />
-            );
-          })
-        )}
-      </div>
+      <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
+        <CardContent className="p-6">
+          {/* Controls row */}
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+            {/* Client selector */}
+            <Select value={selectedClient} onValueChange={setSelectedClient}>
+              <SelectTrigger className="w-52 bg-secondary/50 border-border/50">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {allClientsWithData.active.length > 0 && (
+                  <>
+                    <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Active</div>
+                    {allClientsWithData.active.map((client) => (
+                      <SelectItem key={client} value={client}>
+                        {client}
+                      </SelectItem>
+                    ))}
+                  </>
+                )}
+                {allClientsWithData.inactive.length > 0 && (
+                  <>
+                    <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-1">Inactive</div>
+                    {allClientsWithData.inactive.map((client) => (
+                      <SelectItem key={client} value={client}>
+                        {client}
+                      </SelectItem>
+                    ))}
+                  </>
+                )}
+              </SelectContent>
+            </Select>
+
+            {/* Metric toggle */}
+            <ToggleGroup
+              type="single"
+              value={viewMode}
+              onValueChange={(val) => { if (val) setViewMode(val); }}
+              size="sm"
+              className="bg-secondary/30 rounded-md p-0.5"
+            >
+              <ToggleGroupItem
+                value="cost"
+                className="text-[11px] px-2.5 py-1 h-7 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground rounded-sm"
+              >
+                $/Deliv
+              </ToggleGroupItem>
+              <ToggleGroupItem
+                value="adspend"
+                className="text-[11px] px-2.5 py-1 h-7 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground rounded-sm"
+              >
+                % Ad Spend
+              </ToggleGroupItem>
+              <ToggleGroupItem
+                value="deliverables"
+                className="text-[11px] px-2.5 py-1 h-7 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground rounded-sm"
+              >
+                Deliverables
+              </ToggleGroupItem>
+              <ToggleGroupItem
+                value="expenses"
+                className="text-[11px] px-2.5 py-1 h-7 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground rounded-sm"
+              >
+                Creator Costs
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </div>
+
+          {/* Chart */}
+          {viewMode === "cost" ? (
+            currentData.cpd.length > 0 ? (
+              <CostPerDeliverableChart data={currentData.cpd} />
+            ) : (
+              <EmptyState label="cost per deliverable" />
+            )
+          ) : viewMode === "adspend" ? (
+            currentData.adSpend && currentData.adSpend.length > 0 ? (
+              <AdSpendChart data={currentData.adSpend} />
+            ) : (
+              <EmptyState label="ad spend" />
+            )
+          ) : viewMode === "deliverables" ? (
+            currentData.deliverables &&
+            currentData.deliverables.months.some((m) => m.count > 0 || m.scheduledCount > 0) ? (
+              <DeliverablesChart data={currentData.deliverables} />
+            ) : (
+              <EmptyState label="deliverables" />
+            )
+          ) : currentData.expenses &&
+            currentData.expenses.months.some((m) => m.totalCost > 0) ? (
+            <CreatorCostsChart data={currentData.expenses} />
+          ) : (
+            <EmptyState label="creator cost" />
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function EmptyState({ label }: { label: string }) {
+  return (
+    <div className="h-[300px] flex items-center justify-center">
+      <p className="text-muted-foreground text-sm">
+        No {label} data available for this client
+      </p>
     </div>
   );
 }
