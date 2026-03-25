@@ -202,8 +202,9 @@ export function ClientEconomics() {
 
   // Get data for selected client (case-insensitive matching)
   const currentData = useMemo(() => {
+    if (!effectiveClient) return { cpd: [], adSpend: undefined, deliverables: undefined, expenses: undefined };
     const find = (obj: Record<string, any>) =>
-      Object.keys(obj).find(k => k.trim().toLowerCase() === selectedClient.trim().toLowerCase());
+      Object.keys(obj).find(k => k.trim().toLowerCase() === effectiveClient.trim().toLowerCase());
 
     const cpdKey = find(clientChartData);
     const adKey = find(clientWeeksData);
@@ -216,7 +217,7 @@ export function ClientEconomics() {
       deliverables: delKey ? deliverablesData[delKey] : undefined,
       expenses: expKey ? expensesData[expKey] : undefined,
     };
-  }, [selectedClient, clientChartData, clientWeeksData, deliverablesData, expensesData]);
+  }, [effectiveClient, clientChartData, clientWeeksData, deliverablesData, expensesData]);
 
   if (isLoading) {
     return (
