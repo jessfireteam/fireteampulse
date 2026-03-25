@@ -236,6 +236,7 @@ serve(async (req) => {
           project { 
             name 
             client { name }
+            status { name }
           }
         }
       }`
@@ -263,6 +264,7 @@ serve(async (req) => {
           project { 
             name 
             client { name }
+            status { name }
           }
         }
       }`

@@ -232,7 +232,12 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
   const weeks26 = Array.from({ length: 26 }, (_, i) => getWeekBoundaries(todayStart, i + 1));
 
 
-  let filteredTasks = tasks;
+  // Filter out tasks from cancelled projects
+  let filteredTasks = tasks.filter((t) => {
+    const projectStatus = t.project?.status?.name?.toLowerCase();
+    return projectStatus !== 'cancelled';
+  });
+
   if (roleFilter === "video") {
     filteredTasks = tasks.filter((t) =>
       t.taskTemplateRole?.name?.includes("Video Editor (VE)")
