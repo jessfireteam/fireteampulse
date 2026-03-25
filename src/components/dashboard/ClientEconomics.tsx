@@ -249,34 +249,39 @@ export function ClientEconomics() {
         <CardContent className="p-6">
           {/* Controls row */}
           <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
-            {/* Client selector */}
-            <Select value={effectiveClient} onValueChange={setSelectedClient}>
-              <SelectTrigger className="w-52 bg-secondary/50 border-border/50">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {allClientsWithData.active.length > 0 && (
-                  <>
-                    <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Active</div>
-                    {allClientsWithData.active.map((client) => (
-                      <SelectItem key={client} value={client}>
-                        {client}
-                      </SelectItem>
-                    ))}
-                  </>
-                )}
-                {allClientsWithData.inactive.length > 0 && (
-                  <>
-                    <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-1">Inactive</div>
+            {/* Active client buttons + inactive dropdown */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              {allClientsWithData.active.map((client) => (
+                <button
+                  key={client}
+                  onClick={() => setSelectedClient(client)}
+                  className={`text-[11px] px-2.5 py-1 h-7 rounded-sm transition-colors ${
+                    effectiveClient === client
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-secondary/30 text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+                  }`}
+                >
+                  {client}
+                </button>
+              ))}
+              {allClientsWithData.inactive.length > 0 && (
+                <Select
+                  value={allClientsWithData.inactive.some(c => c === effectiveClient) ? effectiveClient : ""}
+                  onValueChange={setSelectedClient}
+                >
+                  <SelectTrigger className="w-32 h-7 text-[11px] bg-secondary/30 border-border/30 px-2.5">
+                    <SelectValue placeholder="Inactive..." />
+                  </SelectTrigger>
+                  <SelectContent>
                     {allClientsWithData.inactive.map((client) => (
                       <SelectItem key={client} value={client}>
                         {client}
                       </SelectItem>
                     ))}
-                  </>
-                )}
-              </SelectContent>
-            </Select>
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
 
             {/* Metric toggle */}
             <ToggleGroup
