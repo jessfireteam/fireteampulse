@@ -258,7 +258,7 @@ export function ClientEconomics() {
                   className={`text-[11px] px-2.5 py-1 h-7 rounded-sm transition-colors ${
                     effectiveClient === client
                       ? "bg-primary text-primary-foreground"
-                      : "bg-secondary/30 text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+                      : "bg-secondary/30 text-foreground hover:bg-secondary/50"
                   }`}
                 >
                   {client}
