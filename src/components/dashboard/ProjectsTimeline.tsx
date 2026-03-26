@@ -137,6 +137,15 @@ export function ProjectsTimeline() {
     return weeks;
   }, [completionsData, upcomingData]);
 
+  // Calculate 4-week rolling average (last 4 completed past weeks, excluding current)
+  const avg4Week = useMemo(() => {
+    const pastWeeks = chartData.filter((w) => !w.isFuture && !w.weekLabel.includes("★"));
+    const last4 = pastWeeks.slice(-4);
+    if (last4.length === 0) return 0;
+    const total = last4.reduce((sum, w) => sum + w.static + w.video, 0);
+    return Math.round(total / last4.length);
+  }, [chartData]);
+
   // Find the index of the "today" divider (current week)
   const todayIndex = chartData.findIndex((w) => w.weekLabel.includes("★"));
 
@@ -208,6 +217,20 @@ export function ProjectsTimeline() {
                       value: "Today",
                       position: "top",
                       fill: "hsl(var(--foreground))",
+                      fontSize: 11,
+                    }}
+                  />
+                )}
+                {avg4Week > 0 && (
+                  <ReferenceLine
+                    y={avg4Week}
+                    stroke="hsl(var(--muted-foreground))"
+                    strokeWidth={1.5}
+                    strokeDasharray="6 3"
+                    label={{
+                      value: `Avg ${avg4Week}/wk`,
+                      position: "right",
+                      fill: "hsl(var(--muted-foreground))",
                       fontSize: 11,
                     }}
                   />
