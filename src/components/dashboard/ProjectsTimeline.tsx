@@ -221,6 +221,20 @@ export function ProjectsTimeline() {
                     }}
                   />
                 )}
+                {avg4Week > 0 && (
+                  <ReferenceLine
+                    y={avg4Week}
+                    stroke="hsl(var(--muted-foreground))"
+                    strokeWidth={1.5}
+                    strokeDasharray="6 3"
+                    label={{
+                      value: `Avg ${avg4Week}/wk`,
+                      position: "right",
+                      fill: "hsl(var(--muted-foreground))",
+                      fontSize: 11,
+                    }}
+                  />
+                )}
                 <Bar dataKey="static" stackId="a" radius={[0, 0, 0, 0]} fill="#EAB308">
                   {chartData.map((entry, index) => (
                     <Cell
