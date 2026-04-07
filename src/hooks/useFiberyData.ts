@@ -452,7 +452,7 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
   // Dynamically add anyone with Creative Review completions
   const existingCR = new Set(people.filter(p => p.role === 'Creative Review').map(p => p.name));
   Object.entries(personData).forEach(([name, taskTypes]) => {
-    if (existingCR.has(name)) return;
+    if (existingCR.has(name) || isExcludedMember(name)) return;
     const cr = taskTypes['Creative Review'];
     if (cr && cr.last30DaysTotal > 0) {
       const crRow: TaskTypeRow = {
