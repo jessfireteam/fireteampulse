@@ -27,6 +27,15 @@ function computeRoleBars(tasks: any[]): RoleBar[] {
       let peakSum = 0;
       let currentSum = 0;
 
+      // Current includes ALL people (including departed — their completions still count)
+      g.people.forEach((person) => {
+        const primaryRow =
+          person.taskTypes.find((t) => t.taskType === person.primaryTaskType) ||
+          person.subtotal;
+        currentSum += primaryRow.avg30Day / 4.3;
+      });
+
+      // Peak excludes departed members (they can't produce anymore)
       g.people
         .filter((person) => !isExcludedMember(person.name))
         .forEach((person) => {
@@ -34,7 +43,6 @@ function computeRoleBars(tasks: any[]): RoleBar[] {
             person.taskTypes.find((t) => t.taskType === person.primaryTaskType) ||
             person.subtotal;
           peakSum += primaryRow.maxWeek26;
-          currentSum += primaryRow.avg30Day / 4.3;
         });
 
       return {
