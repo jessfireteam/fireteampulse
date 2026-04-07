@@ -206,6 +206,12 @@ const ROLE_ASSIGNMENTS: Record<string, { role: RoleType; primaryTaskType: string
 };
 
 function getAssigneeRoles(assigneeName: string): { role: RoleType; primaryTaskType: string }[] | null {
+  // Check excluded members first
+  if (EXCLUDED_MEMBERS.has(assigneeName)) return null;
+  for (const excluded of EXCLUDED_MEMBERS) {
+    if (assigneeName.includes(excluded) || excluded.includes(assigneeName)) return null;
+  }
+
   if (ROLE_ASSIGNMENTS[assigneeName]) {
     return ROLE_ASSIGNMENTS[assigneeName];
   }
@@ -215,6 +221,14 @@ function getAssigneeRoles(assigneeName: string): { role: RoleType; primaryTaskTy
     }
   }
   return null;
+}
+
+function isExcludedMember(name: string): boolean {
+  if (EXCLUDED_MEMBERS.has(name)) return true;
+  for (const excluded of EXCLUDED_MEMBERS) {
+    if (name.includes(excluded) || excluded.includes(name)) return true;
+  }
+  return false;
 }
 
 function parseTaskDate(dateStr: string | null | undefined): Date | null {
