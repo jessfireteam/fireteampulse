@@ -218,9 +218,15 @@ function getAssigneeRoles(assigneeName: string): { role: RoleType; primaryTaskTy
 }
 
 export function isExcludedMember(name: string): boolean {
+  const lower = name.toLowerCase();
   if (EXCLUDED_MEMBERS.has(name)) return true;
+  if (EXCLUDED_MEMBERS.has(lower)) return true;
   for (const excluded of EXCLUDED_MEMBERS) {
-    if (name.includes(excluded) || excluded.includes(name)) return true;
+    const exLower = excluded.toLowerCase();
+    if (lower.includes(exLower) || exLower.includes(lower)) return true;
+    // Also match by first name
+    const firstName = exLower.split('@')[0];
+    if (firstName && lower.includes(firstName)) return true;
   }
   return false;
 }
