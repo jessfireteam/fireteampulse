@@ -27,15 +27,15 @@ function computeRoleBars(tasks: any[]): RoleBar[] {
       let peakSum = 0;
       let currentSum = 0;
 
-      g.people.forEach((person) => {
-        const primaryRow =
-          person.taskTypes.find((t) => t.taskType === person.primaryTaskType) ||
-          person.subtotal;
-        // Peak = max single week over 26 weeks for this person's primary task
-        peakSum += primaryRow.maxWeek26;
-        // Current = 7d avg (30d / 4.3)
-        currentSum += primaryRow.avg30Day / 4.3;
-      });
+      g.people
+        .filter((person) => !isExcludedMember(person.name))
+        .forEach((person) => {
+          const primaryRow =
+            person.taskTypes.find((t) => t.taskType === person.primaryTaskType) ||
+            person.subtotal;
+          peakSum += primaryRow.maxWeek26;
+          currentSum += primaryRow.avg30Day / 4.3;
+        });
 
       return {
         role: ROLE_MAP[g.role]!,
