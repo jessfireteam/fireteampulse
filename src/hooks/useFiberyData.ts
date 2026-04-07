@@ -184,6 +184,9 @@ export interface RoleGroup {
   people: PersonCapacity[];
 }
 
+// Departed team members — excluded from all capacity calculations
+const EXCLUDED_MEMBERS = new Set(['riteesh@fireteam.is']);
+
 // Explicit role assignments with primary task types
 const ROLE_ASSIGNMENTS: Record<string, { role: RoleType; primaryTaskType: string }[]> = {
   'Niki Brazier': [{ role: 'Account', primaryTaskType: 'Briefs Sent' }, { role: 'Creative Review', primaryTaskType: 'Creative Review' }],
@@ -203,6 +206,12 @@ const ROLE_ASSIGNMENTS: Record<string, { role: RoleType; primaryTaskType: string
 };
 
 function getAssigneeRoles(assigneeName: string): { role: RoleType; primaryTaskType: string }[] | null {
+  // Check excluded members first
+  if (EXCLUDED_MEMBERS.has(assigneeName)) return null;
+  for (const excluded of EXCLUDED_MEMBERS) {
+    if (assigneeName.includes(excluded) || excluded.includes(assigneeName)) return null;
+  }
+
   if (ROLE_ASSIGNMENTS[assigneeName]) {
     return ROLE_ASSIGNMENTS[assigneeName];
   }
@@ -212,6 +221,14 @@ function getAssigneeRoles(assigneeName: string): { role: RoleType; primaryTaskTy
     }
   }
   return null;
+}
+
+function isExcludedMember(name: string): boolean {
+  if (EXCLUDED_MEMBERS.has(name)) return true;
+  for (const excluded of EXCLUDED_MEMBERS) {
+    if (name.includes(excluded) || excluded.includes(name)) return true;
+  }
+  return false;
 }
 
 function parseTaskDate(dateStr: string | null | undefined): Date | null {
@@ -407,7 +424,7 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
   // Dynamically add anyone with Brief Work completions to Copywriters
   const existingCopywriters = new Set(people.filter(p => p.role === 'Copywriters').map(p => p.name));
   Object.entries(personData).forEach(([name, taskTypes]) => {
-    if (existingCopywriters.has(name)) return;
+    if (existingCopywriters.has(name) || isExcludedMember(name)) return;
     const briefWork = taskTypes['Brief Work'];
     if (briefWork && briefWork.last30DaysTotal > 0) {
       // Only show the Brief Work row for dynamic copywriters
@@ -435,7 +452,7 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
   // Dynamically add anyone with Creative Review completions
   const existingCR = new Set(people.filter(p => p.role === 'Creative Review').map(p => p.name));
   Object.entries(personData).forEach(([name, taskTypes]) => {
-    if (existingCR.has(name)) return;
+    if (existingCR.has(name) || isExcludedMember(name)) return;
     const cr = taskTypes['Creative Review'];
     if (cr && cr.last30DaysTotal > 0) {
       const crRow: TaskTypeRow = {
@@ -461,7 +478,7 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
   // Dynamically add anyone with Design completions
   const existingDesign = new Set(people.filter(p => p.role === 'Design').map(p => p.name));
   Object.entries(personData).forEach(([name, taskTypes]) => {
-    if (existingDesign.has(name)) return;
+    if (existingDesign.has(name) || isExcludedMember(name)) return;
     const d = taskTypes['Design'];
     if (d && d.last30DaysTotal > 0) {
       const dRow: TaskTypeRow = {
@@ -478,7 +495,7 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
   // Dynamically add anyone with Video Editing completions
   const existingVideo = new Set(people.filter(p => p.role === 'Video').map(p => p.name));
   Object.entries(personData).forEach(([name, taskTypes]) => {
-    if (existingVideo.has(name)) return;
+    if (existingVideo.has(name) || isExcludedMember(name)) return;
     const v = taskTypes['Video Editing'];
     if (v && v.last30DaysTotal > 0) {
       const vRow: TaskTypeRow = {
