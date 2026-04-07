@@ -478,7 +478,7 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
   // Dynamically add anyone with Design completions
   const existingDesign = new Set(people.filter(p => p.role === 'Design').map(p => p.name));
   Object.entries(personData).forEach(([name, taskTypes]) => {
-    if (existingDesign.has(name)) return;
+    if (existingDesign.has(name) || isExcludedMember(name)) return;
     const d = taskTypes['Design'];
     if (d && d.last30DaysTotal > 0) {
       const dRow: TaskTypeRow = {
