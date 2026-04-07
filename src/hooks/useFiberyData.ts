@@ -184,8 +184,8 @@ export interface RoleGroup {
   people: PersonCapacity[];
 }
 
-// Departed team members — excluded from all capacity calculations
-const EXCLUDED_MEMBERS = new Set(['riteesh@fireteam.is']);
+// Departed team members — excluded from capacity summary bars (but historical completions still count)
+export const EXCLUDED_MEMBERS = new Set(['riteesh@fireteam.is']);
 
 // Explicit role assignments with primary task types
 const ROLE_ASSIGNMENTS: Record<string, { role: RoleType; primaryTaskType: string }[]> = {
@@ -193,7 +193,7 @@ const ROLE_ASSIGNMENTS: Record<string, { role: RoleType; primaryTaskType: string
   'Emily Peter': [{ role: 'Account', primaryTaskType: 'Briefs Sent' }, { role: 'Creative Review', primaryTaskType: 'Creative Review' }],
   'amanda@fireteam.is': [{ role: 'Account', primaryTaskType: 'Briefs Sent' }, { role: 'Creative Review', primaryTaskType: 'Creative Review' }],
   'Jess Bachman': [{ role: 'Copywriters', primaryTaskType: 'Brief Work' }, { role: 'Creative Review', primaryTaskType: 'Creative Review' }],
-  // Excluded: riteesh@fireteam.is (departed)
+  'riteesh@fireteam.is': [{ role: 'Copywriters', primaryTaskType: 'Brief Work' }],
   'shreya8881@gmail.com': [{ role: 'Copywriters', primaryTaskType: 'Brief Work' }],
   'Erik Furtado': [{ role: 'Design', primaryTaskType: 'Design' }],
   'Reynelle Reid': [{ role: 'Design', primaryTaskType: 'Design' }],
@@ -206,12 +206,6 @@ const ROLE_ASSIGNMENTS: Record<string, { role: RoleType; primaryTaskType: string
 };
 
 function getAssigneeRoles(assigneeName: string): { role: RoleType; primaryTaskType: string }[] | null {
-  // Check excluded members first
-  if (EXCLUDED_MEMBERS.has(assigneeName)) return null;
-  for (const excluded of EXCLUDED_MEMBERS) {
-    if (assigneeName.includes(excluded) || excluded.includes(assigneeName)) return null;
-  }
-
   if (ROLE_ASSIGNMENTS[assigneeName]) {
     return ROLE_ASSIGNMENTS[assigneeName];
   }
@@ -223,7 +217,7 @@ function getAssigneeRoles(assigneeName: string): { role: RoleType; primaryTaskTy
   return null;
 }
 
-function isExcludedMember(name: string): boolean {
+export function isExcludedMember(name: string): boolean {
   if (EXCLUDED_MEMBERS.has(name)) return true;
   for (const excluded of EXCLUDED_MEMBERS) {
     if (name.includes(excluded) || excluded.includes(name)) return true;
