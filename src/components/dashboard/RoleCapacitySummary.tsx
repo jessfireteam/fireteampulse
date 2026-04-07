@@ -1,6 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { SectionHeader } from "./SectionHeader";
-import { useTasksData, processTasksForCapacity } from "@/hooks/useFiberyData";
+import { useTasksData, processTasksForCapacity, isExcludedMember } from "@/hooks/useFiberyData";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
