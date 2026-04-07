@@ -27,9 +27,19 @@ function computeRoleBars(tasks: any[]): RoleBar[] {
       let peakSum = 0;
       let currentSum = 0;
 
-      g.people
-        .filter((person) => !isExcludedMember(person.name))
-        .forEach((person) => {
+      const activePeople = g.people.filter((person) => !isExcludedMember(person.name));
+      
+      if (ROLE_MAP[g.role] === 'Copywriting') {
+        console.log('=== COPYWRITING CAPACITY DEBUG ===');
+        console.log('All people in group:', g.people.map(p => p.name));
+        console.log('After exclusion:', activePeople.map(p => p.name));
+        activePeople.forEach((person) => {
+          const primaryRow = person.taskTypes.find((t) => t.taskType === person.primaryTaskType) || person.subtotal;
+          console.log(`  ${person.name}: avg30Day=${primaryRow.avg30Day}, 7dAvg=${(primaryRow.avg30Day/4.3).toFixed(1)}, maxWeek26=${primaryRow.maxWeek26}, primaryTaskType=${person.primaryTaskType}`);
+        });
+      }
+
+      activePeople.forEach((person) => {
           const primaryRow =
             person.taskTypes.find((t) => t.taskType === person.primaryTaskType) ||
             person.subtotal;
