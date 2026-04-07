@@ -489,7 +489,7 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
   // Dynamically add anyone with Video Editing completions
   const existingVideo = new Set(people.filter(p => p.role === 'Video').map(p => p.name));
   Object.entries(personData).forEach(([name, taskTypes]) => {
-    if (existingVideo.has(name) || isExcludedMember(name)) return;
+    if (existingVideo.has(name)) return;
     const v = taskTypes['Video Editing'];
     if (v && v.last30DaysTotal > 0) {
       const vRow: TaskTypeRow = {
