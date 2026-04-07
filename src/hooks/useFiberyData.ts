@@ -424,7 +424,7 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
   // Dynamically add anyone with Brief Work completions to Copywriters
   const existingCopywriters = new Set(people.filter(p => p.role === 'Copywriters').map(p => p.name));
   Object.entries(personData).forEach(([name, taskTypes]) => {
-    if (existingCopywriters.has(name)) return;
+    if (existingCopywriters.has(name) || isExcludedMember(name)) return;
     const briefWork = taskTypes['Brief Work'];
     if (briefWork && briefWork.last30DaysTotal > 0) {
       // Only show the Brief Work row for dynamic copywriters
