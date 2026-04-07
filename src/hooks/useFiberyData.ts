@@ -184,6 +184,9 @@ export interface RoleGroup {
   people: PersonCapacity[];
 }
 
+// Departed team members — excluded from all capacity calculations
+const EXCLUDED_MEMBERS = new Set(['riteesh@fireteam.is']);
+
 // Explicit role assignments with primary task types
 const ROLE_ASSIGNMENTS: Record<string, { role: RoleType; primaryTaskType: string }[]> = {
   'Niki Brazier': [{ role: 'Account', primaryTaskType: 'Briefs Sent' }, { role: 'Creative Review', primaryTaskType: 'Creative Review' }],
