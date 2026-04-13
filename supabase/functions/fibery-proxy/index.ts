@@ -517,6 +517,7 @@ serve(async (req) => {
       }`
     }
 
+    const response = await fetchWithRetry(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
