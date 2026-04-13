@@ -20,6 +20,7 @@ interface WinnersProject {
   internalVersions: Array<{
     id: string;
     name: string;
+    winnerDate: string | null;
     tags: Array<{ id: string; name: string }> | null;
   }> | null;
 }
@@ -86,6 +87,16 @@ export { ROLE_LABELS };
 // Winners tracking started September 2025 — exclude all projects before this
 const WINNERS_TRACKING_START = "2025-09-01";
 
+function getWinnerDate(project: WinnersProject): string | null {
+  for (const version of project.internalVersions ?? []) {
+    const isWinner = version.tags?.some((t) => t.name?.startsWith("Winner - "));
+    if (isWinner) {
+      return version.winnerDate ?? project.creationDate;
+    }
+  }
+  return null;
+}
+
 function processWinnersData(projects: WinnersProject[], dateFilter: string): WinnersData {
   // Always exclude projects before winner tracking began
   let filtered = projects.filter(
@@ -103,18 +114,23 @@ function processWinnersData(projects: WinnersProject[], dateFilter: string): Win
       cutoff = new Date(now.getFullYear(), 0, 1);
     }
     const cutoffStr = cutoff.toISOString().split("T")[0];
-    filtered = filtered.filter(
-      (p) => p.creationDate && p.creationDate >= cutoffStr
-    );
+    filtered = filtered.filter((p) => {
+      const winDate = getWinnerDate(p);
+      // Non-winners: use creationDate; Winners: use winnerDate (with fallback)
+      const dateToCheck = winDate ?? p.creationDate;
+      return dateToCheck && dateToCheck >= cutoffStr;
+    });
   }
 
-  // Step 1: Identify winning projects
+  // Step 1: Identify winning projects and their winner dates
   const winningProjectIds = new Set<string>();
+  const winnerDateMap = new Map<string, string>();
   filtered.forEach((project) => {
-    const isWinner = project.internalVersions?.some((version) =>
-      version.tags?.some((tag) => tag.name?.startsWith("Winner - "))
-    );
-    if (isWinner) winningProjectIds.add(project.id);
+    const winDate = getWinnerDate(project);
+    if (winDate) {
+      winningProjectIds.add(project.id);
+      winnerDateMap.set(project.id, winDate);
+    }
   });
 
   // Step 2: Build client stats
@@ -226,14 +242,19 @@ function processWinnersData(projects: WinnersProject[], dateFilter: string): Win
   );
   allPostTracking.forEach((p) => {
     if (!p.creationDate) return;
+    const winDate = getWinnerDate(p);
+    // For total count, bucket by creationDate
     const d = new Date(p.creationDate);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     if (!monthMap[key]) monthMap[key] = { winners: 0, total: 0 };
     monthMap[key].total++;
-    const isWinner = p.internalVersions?.some((v) =>
-      v.tags?.some((t) => t.name?.startsWith("Winner - "))
-    );
-    if (isWinner) monthMap[key].winners++;
+    // For winners, bucket by winnerDate (falls back to creationDate)
+    if (winDate) {
+      const wd = new Date(winDate);
+      const wKey = `${wd.getFullYear()}-${String(wd.getMonth() + 1).padStart(2, "0")}`;
+      if (!monthMap[wKey]) monthMap[wKey] = { winners: 0, total: 0 };
+      monthMap[wKey].winners++;
+    }
   });
 
   const monthlyWinners: MonthlyWinners[] = Object.keys(monthMap)

@@ -508,6 +508,7 @@ serve(async (req) => {
           internalVersions {
             id
             name
+            winnerDate
             tags {
               id
               name
