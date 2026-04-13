@@ -76,7 +76,7 @@ const Winners = () => {
         {data && (
           <div className="space-y-8">
             <WinnersSummary data={data} contributors={data.contributors} />
-            <ClientBaseline clients={data.clientStats} />
+            <ClientBaseline clients={activeClientStats} />
             <ContributorTable
               contributors={data.contributors}
               clientStats={data.clientStats}
