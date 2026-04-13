@@ -82,7 +82,18 @@ const ROLE_LABELS: Record<string, string> = {
   "11": "CW",
 };
 
+// Roles that should use type-specific baselines
+const VIDEO_ROLE_IDS = new Set(["1"]); // VE
+const STATIC_ROLE_IDS = new Set(["6"]); // GD
+
 export { ROLE_LABELS };
+
+// Classify project type as video or static
+function classifyAdType(project: WinnersProject): "video" | "static" {
+  const t = project.type?.name?.toLowerCase() ?? "";
+  if (t.includes("video") || t.includes("ugc") || t.includes("lofi") || t.includes("lo-fi") || t.includes("edit")) return "video";
+  return "static";
+}
 
 // Winners tracking started September 2025 — exclude all projects before this
 const WINNERS_TRACKING_START = "2025-09-01";
@@ -133,39 +144,64 @@ function processWinnersData(projects: WinnersProject[], dateFilter: string): Win
     }
   });
 
-  // Step 2: Build client stats
+  // Step 2: Build client stats (overall + by ad type)
   const clientStatsMap: Record<string, ClientStat> = {};
+  // client_id -> ad_type -> { total, winners }
+  const clientTypeStatsMap: Record<string, Record<string, { total: number; winners: number }>> = {};
+
   filtered.forEach((project) => {
     if (!project.client) return;
     const cid = project.client.id;
+    const adType = classifyAdType(project);
+
     if (!clientStatsMap[cid]) {
       clientStatsMap[cid] = { name: project.client.name, total: 0, winners: 0, winRate: 0 };
     }
     clientStatsMap[cid].total++;
     if (winningProjectIds.has(project.id)) clientStatsMap[cid].winners++;
+
+    if (!clientTypeStatsMap[cid]) clientTypeStatsMap[cid] = {};
+    if (!clientTypeStatsMap[cid][adType]) clientTypeStatsMap[cid][adType] = { total: 0, winners: 0 };
+    clientTypeStatsMap[cid][adType].total++;
+    if (winningProjectIds.has(project.id)) clientTypeStatsMap[cid][adType].winners++;
   });
   Object.values(clientStatsMap).forEach((c) => {
     c.winRate = c.total > 0 ? c.winners / c.total : 0;
   });
+
+  // Helper: get the appropriate win rate for a role on a client
+  function getBaselineRate(clientId: string, rolePublicId: string, adType: "video" | "static"): number {
+    // VE → video baseline, GD → static baseline, others → overall client baseline
+    if (VIDEO_ROLE_IDS.has(rolePublicId) || STATIC_ROLE_IDS.has(rolePublicId)) {
+      const typeKey = VIDEO_ROLE_IDS.has(rolePublicId) ? "video" : "static";
+      const typeStats = clientTypeStatsMap[clientId]?.[typeKey];
+      if (typeStats && typeStats.total > 0) return typeStats.winners / typeStats.total;
+      // Fall back to overall if no projects of that type
+      return clientStatsMap[clientId]?.winRate ?? 0;
+    }
+    return clientStatsMap[clientId]?.winRate ?? 0;
+  }
 
   // Step 3: Build contributor stats
   const contributorsMap: Record<string, Contributor> = {};
 
   filtered.forEach((project) => {
     const clientId = project.client?.id;
-    const clientWinRate = clientId ? (clientStatsMap[clientId]?.winRate ?? 0) : 0;
+    const adType = classifyAdType(project);
     const isWinner = winningProjectIds.has(project.id);
 
     // Internal roles
     project.projectRolesInternal?.forEach((pr) => {
       if (!pr.assignee || !pr.role) return;
       if (!TRACKED_ROLE_IDS.has(String(pr.role.publicId))) return;
-      const key = `internal_${pr.assignee.id}_${pr.role.publicId}`;
+      const roleId = String(pr.role.publicId);
+      const baseline = clientId ? getBaselineRate(clientId, roleId, adType) : 0;
+      const key = `internal_${pr.assignee.id}_${roleId}`;
       if (!contributorsMap[key]) {
         contributorsMap[key] = {
           name: pr.assignee.name,
           role: pr.role.name,
-          rolePublicId: String(pr.role.publicId),
+          rolePublicId: roleId,
           type: "internal",
           totalProjects: 0,
           actualWinners: 0,
@@ -178,27 +214,29 @@ function processWinnersData(projects: WinnersProject[], dateFilter: string): Win
       const c = contributorsMap[key];
       c.totalProjects++;
       if (isWinner) c.actualWinners++;
-      c.expectedWinners += clientWinRate;
+      c.expectedWinners += baseline;
 
       const cn = project.client?.name ?? "Unknown";
       if (!c.clientBreakdown[cn]) {
-        c.clientBreakdown[cn] = { total: 0, winners: 0, expectedWinners: 0, clientRate: clientWinRate };
+        c.clientBreakdown[cn] = { total: 0, winners: 0, expectedWinners: 0, clientRate: baseline };
       }
       c.clientBreakdown[cn].total++;
       if (isWinner) c.clientBreakdown[cn].winners++;
-      c.clientBreakdown[cn].expectedWinners += clientWinRate;
+      c.clientBreakdown[cn].expectedWinners += baseline;
     });
 
     // External contractors
     project.projectContractorsExternal?.forEach((pc) => {
       if (!pc.contractor || !pc.role) return;
       if (!TRACKED_ROLE_IDS.has(String(pc.role.publicId))) return;
-      const key = `external_${pc.contractor.id}_${pc.role.publicId}`;
+      const roleId = String(pc.role.publicId);
+      const baseline = clientId ? getBaselineRate(clientId, roleId, adType) : 0;
+      const key = `external_${pc.contractor.id}_${roleId}`;
       if (!contributorsMap[key]) {
         contributorsMap[key] = {
           name: pc.contractor.name,
           role: pc.role.name,
-          rolePublicId: String(pc.role.publicId),
+          rolePublicId: roleId,
           type: "external",
           totalProjects: 0,
           actualWinners: 0,
@@ -211,15 +249,15 @@ function processWinnersData(projects: WinnersProject[], dateFilter: string): Win
       const c = contributorsMap[key];
       c.totalProjects++;
       if (isWinner) c.actualWinners++;
-      c.expectedWinners += clientWinRate;
+      c.expectedWinners += baseline;
 
       const cn = project.client?.name ?? "Unknown";
       if (!c.clientBreakdown[cn]) {
-        c.clientBreakdown[cn] = { total: 0, winners: 0, expectedWinners: 0, clientRate: clientWinRate };
+        c.clientBreakdown[cn] = { total: 0, winners: 0, expectedWinners: 0, clientRate: baseline };
       }
       c.clientBreakdown[cn].total++;
       if (isWinner) c.clientBreakdown[cn].winners++;
-      c.clientBreakdown[cn].expectedWinners += clientWinRate;
+      c.clientBreakdown[cn].expectedWinners += baseline;
     });
   });
 
