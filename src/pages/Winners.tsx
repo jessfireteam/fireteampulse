@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { useAuth } from "@/hooks/useAuth";
 import { useWinnersData } from "@/hooks/useWinnersData";
+import { useClientsData, getActiveClientNames } from "@/hooks/useClientsData";
 import { WinnersSummary } from "@/components/winners/WinnersSummary";
 import { ClientBaseline } from "@/components/winners/ClientBaseline";
 import { ContributorTable } from "@/components/winners/ContributorTable";
@@ -18,6 +19,14 @@ const Winners = () => {
   const { loading } = useAuth();
   const [dateFilter, setDateFilter] = useState("all");
   const { data, isLoading, error } = useWinnersData(dateFilter);
+  const { data: clientsData } = useClientsData();
+
+  const activeClientStats = useMemo(() => {
+    if (!data?.clientStats) return [];
+    const activeNames = getActiveClientNames(clientsData);
+    if (activeNames.size === 0) return data.clientStats; // fallback if no client data
+    return data.clientStats.filter((c) => activeNames.has(c.name.toLowerCase()));
+  }, [data?.clientStats, clientsData]);
 
   if (loading) {
     return (
@@ -67,7 +76,7 @@ const Winners = () => {
         {data && (
           <div className="space-y-8">
             <WinnersSummary data={data} contributors={data.contributors} />
-            <ClientBaseline clients={data.clientStats} />
+            <ClientBaseline clients={activeClientStats} />
             <ContributorTable
               contributors={data.contributors}
               clientStats={data.clientStats}

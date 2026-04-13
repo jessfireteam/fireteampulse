@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useClientsData } from "@/hooks/useClientsData";
 import { Card, CardContent } from "@/components/ui/card";
 import { SectionHeader } from "./SectionHeader";
 import {
@@ -19,17 +20,9 @@ import { CostPerDeliverableChart, MonthlyData } from "./CostPerDeliverableChart"
 import { AdSpendChart } from "./AdSpendChart";
 import { DeliverablesChart } from "./DeliverablesChart";
 import { CreatorCostsChart } from "./CreatorCostsChart";
-import { queryFibery, ClientsResponse } from "@/lib/fibery";
 import { format, parseISO } from "date-fns";
 
-function useClientsData() {
-  return useQuery({
-    queryKey: ["fibery-clients"],
-    queryFn: () => queryFibery<ClientsResponse>("clients"),
-    staleTime: 10 * 60 * 1000,
-    retry: 2,
-  });
-}
+// useClientsData is now imported from shared hook
 
 // Process ClientMonths using Fibery's pre-calculated costPerDeliverable
 function processClientEconomicsData(
