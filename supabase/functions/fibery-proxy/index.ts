@@ -29,7 +29,7 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
 const ALLOWED_EMAIL_DOMAIN = '@fireteam.is'
 
 // Whitelisted query types - only these are allowed
-const ALLOWED_QUERY_TYPES = ['projects', 'tasks', 'pending-tasks', 'client-months', 'client-weeks', 'project-completions', 'project-upcoming', 'project-timeline-upcoming', 'project-pacing', 'shipped-tasks', 'client-expenses', 'creator-costs', 'leads', 'stage-tracking', 'clients'] as const
+const ALLOWED_QUERY_TYPES = ['projects', 'tasks', 'pending-tasks', 'client-months', 'client-weeks', 'project-completions', 'project-upcoming', 'project-timeline-upcoming', 'project-pacing', 'shipped-tasks', 'client-expenses', 'creator-costs', 'leads', 'stage-tracking', 'clients', 'winners'] as const
 type QueryType = typeof ALLOWED_QUERY_TYPES[number]
 
 // Predefined queries for security - no arbitrary GraphQL allowed
@@ -94,7 +94,8 @@ const QUERIES: Record<QueryType, string> = {
       name
       status { name }
     }
-  }`
+  }`,
+  'winners': 'DYNAMIC',
 }
 
 // Map query types to their Fibery endpoints
@@ -114,6 +115,7 @@ const QUERY_ENDPOINTS: Record<QueryType, string> = {
   'leads': 'https://fireteam.fibery.io/api/graphql/space/Leads',
   'stage-tracking': 'https://fireteam.fibery.io/api/graphql/space/Projects',
   'clients': 'https://fireteam.fibery.io/api/graphql/space/Clients',
+  'winners': 'https://fireteam.fibery.io/api/graphql/space/Projects',
 }
 
 // Retry with exponential backoff for rate limiting
@@ -459,6 +461,58 @@ serve(async (req) => {
             type { name }
           }
           creationDate
+        }
+      }`
+    }
+
+    // Dynamic query for winners: fetch all projects with roles, contractors, and version tags
+    if (queryType === 'winners') {
+      query = `{
+        findProjects(
+          orderBy: { creationDate: DESC }
+          limit: 3000
+        ) {
+          id
+          name
+          creationDate
+          client {
+            id
+            name
+          }
+          type {
+            name
+          }
+          projectRolesInternal {
+            assignee {
+              id
+              name
+            }
+            role {
+              id
+              name
+              publicId
+            }
+          }
+          projectContractorsExternal {
+            id
+            contractor {
+              id
+              name
+            }
+            role {
+              id
+              name
+              publicId
+            }
+          }
+          internalVersions {
+            id
+            name
+            tags {
+              id
+              name
+            }
+          }
         }
       }`
     }
