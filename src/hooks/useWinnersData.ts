@@ -216,11 +216,41 @@ function processWinnersData(projects: WinnersProject[], dateFilter: string): Win
         : null;
   });
 
+  // Step 5: Build monthly winners (always from Sep '25, ignoring dateFilter)
+  const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const monthMap: Record<string, { winners: number; total: number }> = {};
+
+  // Use all post-tracking projects (not filtered by dateFilter)
+  const allPostTracking = projects.filter(
+    (p) => p.creationDate && p.creationDate >= WINNERS_TRACKING_START
+  );
+  allPostTracking.forEach((p) => {
+    if (!p.creationDate) return;
+    const d = new Date(p.creationDate);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    if (!monthMap[key]) monthMap[key] = { winners: 0, total: 0 };
+    monthMap[key].total++;
+    const isWinner = p.internalVersions?.some((v) =>
+      v.tags?.some((t) => t.name?.startsWith("Winner - "))
+    );
+    if (isWinner) monthMap[key].winners++;
+  });
+
+  const monthlyWinners: MonthlyWinners[] = Object.keys(monthMap)
+    .sort()
+    .map((key) => {
+      const [y, m] = key.split("-");
+      const label = `${MONTH_NAMES[parseInt(m, 10) - 1]} '${y.slice(2)}`;
+      const d = monthMap[key];
+      return { month: label, winners: d.winners, total: d.total, winRate: d.total > 0 ? d.winners / d.total : 0 };
+    });
+
   return {
     clientStats: Object.values(clientStatsMap).sort((a, b) => b.winRate - a.winRate),
     contributors: Object.values(contributorsMap),
     totalWinners: winningProjectIds.size,
     totalProjects: filtered.length,
+    monthlyWinners,
   };
 }
 

@@ -13,7 +13,7 @@ export function WinnersMonthlyChart({ data }: Props) {
 
   return (
     <div className="space-y-3">
-      <SectionHeader title="Winners by Month" subtitle="Monthly winner count since tracking began" />
+      <SectionHeader title="Winners by Month" />
       <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm p-4">
         <ResponsiveContainer width="100%" height={220}>
           <ComposedChart data={data} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
