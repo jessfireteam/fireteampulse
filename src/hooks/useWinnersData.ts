@@ -56,11 +56,19 @@ export interface Contributor {
   clientBreakdown: Record<string, ClientBreakdown>;
 }
 
+export interface MonthlyWinners {
+  month: string; // "Sep '25"
+  winners: number;
+  total: number;
+  winRate: number;
+}
+
 export interface WinnersData {
   clientStats: ClientStat[];
   contributors: Contributor[];
   totalWinners: number;
   totalProjects: number;
+  monthlyWinners: MonthlyWinners[];
 }
 
 const TRACKED_ROLE_IDS = new Set(["1", "6", "8", "9", "11"]);
