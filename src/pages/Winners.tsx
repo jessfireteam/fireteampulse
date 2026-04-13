@@ -6,6 +6,7 @@ import { useClientsData, getActiveClientNames } from "@/hooks/useClientsData";
 import { WinnersSummary } from "@/components/winners/WinnersSummary";
 import { ClientBaseline } from "@/components/winners/ClientBaseline";
 import { ContributorTable } from "@/components/winners/ContributorTable";
+import { WinnersMonthlyChart } from "@/components/winners/WinnersMonthlyChart";
 import { Loader2 } from "lucide-react";
 
 const DATE_OPTIONS = [
@@ -75,6 +76,7 @@ const Winners = () => {
 
         {data && (
           <div className="space-y-8">
+            <WinnersMonthlyChart data={data.monthlyWinners} />
             <WinnersSummary data={data} contributors={data.contributors} />
             <ClientBaseline clients={activeClientStats} />
             <ContributorTable
