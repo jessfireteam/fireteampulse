@@ -469,7 +469,7 @@ serve(async (req) => {
     if (queryType === 'winners') {
       query = `{
         findProjects(
-          orderBy: { creationDate: { order: DESC } }
+          orderBy: { creationDate: DESC }
           limit: 3000
         ) {
           id
@@ -482,7 +482,7 @@ serve(async (req) => {
           type {
             name
           }
-          projectRoles {
+          projectRolesInternal {
             assignee {
               id
               name
@@ -493,7 +493,7 @@ serve(async (req) => {
               publicId
             }
           }
-          projectContractors {
+          projectContractorsExternal {
             id
             contractor {
               id
