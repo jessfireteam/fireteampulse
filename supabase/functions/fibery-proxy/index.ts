@@ -465,7 +465,58 @@ serve(async (req) => {
       }`
     }
 
-    const response = await fetchWithRetry(url, {
+    // Dynamic query for winners: fetch all projects with roles, contractors, and version tags
+    if (queryType === 'winners') {
+      query = `{
+        findProjects(
+          orderBy: { creationDate: { order: DESC } }
+          limit: 3000
+        ) {
+          id
+          name
+          creationDate
+          client {
+            id
+            name
+          }
+          type {
+            name
+          }
+          projectRoles {
+            assignee {
+              id
+              name
+            }
+            role {
+              id
+              name
+              publicId
+            }
+          }
+          projectContractors {
+            id
+            contractor {
+              id
+              name
+            }
+            role {
+              id
+              name
+              publicId
+            }
+          }
+          internalVersions {
+            id
+            name
+            tags {
+              id
+              name
+            }
+          }
+        }
+      }`
+    }
+
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
