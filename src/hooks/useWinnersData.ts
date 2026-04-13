@@ -20,6 +20,7 @@ interface WinnersProject {
   internalVersions: Array<{
     id: string;
     name: string;
+    winnerDate: string | null;
     tags: Array<{ id: string; name: string }> | null;
   }> | null;
 }
