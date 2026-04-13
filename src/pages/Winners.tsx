@@ -19,6 +19,14 @@ const Winners = () => {
   const { loading } = useAuth();
   const [dateFilter, setDateFilter] = useState("all");
   const { data, isLoading, error } = useWinnersData(dateFilter);
+  const { data: clientsData } = useClientsData();
+
+  const activeClientStats = useMemo(() => {
+    if (!data?.clientStats) return [];
+    const activeNames = getActiveClientNames(clientsData);
+    if (activeNames.size === 0) return data.clientStats; // fallback if no client data
+    return data.clientStats.filter((c) => activeNames.has(c.name.toLowerCase()));
+  }, [data?.clientStats, clientsData]);
 
   if (loading) {
     return (
