@@ -34,7 +34,7 @@ export function ClientBaseline({ clients }: Props) {
         The expected rate at which ads for each client become winners. Used to normalize individual performance.
       </p>
 
-      <div className="flex gap-3 overflow-x-auto pb-2">
+      <div className="flex gap-3 flex-wrap pb-2">
         {clients.map((client) => (
           <Card
             key={client.name}
