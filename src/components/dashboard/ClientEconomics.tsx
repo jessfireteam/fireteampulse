@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useClientsData } from "@/hooks/useClientsData";
 import { Card, CardContent } from "@/components/ui/card";
 import { SectionHeader } from "./SectionHeader";
 import {

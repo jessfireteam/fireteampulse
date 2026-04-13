@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { useAuth } from "@/hooks/useAuth";
 import { useWinnersData } from "@/hooks/useWinnersData";
+import { useClientsData, getActiveClientNames } from "@/hooks/useClientsData";
 import { WinnersSummary } from "@/components/winners/WinnersSummary";
 import { ClientBaseline } from "@/components/winners/ClientBaseline";
 import { ContributorTable } from "@/components/winners/ContributorTable";
