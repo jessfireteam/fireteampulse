@@ -126,7 +126,7 @@ function processWinnersData(projects: WinnersProject[], dateFilter: string): Win
     const isWinner = winningProjectIds.has(project.id);
 
     // Internal roles
-    project.projectRoles?.forEach((pr) => {
+    project.projectRolesInternal?.forEach((pr) => {
       if (!pr.assignee || !pr.role) return;
       if (!TRACKED_ROLE_IDS.has(String(pr.role.publicId))) return;
       const key = `internal_${pr.assignee.id}_${pr.role.publicId}`;
