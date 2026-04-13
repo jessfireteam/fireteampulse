@@ -18,8 +18,6 @@ const DATE_OPTIONS = [
 const Winners = () => {
   const { loading } = useAuth();
   const [dateFilter, setDateFilter] = useState("all");
-  const [roleFilter, setRoleFilter] = useState("all");
-  const { data, isLoading, error } = useWinnersData(dateFilter);
 
   if (loading) {
     return (
