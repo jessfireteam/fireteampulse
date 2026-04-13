@@ -23,9 +23,9 @@ function indexColor(pi: number | null): string {
 }
 
 function clientRateColor(rate: number): string {
-  if (rate > 0.08) return "bg-emerald-500";
-  if (rate > 0.05) return "bg-yellow-500";
-  if (rate > 0.03) return "bg-orange-500";
+  if (rate > 0.04) return "bg-emerald-500";
+  if (rate > 0.025) return "bg-yellow-500";
+  if (rate > 0.015) return "bg-orange-500";
   if (rate > 0) return "bg-red-500";
   return "bg-muted-foreground/40";
 }
