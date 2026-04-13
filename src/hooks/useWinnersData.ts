@@ -75,9 +75,16 @@ const ROLE_LABELS: Record<string, string> = {
 
 export { ROLE_LABELS };
 
+// Winners tracking started September 2025 — exclude all projects before this
+const WINNERS_TRACKING_START = "2025-09-01";
+
 function processWinnersData(projects: WinnersProject[], dateFilter: string): WinnersData {
-  // Apply date filter
-  let filtered = projects;
+  // Always exclude projects before winner tracking began
+  let filtered = projects.filter(
+    (p) => p.creationDate && p.creationDate >= WINNERS_TRACKING_START
+  );
+
+  // Apply additional date filter
   if (dateFilter !== "all") {
     const now = new Date();
     let cutoff: Date;
@@ -88,7 +95,7 @@ function processWinnersData(projects: WinnersProject[], dateFilter: string): Win
       cutoff = new Date(now.getFullYear(), 0, 1);
     }
     const cutoffStr = cutoff.toISOString().split("T")[0];
-    filtered = projects.filter(
+    filtered = filtered.filter(
       (p) => p.creationDate && p.creationDate >= cutoffStr
     );
   }
