@@ -94,7 +94,8 @@ const QUERIES: Record<QueryType, string> = {
       name
       status { name }
     }
-  }`
+  }`,
+  'winners': 'DYNAMIC',
 }
 
 // Map query types to their Fibery endpoints
@@ -114,6 +115,7 @@ const QUERY_ENDPOINTS: Record<QueryType, string> = {
   'leads': 'https://fireteam.fibery.io/api/graphql/space/Leads',
   'stage-tracking': 'https://fireteam.fibery.io/api/graphql/space/Projects',
   'clients': 'https://fireteam.fibery.io/api/graphql/space/Clients',
+  'winners': 'https://fireteam.fibery.io/api/graphql/space/Projects',
 }
 
 // Retry with exponential backoff for rate limiting
