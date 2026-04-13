@@ -8,6 +8,7 @@ import Login from "./pages/Login";
 import TeamCapacityPage from "./pages/TeamCapacity";
 import CreatorCosts from "./pages/CreatorCosts";
 import Pipeline from "./pages/Pipeline";
+import Winners from "./pages/Winners";
 import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
@@ -23,6 +24,7 @@ const App = () => (
           <Route path="/ops" element={<TeamCapacityPage />} />
           <Route path="/creator-costs" element={<CreatorCosts />} />
           <Route path="/pipeline" element={<Pipeline />} />
+          <Route path="/winners" element={<Winners />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
