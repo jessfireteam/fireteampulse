@@ -82,7 +82,18 @@ const ROLE_LABELS: Record<string, string> = {
   "11": "CW",
 };
 
+// Roles that should use type-specific baselines
+const VIDEO_ROLE_IDS = new Set(["1"]); // VE
+const STATIC_ROLE_IDS = new Set(["6"]); // GD
+
 export { ROLE_LABELS };
+
+// Classify project type as video or static
+function classifyAdType(project: WinnersProject): "video" | "static" {
+  const t = project.type?.name?.toLowerCase() ?? "";
+  if (t.includes("video") || t.includes("ugc") || t.includes("lofi") || t.includes("lo-fi") || t.includes("edit")) return "video";
+  return "static";
+}
 
 // Winners tracking started September 2025 — exclude all projects before this
 const WINNERS_TRACKING_START = "2025-09-01";
