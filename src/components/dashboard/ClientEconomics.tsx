@@ -20,7 +20,6 @@ import { CostPerDeliverableChart, MonthlyData } from "./CostPerDeliverableChart"
 import { AdSpendChart } from "./AdSpendChart";
 import { DeliverablesChart } from "./DeliverablesChart";
 import { CreatorCostsChart } from "./CreatorCostsChart";
-import { queryFibery, ClientsResponse } from "@/lib/fibery";
 import { format, parseISO } from "date-fns";
 
 // useClientsData is now imported from shared hook
