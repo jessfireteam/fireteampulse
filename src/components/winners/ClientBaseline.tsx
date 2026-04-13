@@ -9,9 +9,9 @@ interface Props {
 }
 
 function rateColor(rate: number): string {
-  if (rate > 0.2) return "text-emerald-400 border-emerald-400/30 bg-emerald-400/10";
-  if (rate > 0.1) return "text-yellow-400 border-yellow-400/30 bg-yellow-400/10";
-  if (rate > 0.05) return "text-orange-400 border-orange-400/30 bg-orange-400/10";
+  if (rate > 0.08) return "text-emerald-400 border-emerald-400/30 bg-emerald-400/10";
+  if (rate > 0.05) return "text-yellow-400 border-yellow-400/30 bg-yellow-400/10";
+  if (rate > 0.03) return "text-orange-400 border-orange-400/30 bg-orange-400/10";
   if (rate > 0) return "text-red-400 border-red-400/30 bg-red-400/10";
   return "text-muted-foreground border-border bg-muted/20";
 }
