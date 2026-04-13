@@ -30,13 +30,6 @@ function clientRateColor(rate: number): string {
   return "bg-muted-foreground/40";
 }
 
-// Generate a consistent hue per client name
-function clientHue(name: string): number {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return Math.abs(hash) % 360;
-}
-
 function ClientMixBar({ breakdown, total }: { breakdown: Record<string, { total: number; clientRate: number }>; total: number }) {
   const entries = Object.entries(breakdown).sort((a, b) => b[1].total - a[1].total);
   return (
@@ -56,64 +49,59 @@ function ClientMixBar({ breakdown, total }: { breakdown: Record<string, { total:
   );
 }
 
-export function ContributorTable({ contributors, clientStats }: Props) {
+const ROLE_ORDER = ["11", "1", "6", "8", "9"]; // CW, VE, GD, AM, CD
+const ROLE_FULL_NAMES: Record<string, string> = {
+  "1": "Video Editors",
+  "6": "Graphic Designers",
+  "8": "Account Managers",
+  "9": "Creative Directors",
+  "11": "Copywriters",
+};
+
+function sortContributors(list: Contributor[], sortKey: "pi" | "winners" | "projects"): Contributor[] {
+  const copy = [...list];
+  copy.sort((a, b) => {
+    if (sortKey === "pi") {
+      const aIneligible = a.totalProjects < 5 || a.performanceIndex === null;
+      const bIneligible = b.totalProjects < 5 || b.performanceIndex === null;
+      if (aIneligible && !bIneligible) return 1;
+      if (!aIneligible && bIneligible) return -1;
+      return (b.performanceIndex ?? 0) - (a.performanceIndex ?? 0);
+    }
+    if (sortKey === "winners") return b.actualWinners - a.actualWinners;
+    return b.totalProjects - a.totalProjects;
+  });
+  return copy;
+}
+
+function RoleTable({ roleId, contributors }: { roleId: string; contributors: Contributor[] }) {
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<"pi" | "winners" | "projects">("pi");
+  const sorted = useMemo(() => sortContributors(contributors, sortKey), [contributors, sortKey]);
 
-  const sorted = useMemo(() => {
-    const copy = [...contributors];
-    copy.sort((a, b) => {
-      if (sortKey === "pi") {
-        const aIneligible = a.totalProjects < 5 || a.performanceIndex === null;
-        const bIneligible = b.totalProjects < 5 || b.performanceIndex === null;
-        if (aIneligible && !bIneligible) return 1;
-        if (!aIneligible && bIneligible) return -1;
-        return (b.performanceIndex ?? 0) - (a.performanceIndex ?? 0);
-      }
-      if (sortKey === "winners") return b.actualWinners - a.actualWinners;
-      return b.totalProjects - a.totalProjects;
-    });
-    return copy;
-  }, [contributors, sortKey]);
-
-  if (contributors.length === 0) {
-    return (
-      <section>
-        <SectionHeader title="Contributor Performance" />
-        <p className="text-sm text-muted-foreground mt-4">
-          No winners have been tagged in this period. Winners are tracked in Fibery using the "Winner - [Client Name]" tag on versions.
-        </p>
-      </section>
-    );
-  }
+  if (contributors.length === 0) return null;
 
   return (
-    <section>
-      <SectionHeader title="Contributor Performance" />
-      <div className="mt-4 rounded-lg border border-border/50 bg-card/50 backdrop-blur-sm overflow-hidden">
+    <div className="space-y-2">
+      <h3 className="text-sm font-semibold text-foreground/80 px-1">
+        {ROLE_FULL_NAMES[roleId] ?? roleId}
+        <span className="ml-2 text-xs font-normal text-muted-foreground">({contributors.length})</span>
+      </h3>
+      <div className="rounded-lg border border-border/50 bg-card/50 backdrop-blur-sm overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead className="w-8"></TableHead>
               <TableHead>Name</TableHead>
               <TableHead>Client Mix</TableHead>
-              <TableHead
-                className="cursor-pointer hover:text-foreground"
-                onClick={() => setSortKey("projects")}
-              >
+              <TableHead className="cursor-pointer hover:text-foreground" onClick={() => setSortKey("projects")}>
                 Ads{sortKey === "projects" ? " ↓" : ""}
               </TableHead>
-              <TableHead
-                className="cursor-pointer hover:text-foreground"
-                onClick={() => setSortKey("winners")}
-              >
+              <TableHead className="cursor-pointer hover:text-foreground" onClick={() => setSortKey("winners")}>
                 Winners{sortKey === "winners" ? " ↓" : ""}
               </TableHead>
               <TableHead>Expected</TableHead>
-              <TableHead
-                className="cursor-pointer hover:text-foreground"
-                onClick={() => setSortKey("pi")}
-              >
+              <TableHead className="cursor-pointer hover:text-foreground" onClick={() => setSortKey("pi")}>
                 Index{sortKey === "pi" ? " ↓" : ""}
               </TableHead>
               <TableHead>Win %</TableHead>
@@ -143,9 +131,6 @@ export function ContributorTable({ contributors, clientStats }: Props) {
                       <div>
                         <span className="font-medium">{c.name}</span>
                         <div className="flex items-center gap-1.5 mt-0.5">
-                          <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                            {ROLE_LABELS[c.rolePublicId] ?? c.role}
-                          </Badge>
                           {c.type === "external" && (
                             <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
                               Ext
@@ -169,11 +154,7 @@ export function ContributorTable({ contributors, clientStats }: Props) {
                     </TableCell>
                     <TableCell>
                       <span className={`inline-flex items-center rounded px-2 py-0.5 text-sm font-semibold ${indexColor(insufficientData ? null : c.performanceIndex)}`}>
-                        {insufficientData
-                          ? "—"
-                          : c.performanceIndex !== null
-                          ? c.performanceIndex
-                          : "—"}
+                        {insufficientData ? "—" : c.performanceIndex !== null ? c.performanceIndex : "—"}
                       </span>
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
@@ -220,6 +201,40 @@ export function ContributorTable({ contributors, clientStats }: Props) {
             })}
           </TableBody>
         </Table>
+      </div>
+    </div>
+  );
+}
+
+export function ContributorTable({ contributors, clientStats }: Props) {
+  // Group by role
+  const grouped = useMemo(() => {
+    const groups: Record<string, Contributor[]> = {};
+    contributors.forEach((c) => {
+      if (!groups[c.rolePublicId]) groups[c.rolePublicId] = [];
+      groups[c.rolePublicId].push(c);
+    });
+    return groups;
+  }, [contributors]);
+
+  if (contributors.length === 0) {
+    return (
+      <section>
+        <SectionHeader title="Contributor Performance" />
+        <p className="text-sm text-muted-foreground mt-4">
+          No winners have been tagged in this period. Winners are tracked in Fibery using the "Winner - [Client Name]" tag on versions.
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <section>
+      <SectionHeader title="Contributor Performance" />
+      <div className="mt-4 space-y-6">
+        {ROLE_ORDER.filter((id) => grouped[id]?.length).map((roleId) => (
+          <RoleTable key={roleId} roleId={roleId} contributors={grouped[roleId]} />
+        ))}
       </div>
     </section>
   );

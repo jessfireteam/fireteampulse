@@ -14,14 +14,6 @@ const DATE_OPTIONS = [
   { value: "all", label: "All Time" },
 ];
 
-const ROLE_OPTIONS = [
-  { value: "all", label: "All" },
-  { value: "11", label: "Copywriters" },
-  { value: "1", label: "Editors" },
-  { value: "6", label: "Designers" },
-  { value: "8", label: "Account" },
-  { value: "9", label: "Creative Dir." },
-];
 
 const Winners = () => {
   const { loading } = useAuth();
