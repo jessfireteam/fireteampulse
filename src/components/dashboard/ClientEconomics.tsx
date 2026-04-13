@@ -22,14 +22,7 @@ import { CreatorCostsChart } from "./CreatorCostsChart";
 import { queryFibery, ClientsResponse } from "@/lib/fibery";
 import { format, parseISO } from "date-fns";
 
-function useClientsData() {
-  return useQuery({
-    queryKey: ["fibery-clients"],
-    queryFn: () => queryFibery<ClientsResponse>("clients"),
-    staleTime: 10 * 60 * 1000,
-    retry: 2,
-  });
-}
+// useClientsData is now imported from shared hook
 
 // Process ClientMonths using Fibery's pre-calculated costPerDeliverable
 function processClientEconomicsData(
