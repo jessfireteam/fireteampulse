@@ -8,11 +8,11 @@ interface WinnersProject {
   creationDate: string | null;
   client: { id: string; name: string } | null;
   type: { name: string } | null;
-  projectRoles: Array<{
+  projectRolesInternal: Array<{
     assignee: { id: string; name: string } | null;
     role: { id: string; name: string; publicId: string } | null;
   }> | null;
-  projectContractors: Array<{
+  projectContractorsExternal: Array<{
     id: string;
     contractor: { id: string; name: string } | null;
     role: { id: string; name: string; publicId: string } | null;
