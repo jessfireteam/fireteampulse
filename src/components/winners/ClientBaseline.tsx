@@ -13,7 +13,7 @@ function rateColor(rate: number): string {
   if (rate > 0.025) return "text-yellow-400 border-yellow-400/30 bg-yellow-400/10";
   if (rate > 0.015) return "text-orange-400 border-orange-400/30 bg-orange-400/10";
   if (rate > 0) return "text-red-400 border-red-400/30 bg-red-400/10";
-  return "text-muted-foreground border-border bg-muted/20";
+  return "text-red-300 border-red-500/30 bg-red-500/10";
 }
 
 export function ClientBaseline({ clients }: Props) {
