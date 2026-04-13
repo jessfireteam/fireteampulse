@@ -211,6 +211,7 @@ export function ContributorTable({ contributors, clientStats }: Props) {
   const grouped = useMemo(() => {
     const groups: Record<string, Contributor[]> = {};
     contributors.forEach((c) => {
+      if (c.totalProjects < 10) return;
       if (!groups[c.rolePublicId]) groups[c.rolePublicId] = [];
       groups[c.rolePublicId].push(c);
     });
