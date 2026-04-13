@@ -159,7 +159,7 @@ function processWinnersData(projects: WinnersProject[], dateFilter: string): Win
     });
 
     // External contractors
-    project.projectContractors?.forEach((pc) => {
+    project.projectContractorsExternal?.forEach((pc) => {
       if (!pc.contractor || !pc.role) return;
       if (!TRACKED_ROLE_IDS.has(String(pc.role.publicId))) return;
       const key = `external_${pc.contractor.id}_${pc.role.publicId}`;
