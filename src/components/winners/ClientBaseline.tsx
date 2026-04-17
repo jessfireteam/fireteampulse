@@ -43,7 +43,7 @@ export function ClientBaseline({ clients }: Props) {
             <CardContent className="p-4">
               <p className="text-xs font-medium truncate opacity-80">{client.name}</p>
               <p className="text-2xl font-bold mt-1">
-                {(client.winRate * 100).toFixed(0)}%
+                {(client.winRate * 100).toFixed(1)}%
               </p>
               <p className="text-xs opacity-60 mt-1">
                 {client.winners} of {client.total}

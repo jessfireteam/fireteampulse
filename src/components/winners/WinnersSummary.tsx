@@ -9,7 +9,7 @@ interface Props {
 
 export function WinnersSummary({ data, contributors }: Props) {
   const overallWinRate = data.totalProjects > 0
-    ? ((data.totalWinners / data.totalProjects) * 100).toFixed(1) + "%"
+    ? ((data.totalWinners / data.totalProjects) * 100).toFixed(2) + "%"
     : "0%";
 
   const eligible = contributors.filter((c) => c.totalProjects >= 5 && c.performanceIndex !== null);
