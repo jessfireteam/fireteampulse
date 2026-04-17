@@ -37,6 +37,9 @@ export interface ClientStat {
   total: number;
   winners: number;
   winRate: number;
+  recentTotal: number;
+  recentWinners: number;
+  recentWinRate: number | null;
 }
 
 export interface ClientBreakdown {
