@@ -157,8 +157,16 @@ function RoleTable({ roleId, contributors }: { roleId: string; contributors: Con
                         <span className={`inline-flex items-center rounded px-2 py-0.5 text-sm font-semibold w-fit ${indexColor(insufficientData ? null : c.performanceIndex)}`}>
                           {insufficientData ? "—" : c.performanceIndex !== null ? c.performanceIndex : "—"}
                         </span>
-                        {c.recentProjects >= 10 && c.recentPerformanceIndex !== null ? (
-                          <span className={`inline-flex items-center rounded px-1.5 py-0 text-[10px] font-medium w-fit ${indexColor(c.recentPerformanceIndex)}`}>
+                        {c.recentProjects >= 10 && c.recentPerformanceIndex !== null && c.performanceIndex !== null ? (
+                          <span
+                            className={`inline-flex items-center rounded px-1.5 py-0 text-[10px] font-medium w-fit ${
+                              c.recentPerformanceIndex > c.performanceIndex
+                                ? "bg-emerald-500/15 text-emerald-400"
+                                : c.recentPerformanceIndex < c.performanceIndex
+                                ? "bg-yellow-500/15 text-yellow-400"
+                                : "bg-muted text-muted-foreground"
+                            }`}
+                          >
                             90d: {c.recentPerformanceIndex}
                           </span>
                         ) : (
