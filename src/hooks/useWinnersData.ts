@@ -294,13 +294,15 @@ function processWinnersData(projects: WinnersProject[], dateFilter: string): Win
         : null;
   });
 
-  // Step 5: Build monthly winners (always from Sep '25, ignoring dateFilter)
+  // Step 5: Build monthly winners
+  // Skip Sep '25 and Oct '25 — winners are typically tagged 2-3 months after
+  // creation, so those early months have artificially low winner counts.
+  const MONTHLY_CHART_START = "2025-11-01";
   const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const monthMap: Record<string, { winners: number; total: number }> = {};
 
-  // Use all post-tracking projects (not filtered by dateFilter)
   const allPostTracking = projects.filter(
-    (p) => p.creationDate && p.creationDate >= WINNERS_TRACKING_START
+    (p) => p.creationDate && p.creationDate >= MONTHLY_CHART_START
   );
   allPostTracking.forEach((p) => {
     if (!p.creationDate) return;
@@ -314,8 +316,10 @@ function processWinnersData(projects: WinnersProject[], dateFilter: string): Win
     if (winDate) {
       const wd = new Date(winDate);
       const wKey = `${wd.getFullYear()}-${String(wd.getMonth() + 1).padStart(2, "0")}`;
-      if (!monthMap[wKey]) monthMap[wKey] = { winners: 0, total: 0 };
-      monthMap[wKey].winners++;
+      if (wKey >= "2025-11") {
+        if (!monthMap[wKey]) monthMap[wKey] = { winners: 0, total: 0 };
+        monthMap[wKey].winners++;
+      }
     }
   });
 
@@ -328,12 +332,28 @@ function processWinnersData(projects: WinnersProject[], dateFilter: string): Win
       return { month: label, winners: d.winners, total: d.total, winRate: d.total > 0 ? d.winners / d.total : 0 };
     });
 
+  // Step 6: Last-90-day rolling overall win rate (bucketed by winnerDate / creationDate)
+  const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString().split("T")[0];
+  let recentWinners = 0;
+  let recentProjects = 0;
+  projects.forEach((p) => {
+    if (!p.creationDate) return;
+    const winDate = getWinnerDate(p);
+    const dateToCheck = winDate ?? p.creationDate;
+    if (dateToCheck < ninetyDaysAgo) return;
+    recentProjects++;
+    if (winDate) recentWinners++;
+  });
+
   return {
     clientStats: Object.values(clientStatsMap).sort((a, b) => b.winRate - a.winRate),
     contributors: Object.values(contributorsMap),
     totalWinners: winningProjectIds.size,
     totalProjects: filtered.length,
     monthlyWinners,
+    recentWinners,
+    recentProjects,
+    recentWinRate: recentProjects > 0 ? recentWinners / recentProjects : 0,
   };
 }
 
