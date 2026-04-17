@@ -238,10 +238,7 @@ function processWinnersData(projects: WinnersProject[], dateFilter: string): Win
 
   const contributorsMap: Record<string, Contributor> = {};
 
-  // Cutoff for "last 90 days" — based on project doneDate
-  const ninetyDaysAgoStr = new Date(Date.now() - 90 * 86400000)
-    .toISOString()
-    .split("T")[0];
+  // Reuse ninetyDaysAgoStr from above for contributor recency
 
   filtered.forEach((project) => {
     if (!isProjectComplete(project)) return;
