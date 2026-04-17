@@ -175,24 +175,46 @@ function processWinnersData(projects: WinnersProject[], dateFilter: string): Win
   // client_id -> ad_type -> { total, winners }
   const clientTypeStatsMap: Record<string, Record<string, { total: number; winners: number }>> = {};
 
+  // Cutoff for "last 90 days" — used for both contributors and clients.
+  // Clients use winnerDate (or creationDate fallback) for recency.
+  const ninetyDaysAgoStr = new Date(Date.now() - 90 * 86400000)
+    .toISOString()
+    .split("T")[0];
+
   filtered.forEach((project) => {
     if (!project.client) return;
     const cid = project.client.id;
     const adType = classifyAdType(project);
+    const isWin = winningProjectIds.has(project.id);
+    const winDate = winnerDateMap.get(project.id) ?? project.creationDate;
+    const isRecentClient = !!winDate && winDate >= ninetyDaysAgoStr;
 
     if (!clientStatsMap[cid]) {
-      clientStatsMap[cid] = { name: project.client.name, total: 0, winners: 0, winRate: 0 };
+      clientStatsMap[cid] = {
+        name: project.client.name,
+        total: 0,
+        winners: 0,
+        winRate: 0,
+        recentTotal: 0,
+        recentWinners: 0,
+        recentWinRate: null,
+      };
     }
     clientStatsMap[cid].total++;
-    if (winningProjectIds.has(project.id)) clientStatsMap[cid].winners++;
+    if (isWin) clientStatsMap[cid].winners++;
+    if (isRecentClient) {
+      clientStatsMap[cid].recentTotal++;
+      if (isWin) clientStatsMap[cid].recentWinners++;
+    }
 
     if (!clientTypeStatsMap[cid]) clientTypeStatsMap[cid] = {};
     if (!clientTypeStatsMap[cid][adType]) clientTypeStatsMap[cid][adType] = { total: 0, winners: 0 };
     clientTypeStatsMap[cid][adType].total++;
-    if (winningProjectIds.has(project.id)) clientTypeStatsMap[cid][adType].winners++;
+    if (isWin) clientTypeStatsMap[cid][adType].winners++;
   });
   Object.values(clientStatsMap).forEach((c) => {
     c.winRate = c.total > 0 ? c.winners / c.total : 0;
+    c.recentWinRate = c.recentTotal > 0 ? c.recentWinners / c.recentTotal : null;
   });
 
   // Helper: get the appropriate win rate for a role on a client
