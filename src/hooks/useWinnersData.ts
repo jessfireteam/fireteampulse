@@ -90,6 +90,17 @@ const STATIC_ROLE_IDS = new Set(["6"]); // GD
 
 export { ROLE_LABELS };
 
+// Normalize names that come through as raw emails from Fibery
+const NAME_OVERRIDES: Record<string, string> = {
+  "riteesh@fireteam.is": "Riteesh",
+  "shreya8881@gmail.com": "Shreya",
+  "amanda@fireteam.is": "Amanda",
+};
+
+function normalizeName(name: string): string {
+  return NAME_OVERRIDES[name.toLowerCase()] ?? name;
+}
+
 // Classify project type as video or static
 function classifyAdType(project: WinnersProject): "video" | "static" {
   const t = project.type?.name?.toLowerCase() ?? "";
