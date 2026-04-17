@@ -26,7 +26,7 @@ export function ClientBaseline({ clients }: Props) {
             <HelpCircle className="h-4 w-4 text-muted-foreground" />
           </TooltipTrigger>
           <TooltipContent className="max-w-xs">
-            A contributor working primarily on high-rate clients has a natural advantage. The Performance Index corrects for this.
+            A contributor working primarily on high-rate clients has a natural advantage. The W Index corrects for this.
           </TooltipContent>
         </Tooltip>
       </div>
