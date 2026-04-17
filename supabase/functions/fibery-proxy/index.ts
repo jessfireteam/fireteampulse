@@ -475,6 +475,8 @@ serve(async (req) => {
           id
           name
           creationDate
+          doneDate
+          status { name }
           client {
             id
             name
