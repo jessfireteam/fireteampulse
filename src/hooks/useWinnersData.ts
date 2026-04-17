@@ -56,6 +56,11 @@ export interface Contributor {
   expectedWinners: number;
   rawWinRate: number;
   performanceIndex: number | null;
+  // Last-90-day rolling figures (based on project doneDate)
+  recentProjects: number;
+  recentActualWinners: number;
+  recentExpectedWinners: number;
+  recentPerformanceIndex: number | null;
   clientBreakdown: Record<string, ClientBreakdown>;
 }
 
