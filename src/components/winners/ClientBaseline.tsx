@@ -35,22 +35,42 @@ export function ClientBaseline({ clients }: Props) {
       </p>
 
       <div className="flex gap-3 flex-wrap pb-2">
-        {clients.map((client) => (
-          <Card
-            key={client.name}
-            className={`min-w-[140px] shrink-0 border ${rateColor(client.winRate)}`}
-          >
-            <CardContent className="p-4">
-              <p className="text-xs font-medium truncate opacity-80">{client.name}</p>
-              <p className="text-2xl font-bold mt-1">
-                {(client.winRate * 100).toFixed(1)}%
-              </p>
-              <p className="text-xs opacity-60 mt-1">
-                {client.winners} of {client.total}
-              </p>
-            </CardContent>
-          </Card>
-        ))}
+        {clients.map((client) => {
+          const showRecent = client.recentTotal >= 10 && client.recentWinRate !== null;
+          const recentColor =
+            showRecent && client.recentWinRate! > client.winRate
+              ? "bg-emerald-500/15 text-emerald-400"
+              : showRecent && client.recentWinRate! < client.winRate
+                ? "bg-yellow-500/15 text-yellow-400"
+                : "bg-muted text-muted-foreground";
+          return (
+            <Card
+              key={client.name}
+              className={`min-w-[140px] shrink-0 border ${rateColor(client.winRate)}`}
+            >
+              <CardContent className="p-4">
+                <p className="text-xs font-medium truncate opacity-80">{client.name}</p>
+                <p className="text-2xl font-bold mt-1">
+                  {(client.winRate * 100).toFixed(1)}%
+                </p>
+                <p className="text-xs opacity-60 mt-1">
+                  {client.winners} of {client.total}
+                </p>
+                {showRecent ? (
+                  <span
+                    className={`mt-2 inline-block text-[10px] font-medium px-1.5 py-0.5 rounded ${recentColor}`}
+                  >
+                    90d: {(client.recentWinRate! * 100).toFixed(1)}%
+                  </span>
+                ) : (
+                  <span className="mt-2 inline-block text-[10px] opacity-40">
+                    90d: —
+                  </span>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
         {clients.length === 0 && (
           <p className="text-sm text-muted-foreground py-4">No client data available.</p>
         )}
