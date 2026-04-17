@@ -90,6 +90,17 @@ const STATIC_ROLE_IDS = new Set(["6"]); // GD
 
 export { ROLE_LABELS };
 
+// Normalize names that come through as raw emails from Fibery
+const NAME_OVERRIDES: Record<string, string> = {
+  "riteesh@fireteam.is": "Riteesh",
+  "shreya8881@gmail.com": "Shreya",
+  "amanda@fireteam.is": "Amanda",
+};
+
+function normalizeName(name: string): string {
+  return NAME_OVERRIDES[name.toLowerCase()] ?? name;
+}
+
 // Classify project type as video or static
 function classifyAdType(project: WinnersProject): "video" | "static" {
   const t = project.type?.name?.toLowerCase() ?? "";
@@ -207,7 +218,7 @@ function processWinnersData(projects: WinnersProject[], dateFilter: string): Win
       const key = `internal_${pr.assignee.id}_${roleId}`;
       if (!contributorsMap[key]) {
         contributorsMap[key] = {
-          name: pr.assignee.name,
+          name: normalizeName(pr.assignee.name),
           role: pr.role.name,
           rolePublicId: roleId,
           type: "internal",
@@ -242,7 +253,7 @@ function processWinnersData(projects: WinnersProject[], dateFilter: string): Win
       const key = `external_${pc.contractor.id}_${roleId}`;
       if (!contributorsMap[key]) {
         contributorsMap[key] = {
-          name: pc.contractor.name,
+          name: normalizeName(pc.contractor.name),
           role: pc.role.name,
           rolePublicId: roleId,
           type: "external",
