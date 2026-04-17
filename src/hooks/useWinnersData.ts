@@ -6,6 +6,8 @@ interface WinnersProject {
   id: string;
   name: string;
   creationDate: string | null;
+  doneDate: string | null;
+  status: { name: string } | null;
   client: { id: string; name: string } | null;
   type: { name: string } | null;
   projectRolesInternal: Array<{
