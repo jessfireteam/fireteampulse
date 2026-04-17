@@ -72,6 +72,11 @@ export interface WinnersData {
   totalWinners: number;
   totalProjects: number;
   monthlyWinners: MonthlyWinners[];
+  // Last-90-day rolling stats — used for the Overall Win Rate KPI so that
+  // early months (where winners get tagged late) don't drag the rate down.
+  recentWinners: number;
+  recentProjects: number;
+  recentWinRate: number;
 }
 
 const TRACKED_ROLE_IDS = new Set(["1", "6", "8", "9", "11"]);
