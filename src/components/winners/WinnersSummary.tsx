@@ -36,7 +36,7 @@ export function WinnersSummary({ data, contributors }: Props) {
       <KPICard
         title="Top Performer"
         value={topPerformer ? topPerformer.name : "—"}
-        subtitle={topPerformer ? `Index: ${topPerformer.performanceIndex}` : "Min 5 projects needed"}
+        subtitle={topPerformer ? `W Index: ${topPerformer.performanceIndex}` : "Min 5 projects needed"}
         icon={Crown}
       />
       <KPICard
