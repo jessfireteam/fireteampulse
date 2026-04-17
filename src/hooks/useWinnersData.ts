@@ -253,7 +253,7 @@ function processWinnersData(projects: WinnersProject[], dateFilter: string): Win
       const key = `external_${pc.contractor.id}_${roleId}`;
       if (!contributorsMap[key]) {
         contributorsMap[key] = {
-          name: pc.contractor.name,
+          name: normalizeName(pc.contractor.name),
           role: pc.role.name,
           rolePublicId: roleId,
           type: "external",
