@@ -8,8 +8,8 @@ interface Props {
 }
 
 export function WinnersSummary({ data, contributors }: Props) {
-  const overallWinRate = data.totalProjects > 0
-    ? ((data.totalWinners / data.totalProjects) * 100).toFixed(2) + "%"
+  const overallWinRate = data.recentProjects > 0
+    ? (data.recentWinRate * 100).toFixed(2) + "%"
     : "0%";
 
   const eligible = contributors.filter((c) => c.totalProjects >= 5 && c.performanceIndex !== null);
@@ -30,7 +30,7 @@ export function WinnersSummary({ data, contributors }: Props) {
       <KPICard
         title="Overall Win Rate"
         value={overallWinRate}
-        subtitle={`${data.totalWinners} winners`}
+        subtitle={`${data.recentWinners} winners · last 90 days`}
         icon={TrendingUp}
       />
       <KPICard
