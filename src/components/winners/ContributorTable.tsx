@@ -102,7 +102,7 @@ function RoleTable({ roleId, contributors }: { roleId: string; contributors: Con
               </TableHead>
               <TableHead>Expected</TableHead>
               <TableHead className="cursor-pointer hover:text-foreground" onClick={() => setSortKey("pi")}>
-                Index{sortKey === "pi" ? " ↓" : ""}
+                W Index{sortKey === "pi" ? " ↓" : ""}
               </TableHead>
               <TableHead>Win %</TableHead>
             </TableRow>
