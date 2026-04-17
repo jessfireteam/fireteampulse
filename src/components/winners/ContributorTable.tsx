@@ -153,9 +153,20 @@ function RoleTable({ roleId, contributors }: { roleId: string; contributors: Con
                       {c.expectedWinners > 0 ? c.expectedWinners.toFixed(1) : "—"}
                     </TableCell>
                     <TableCell>
-                      <span className={`inline-flex items-center rounded px-2 py-0.5 text-sm font-semibold ${indexColor(insufficientData ? null : c.performanceIndex)}`}>
-                        {insufficientData ? "—" : c.performanceIndex !== null ? c.performanceIndex : "—"}
-                      </span>
+                      <div className="flex flex-col gap-0.5">
+                        <span className={`inline-flex items-center rounded px-2 py-0.5 text-sm font-semibold w-fit ${indexColor(insufficientData ? null : c.performanceIndex)}`}>
+                          {insufficientData ? "—" : c.performanceIndex !== null ? c.performanceIndex : "—"}
+                        </span>
+                        {c.recentProjects >= 10 && c.recentPerformanceIndex !== null ? (
+                          <span className={`inline-flex items-center rounded px-1.5 py-0 text-[10px] font-medium w-fit ${indexColor(c.recentPerformanceIndex)}`}>
+                            90d: {c.recentPerformanceIndex}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground/60 px-1.5">
+                            90d: —
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
                       {(c.rawWinRate * 100).toFixed(1)}%

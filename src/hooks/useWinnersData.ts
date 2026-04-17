@@ -56,6 +56,11 @@ export interface Contributor {
   expectedWinners: number;
   rawWinRate: number;
   performanceIndex: number | null;
+  // Last-90-day rolling figures (based on project doneDate)
+  recentProjects: number;
+  recentActualWinners: number;
+  recentExpectedWinners: number;
+  recentPerformanceIndex: number | null;
   clientBreakdown: Record<string, ClientBreakdown>;
 }
 
@@ -208,11 +213,57 @@ function processWinnersData(projects: WinnersProject[], dateFilter: string): Win
 
   const contributorsMap: Record<string, Contributor> = {};
 
+  // Cutoff for "last 90 days" — based on project doneDate
+  const ninetyDaysAgoStr = new Date(Date.now() - 90 * 86400000)
+    .toISOString()
+    .split("T")[0];
+
   filtered.forEach((project) => {
     if (!isProjectComplete(project)) return;
     const clientId = project.client?.id;
     const adType = classifyAdType(project);
     const isWinner = winningProjectIds.has(project.id);
+    const isRecent = !!project.doneDate && project.doneDate >= ninetyDaysAgoStr;
+
+    const accumulate = (c: Contributor, baseline: number) => {
+      c.totalProjects++;
+      if (isWinner) c.actualWinners++;
+      c.expectedWinners += baseline;
+      if (isRecent) {
+        c.recentProjects++;
+        if (isWinner) c.recentActualWinners++;
+        c.recentExpectedWinners += baseline;
+      }
+      const cn = project.client?.name ?? "Unknown";
+      if (!c.clientBreakdown[cn]) {
+        c.clientBreakdown[cn] = { total: 0, winners: 0, expectedWinners: 0, clientRate: baseline };
+      }
+      c.clientBreakdown[cn].total++;
+      if (isWinner) c.clientBreakdown[cn].winners++;
+      c.clientBreakdown[cn].expectedWinners += baseline;
+    };
+
+    const makeContributor = (
+      name: string,
+      role: string,
+      roleId: string,
+      type: "internal" | "external",
+    ): Contributor => ({
+      name,
+      role,
+      rolePublicId: roleId,
+      type,
+      totalProjects: 0,
+      actualWinners: 0,
+      expectedWinners: 0,
+      rawWinRate: 0,
+      performanceIndex: null,
+      recentProjects: 0,
+      recentActualWinners: 0,
+      recentExpectedWinners: 0,
+      recentPerformanceIndex: null,
+      clientBreakdown: {},
+    });
 
     // Internal roles
     project.projectRolesInternal?.forEach((pr) => {
@@ -222,31 +273,14 @@ function processWinnersData(projects: WinnersProject[], dateFilter: string): Win
       const baseline = clientId ? getBaselineRate(clientId, roleId, adType) : 0;
       const key = `internal_${pr.assignee.id}_${roleId}`;
       if (!contributorsMap[key]) {
-        contributorsMap[key] = {
-          name: normalizeName(pr.assignee.name),
-          role: pr.role.name,
-          rolePublicId: roleId,
-          type: "internal",
-          totalProjects: 0,
-          actualWinners: 0,
-          expectedWinners: 0,
-          rawWinRate: 0,
-          performanceIndex: null,
-          clientBreakdown: {},
-        };
+        contributorsMap[key] = makeContributor(
+          normalizeName(pr.assignee.name),
+          pr.role.name,
+          roleId,
+          "internal",
+        );
       }
-      const c = contributorsMap[key];
-      c.totalProjects++;
-      if (isWinner) c.actualWinners++;
-      c.expectedWinners += baseline;
-
-      const cn = project.client?.name ?? "Unknown";
-      if (!c.clientBreakdown[cn]) {
-        c.clientBreakdown[cn] = { total: 0, winners: 0, expectedWinners: 0, clientRate: baseline };
-      }
-      c.clientBreakdown[cn].total++;
-      if (isWinner) c.clientBreakdown[cn].winners++;
-      c.clientBreakdown[cn].expectedWinners += baseline;
+      accumulate(contributorsMap[key], baseline);
     });
 
     // External contractors
@@ -257,40 +291,27 @@ function processWinnersData(projects: WinnersProject[], dateFilter: string): Win
       const baseline = clientId ? getBaselineRate(clientId, roleId, adType) : 0;
       const key = `external_${pc.contractor.id}_${roleId}`;
       if (!contributorsMap[key]) {
-        contributorsMap[key] = {
-          name: normalizeName(pc.contractor.name),
-          role: pc.role.name,
-          rolePublicId: roleId,
-          type: "external",
-          totalProjects: 0,
-          actualWinners: 0,
-          expectedWinners: 0,
-          rawWinRate: 0,
-          performanceIndex: null,
-          clientBreakdown: {},
-        };
+        contributorsMap[key] = makeContributor(
+          normalizeName(pc.contractor.name),
+          pc.role.name,
+          roleId,
+          "external",
+        );
       }
-      const c = contributorsMap[key];
-      c.totalProjects++;
-      if (isWinner) c.actualWinners++;
-      c.expectedWinners += baseline;
-
-      const cn = project.client?.name ?? "Unknown";
-      if (!c.clientBreakdown[cn]) {
-        c.clientBreakdown[cn] = { total: 0, winners: 0, expectedWinners: 0, clientRate: baseline };
-      }
-      c.clientBreakdown[cn].total++;
-      if (isWinner) c.clientBreakdown[cn].winners++;
-      c.clientBreakdown[cn].expectedWinners += baseline;
+      accumulate(contributorsMap[key], baseline);
     });
   });
 
-  // Step 4: Calculate Performance Index
+  // Step 4: Calculate Performance Index (all-time + last 90 days)
   Object.values(contributorsMap).forEach((c) => {
     c.rawWinRate = c.totalProjects > 0 ? c.actualWinners / c.totalProjects : 0;
     c.performanceIndex =
       c.expectedWinners > 0
         ? Math.round((c.actualWinners / c.expectedWinners) * 100)
+        : null;
+    c.recentPerformanceIndex =
+      c.recentExpectedWinners > 0
+        ? Math.round((c.recentActualWinners / c.recentExpectedWinners) * 100)
         : null;
   });
 

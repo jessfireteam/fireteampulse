@@ -8,9 +8,17 @@ interface Props {
 }
 
 export function WinnersSummary({ data, contributors }: Props) {
+  const recentRatePct = data.recentProjects > 0 ? data.recentWinRate * 100 : 0;
+  const allTimeRatePct =
+    data.totalProjects > 0 ? (data.totalWinners / data.totalProjects) * 100 : 0;
   const overallWinRate = data.recentProjects > 0
-    ? (data.recentWinRate * 100).toFixed(2) + "%"
+    ? recentRatePct.toFixed(2) + "%"
     : "0%";
+  const delta = recentRatePct - allTimeRatePct;
+  const arrow = delta > 0.01 ? "▲" : delta < -0.01 ? "▼" : "·";
+  const winRateSubtitle =
+    `${data.recentWinners} winners · last 90d ${arrow} ` +
+    `all-time ${allTimeRatePct.toFixed(2)}%`;
 
   const eligible = contributors.filter((c) => c.totalProjects >= 5 && c.performanceIndex !== null);
   const topPerformer = eligible.length > 0
@@ -30,7 +38,7 @@ export function WinnersSummary({ data, contributors }: Props) {
       <KPICard
         title="Overall Win Rate"
         value={overallWinRate}
-        subtitle={`${data.recentWinners} winners · last 90 days`}
+        subtitle={winRateSubtitle}
         icon={TrendingUp}
       />
       <KPICard
