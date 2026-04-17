@@ -218,7 +218,7 @@ function processWinnersData(projects: WinnersProject[], dateFilter: string): Win
       const key = `internal_${pr.assignee.id}_${roleId}`;
       if (!contributorsMap[key]) {
         contributorsMap[key] = {
-          name: pr.assignee.name,
+          name: normalizeName(pr.assignee.name),
           role: pr.role.name,
           rolePublicId: roleId,
           type: "internal",
