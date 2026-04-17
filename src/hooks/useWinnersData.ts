@@ -185,9 +185,15 @@ function processWinnersData(projects: WinnersProject[], dateFilter: string): Win
   }
 
   // Step 3: Build contributor stats
+  // Only include projects that are completed (have doneDate or status "Completed")
+  // so that briefs/in-flight work don't drag down PI before they've had a chance to win.
+  const isProjectComplete = (p: WinnersProject) =>
+    !!p.doneDate || p.status?.name === "Completed";
+
   const contributorsMap: Record<string, Contributor> = {};
 
   filtered.forEach((project) => {
+    if (!isProjectComplete(project)) return;
     const clientId = project.client?.id;
     const adType = classifyAdType(project);
     const isWinner = winningProjectIds.has(project.id);
