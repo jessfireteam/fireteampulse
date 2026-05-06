@@ -183,6 +183,11 @@ function processWinnersData(projects: WinnersProject[], dateFilter: string): Win
 
   filtered.forEach((project) => {
     if (!project.client) return;
+    // Only completed projects contribute to client baselines. Otherwise
+    // "Concept" / brief / abandoned projects pad the denominator with zero
+    // winners and pull every Windex above 100. Same filter applied to the
+    // contributor tally below for consistency.
+    if (!project.doneDate && project.status?.name !== "Completed") return;
     const cid = project.client.id;
     const adType = classifyAdType(project);
     const isWin = winningProjectIds.has(project.id);
@@ -416,4 +421,155 @@ export function useWinnersData(dateFilter: string) {
     isLoading: query.isLoading,
     error: query.error,
   };
+}
+
+// ============================================================================
+// Creator-level winner stats (for Creator Costs dashboard)
+// ============================================================================
+
+export interface CreatorWinnerStats {
+  // Canonical display name (first one we saw for this normalized key)
+  displayName: string;
+  totalProjects: number;
+  winningProjects: number;
+  expectedWinners: number;
+  rawWinRate: number;
+  windex: number | null; // Performance index: (actualWinners / expectedWinners) * 100
+  recentTotalProjects: number;
+  recentWinningProjects: number;
+  recentExpectedWinners: number;
+  recentWindex: number | null;
+  winnerProjectNames: Array<{ name: string; client: string; winnerDate: string | null }>;
+}
+
+export function normalizeCreatorName(name: string): string {
+  return normalizeName(name).toLowerCase().trim().replace(/\s+/g, " ");
+}
+
+function processCreatorWinnerStats(
+  projects: WinnersProject[]
+): Map<string, CreatorWinnerStats> {
+  // Only projects since winner tracking began
+  const filtered = projects.filter(
+    (p) => p.creationDate && p.creationDate >= WINNERS_TRACKING_START
+  );
+
+  // Build client baselines — same logic as processWinnersData, minus date filter
+  const clientStatsMap: Record<string, { total: number; winners: number; byType: Record<string, { total: number; winners: number }> }> = {};
+  const winningProjectIds = new Set<string>();
+  const winnerDateMap = new Map<string, string>();
+
+  filtered.forEach((p) => {
+    const winDate = getWinnerDate(p);
+    if (winDate) {
+      winningProjectIds.add(p.id);
+      winnerDateMap.set(p.id, winDate);
+    }
+    if (!p.client) return;
+    // Baselines only include completed projects so non-shipped briefs don't
+    // dilute the rate (matches the contributor-tally filter below).
+    if (!p.doneDate && p.status?.name !== "Completed") return;
+    const cid = p.client.id;
+    const adType = classifyAdType(p);
+    if (!clientStatsMap[cid]) clientStatsMap[cid] = { total: 0, winners: 0, byType: {} };
+    if (!clientStatsMap[cid].byType[adType]) clientStatsMap[cid].byType[adType] = { total: 0, winners: 0 };
+    clientStatsMap[cid].total++;
+    clientStatsMap[cid].byType[adType].total++;
+    if (winDate) {
+      clientStatsMap[cid].winners++;
+      clientStatsMap[cid].byType[adType].winners++;
+    }
+  });
+
+  const getBaseline = (clientId: string, adType: "video" | "static"): number => {
+    const c = clientStatsMap[clientId];
+    if (!c) return 0;
+    const typeStats = c.byType[adType];
+    if (typeStats && typeStats.total >= 5) return typeStats.winners / typeStats.total;
+    return c.total > 0 ? c.winners / c.total : 0;
+  };
+
+  // Aggregate per creator (external contractors only, all roles)
+  const ninetyDaysAgoStr = new Date(Date.now() - 90 * 86400000).toISOString().split("T")[0];
+  const creatorMap = new Map<string, CreatorWinnerStats>();
+
+  filtered.forEach((project) => {
+    // Only count completed projects — briefs/in-flight shouldn't penalize Windex
+    const isComplete = !!project.doneDate || project.status?.name === "Completed";
+    if (!isComplete) return;
+
+    const clientId = project.client?.id;
+    if (!clientId) return;
+    const adType = classifyAdType(project);
+    const baseline = getBaseline(clientId, adType);
+    const isWinner = winningProjectIds.has(project.id);
+    const isRecent = !!project.doneDate && project.doneDate >= ninetyDaysAgoStr;
+    const winDate = winnerDateMap.get(project.id) ?? null;
+
+    // Dedupe contractors within a single project (same person in multiple roles)
+    const seenOnProject = new Set<string>();
+    project.projectContractorsExternal?.forEach((pc) => {
+      if (!pc.contractor?.name) return;
+      const rawName = pc.contractor.name;
+      const key = normalizeCreatorName(rawName);
+      if (seenOnProject.has(key)) return;
+      seenOnProject.add(key);
+
+      if (!creatorMap.has(key)) {
+        creatorMap.set(key, {
+          displayName: normalizeName(rawName),
+          totalProjects: 0,
+          winningProjects: 0,
+          expectedWinners: 0,
+          rawWinRate: 0,
+          windex: null,
+          recentTotalProjects: 0,
+          recentWinningProjects: 0,
+          recentExpectedWinners: 0,
+          recentWindex: null,
+          winnerProjectNames: [],
+        });
+      }
+      const c = creatorMap.get(key)!;
+      c.totalProjects++;
+      c.expectedWinners += baseline;
+      if (isWinner) {
+        c.winningProjects++;
+        c.winnerProjectNames.push({
+          name: project.name,
+          client: project.client?.name ?? "Unknown",
+          winnerDate: winDate,
+        });
+      }
+      if (isRecent) {
+        c.recentTotalProjects++;
+        c.recentExpectedWinners += baseline;
+        if (isWinner) c.recentWinningProjects++;
+      }
+    });
+  });
+
+  // Finalize
+  creatorMap.forEach((c) => {
+    c.rawWinRate = c.totalProjects > 0 ? c.winningProjects / c.totalProjects : 0;
+    c.windex = c.expectedWinners > 0 ? Math.round((c.winningProjects / c.expectedWinners) * 100) : null;
+    c.recentWindex = c.recentExpectedWinners > 0
+      ? Math.round((c.recentWinningProjects / c.recentExpectedWinners) * 100)
+      : null;
+    c.winnerProjectNames.sort((a, b) => (b.winnerDate ?? "").localeCompare(a.winnerDate ?? ""));
+  });
+
+  return creatorMap;
+}
+
+export function useCreatorWinnerStats() {
+  const query = useQuery({
+    queryKey: ["fibery", "winners"],
+    queryFn: () => queryFibery<WinnersResponse>("winners"),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const stats = query.data ? processCreatorWinnerStats(query.data.findProjects) : null;
+
+  return { stats, isLoading: query.isLoading, error: query.error };
 }
