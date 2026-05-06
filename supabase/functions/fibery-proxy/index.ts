@@ -1,8 +1,9 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
 // Allowed origins for CORS - restrict to known domains
 const ALLOWED_ORIGINS = [
+  'https://pulse.fireteam.is',
+  'https://fireteam-pulse.netlify.app',
   'https://fireteampulse.lovable.app',
   'https://id-preview--a96a0ee1-3f6c-4df3-bcd1-42986223e293.lovable.app',
   'http://localhost:8080',
@@ -15,7 +16,8 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
   const allowedOrigin = origin && (
     ALLOWED_ORIGINS.some(allowed => origin === allowed) ||
     origin.endsWith('.lovable.app') ||
-    origin.endsWith('.lovableproject.com')
+    origin.endsWith('.lovableproject.com') ||
+    origin.endsWith('.netlify.app')
   ) ? origin : ALLOWED_ORIGINS[0]
   
   return {
@@ -135,7 +137,7 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3)
   throw new Error('Max retries exceeded');
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   const origin = req.headers.get('origin')
   const corsHeaders = getCorsHeaders(origin)
 
@@ -164,20 +166,21 @@ serve(async (req) => {
     )
 
     const token = authHeader.replace('Bearer ', '')
-    const { data, error: authError } = await supabaseClient.auth.getClaims(token)
-    
-    if (authError || !data?.claims) {
+    const { data: userData, error: authError } = await supabaseClient.auth.getUser(token)
+
+    if (authError || !userData?.user) {
+      console.error('Auth failed:', authError?.message)
       return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { 
-          status: 401, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        JSON.stringify({ error: 'Unauthorized', detail: authError?.message }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       )
     }
 
     // Server-side domain validation - enforce @fireteam.is restriction
-    const email = data.claims.email as string | undefined
+    const email = userData.user.email
     if (!email || !email.endsWith(ALLOWED_EMAIL_DOMAIN)) {
       return new Response(
         JSON.stringify({ error: 'Access restricted to FireTeam members' }),
