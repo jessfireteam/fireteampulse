@@ -22,10 +22,7 @@ function formatDollars(value: number): string {
 export function AgencyTrendsChart({ data }: AgencyTrendsChartProps) {
   const maxSpend = Math.max(...data.map((d) => d.totalSpend), 1);
   const yMaxRight = Math.ceil(maxSpend / 1000) * 1000 || 1000;
-  const maxAvg = Math.max(
-    ...data.map((d) => Math.max(d.avgPerPayment, d.avgPerCreator)),
-    1
-  );
+  const maxAvg = Math.max(...data.map((d) => d.avgPerCreator), 1);
   const yMaxLeft = Math.ceil(maxAvg / 100) * 100 || 500;
 
   return (
@@ -83,14 +80,11 @@ export function AgencyTrendsChart({ data }: AgencyTrendsChartProps) {
                   <p style={{ color: "hsl(22, 77%, 70%)" }}>
                     Total Spend: {formatDollars(d.totalSpend)}
                   </p>
-                  <p style={{ color: "hsl(358, 58%, 56%)" }}>
-                    Avg/Payment: {formatDollars(d.avgPerPayment)}
-                  </p>
                   <p style={{ color: "hsl(38, 100%, 78%)" }}>
                     Avg/Creator: {formatDollars(d.avgPerCreator)}
                   </p>
                   <p style={{ color: "hsl(234, 28%, 66%)", marginTop: 4, fontSize: 12 }}>
-                    {d.paymentCount} payments · {d.uniqueCreators} creators
+                    {d.uniqueCreators} creators · {d.paymentCount} payments
                   </p>
                 </div>
               );
@@ -111,15 +105,6 @@ export function AgencyTrendsChart({ data }: AgencyTrendsChartProps) {
             opacity={0.25}
             radius={[4, 4, 0, 0]}
             maxBarSize={40}
-          />
-          <Line
-            yAxisId="left"
-            type="monotone"
-            dataKey="avgPerPayment"
-            name="Avg/Payment"
-            stroke="hsl(358, 58%, 56%)"
-            strokeWidth={2}
-            dot={{ fill: "hsl(358, 58%, 56%)", r: 3 }}
           />
           <Line
             yAxisId="left"

@@ -12,6 +12,15 @@ dist
 dist-ssr
 *.local
 
+# Local Netlify CLI state (site ID — local-only)
+.netlify
+
+# Supabase CLI temp artifacts
+supabase/.temp
+
+# Environment variables (use Netlify env vars in production)
+.env
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

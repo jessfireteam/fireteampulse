@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { queryFibery, CreatorCostsResponse } from "@/lib/fibery";
 import { useMemo } from "react";
 import { format, parseISO, subMonths, differenceInDays } from "date-fns";
+import { useCreatorWinnerStats, normalizeCreatorName } from "@/hooks/useWinnersData";
 
 export interface CreatorPayment {
   date: string;
@@ -18,6 +19,12 @@ export interface CreatorSummary {
   lastPaymentDate: string;
   firstPaymentDate: string;
   payments: CreatorPayment[];
+  // Winner stats (joined from Fibery contractor records). Null when no match found.
+  windex: number | null;
+  winningProjects: number;
+  totalContributionProjects: number; // projects counted for Windex (may differ from payment count)
+  winnerProjectNames: Array<{ name: string; client: string; winnerDate: string | null }>;
+  winnerMatched: boolean; // true if name matched a Fibery contractor with ≥1 completed project
 }
 
 export interface MonthlyAgencyData {
@@ -44,12 +51,29 @@ function useCreatorCostsQuery() {
   });
 }
 
+export interface CreatorCostsResult {
+  creators: CreatorSummary[];
+  monthlyTrends: MonthlyAgencyData[];
+  clientSpend: ClientSpendSummary[];
+  winnerMatchStats: {
+    totalCreators: number;
+    matchedCreators: number;
+    matchRate: number; // 0..1
+  };
+}
+
 export function useCreatorCostsData() {
   const { data: rawData, isLoading, error } = useCreatorCostsQuery();
+  const { stats: winnerStats, isLoading: winnersLoading } = useCreatorWinnerStats();
 
-  const processed = useMemo(() => {
+  const processed = useMemo<CreatorCostsResult>(() => {
     if (!rawData?.findExpenses) {
-      return { creators: [], monthlyTrends: [], clientSpend: [] };
+      return {
+        creators: [],
+        monthlyTrends: [],
+        clientSpend: [],
+        winnerMatchStats: { totalCreators: 0, matchedCreators: 0, matchRate: 0 },
+      };
     }
 
     // Filter out props
@@ -110,12 +134,17 @@ export function useCreatorCostsData() {
       clientMap.set(clientName, (clientMap.get(clientName) || 0) + amount);
     });
 
-    // Build creator summaries
+    // Build creator summaries (joined with winner stats by normalized name)
+    let matchedCreators = 0;
     const creators: CreatorSummary[] = Array.from(creatorMap.entries())
       .map(([name, data]) => {
         const sortedPayments = data.payments.sort(
           (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
         );
+        const normalized = normalizeCreatorName(name);
+        const ws = winnerStats?.get(normalized);
+        const matched = !!ws && ws.totalProjects > 0;
+        if (matched) matchedCreators++;
         return {
           creatorName: name,
           totalPaid: data.totalPaid,
@@ -125,6 +154,11 @@ export function useCreatorCostsData() {
           lastPaymentDate: sortedPayments[sortedPayments.length - 1]?.date || "",
           firstPaymentDate: sortedPayments[0]?.date || "",
           payments: sortedPayments,
+          windex: ws?.windex ?? null,
+          winningProjects: ws?.winningProjects ?? 0,
+          totalContributionProjects: ws?.totalProjects ?? 0,
+          winnerProjectNames: ws?.winnerProjectNames ?? [],
+          winnerMatched: matched,
         };
       })
       .sort((a, b) => b.totalPaid - a.totalPaid);
@@ -148,10 +182,23 @@ export function useCreatorCostsData() {
       .map(([clientName, totalSpend]) => ({ clientName, totalSpend }))
       .sort((a, b) => b.totalSpend - a.totalSpend);
 
-    return { creators, monthlyTrends, clientSpend };
-  }, [rawData]);
+    return {
+      creators,
+      monthlyTrends,
+      clientSpend,
+      winnerMatchStats: {
+        totalCreators: creators.length,
+        matchedCreators,
+        matchRate: creators.length > 0 ? matchedCreators / creators.length : 0,
+      },
+    };
+  }, [rawData, winnerStats]);
 
-  return { ...processed, isLoading, error: error as Error | null };
+  return {
+    ...processed,
+    isLoading: isLoading || winnersLoading,
+    error: error as Error | null,
+  };
 }
 
 export function formatRelativeDate(dateStr: string): string {

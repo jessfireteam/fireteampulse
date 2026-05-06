@@ -1,1 +1,4 @@
-project_id = "hlopikqtjuqyrttcckiw"
+project_id = "bmuqjchslhgnxgiugoyx"
+
+[functions.fibery-proxy]
+verify_jwt = false

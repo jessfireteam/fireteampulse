@@ -1,11 +1,12 @@
 import { useState, useMemo } from "react";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { useAuth } from "@/hooks/useAuth";
-import { useWinnersData } from "@/hooks/useWinnersData";
+import { useWinnersData, useCreatorWinnerStats } from "@/hooks/useWinnersData";
 import { useClientsData, getActiveClientNames } from "@/hooks/useClientsData";
 import { WinnersSummary } from "@/components/winners/WinnersSummary";
 import { ClientBaseline } from "@/components/winners/ClientBaseline";
 import { ContributorTable } from "@/components/winners/ContributorTable";
+import { CreatorsTable } from "@/components/winners/CreatorsTable";
 import { WinnersMonthlyChart } from "@/components/winners/WinnersMonthlyChart";
 import { Loader2 } from "lucide-react";
 
@@ -21,6 +22,11 @@ const Winners = () => {
   const [dateFilter, setDateFilter] = useState("all");
   const { data, isLoading, error } = useWinnersData(dateFilter);
   const { data: clientsData } = useClientsData();
+  const { stats: creatorStats } = useCreatorWinnerStats();
+  const creatorList = useMemo(
+    () => (creatorStats ? Array.from(creatorStats.values()) : []),
+    [creatorStats]
+  );
 
   const activeClientStats = useMemo(() => {
     if (!data?.clientStats) return [];
@@ -83,6 +89,13 @@ const Winners = () => {
               contributors={data.contributors}
               clientStats={data.clientStats}
             />
+            <section>
+              <h2 className="text-xl font-semibold text-foreground mb-1">Creators</h2>
+              <p className="text-sm text-muted-foreground mb-4">
+                External contractors across all roles (incl. Content Creators), based on Fibery contractor relations on each project.
+              </p>
+              <CreatorsTable creators={creatorList} />
+            </section>
           </div>
         )}
       </div>
