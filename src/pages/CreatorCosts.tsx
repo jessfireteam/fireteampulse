@@ -11,7 +11,7 @@ import { Loader2 } from "lucide-react";
 
 const CreatorCosts = () => {
   const { loading: authLoading } = useAuth();
-  const { creators, monthlyTrends, clientSpend, isLoading, error } = useCreatorCostsData();
+  const { creators, monthlyTrends, clientSpend, winnerMatchStats, isLoading, error } = useCreatorCostsData();
 
   if (authLoading) {
     return (
@@ -59,6 +59,13 @@ const CreatorCosts = () => {
             {/* Creator Table */}
             <section>
               <SectionHeader title={`Creators (${creators.length})`} />
+              {winnerMatchStats.totalCreators > 0 && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Windex matched {winnerMatchStats.matchedCreators}/{winnerMatchStats.totalCreators} creators
+                  ({Math.round(winnerMatchStats.matchRate * 100)}%) to Fibery contractor records.
+                  Unmatched names show "—" — check for naming inconsistencies between expense records and Fibery contractor entities.
+                </p>
+              )}
               <div className="mt-4">
                 <CreatorTable creators={creators} />
               </div>

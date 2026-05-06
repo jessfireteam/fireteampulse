@@ -18,7 +18,7 @@ interface CreatorTableProps {
   creators: CreatorSummary[];
 }
 
-type SortKey = "creatorName" | "totalPaid" | "projectCount" | "averagePerProject" | "lastPaymentDate";
+type SortKey = "creatorName" | "totalPaid" | "projectCount" | "averagePerProject" | "lastPaymentDate" | "windex" | "winningProjects";
 type SortDir = "asc" | "desc";
 
 function formatDollars(value: number): string {
@@ -57,6 +57,13 @@ export function CreatorTable({ creators }: CreatorTableProps) {
         case "projectCount": aVal = a.projectCount; bVal = b.projectCount; break;
         case "averagePerProject": aVal = a.averagePerProject; bVal = b.averagePerProject; break;
         case "lastPaymentDate": aVal = a.lastPaymentDate; bVal = b.lastPaymentDate; break;
+        case "windex":
+          // Nulls (unmatched) always sort to the bottom regardless of direction
+          if (a.windex === null && b.windex === null) return 0;
+          if (a.windex === null) return 1;
+          if (b.windex === null) return -1;
+          aVal = a.windex; bVal = b.windex; break;
+        case "winningProjects": aVal = a.winningProjects; bVal = b.winningProjects; break;
         default: return 0;
       }
       if (aVal < bVal) return sortDir === "asc" ? -1 : 1;
@@ -101,6 +108,8 @@ export function CreatorTable({ creators }: CreatorTableProps) {
               <SortHeader label="Total Paid" col="totalPaid" className="text-right px-3" />
               <SortHeader label="# Projects" col="projectCount" className="text-center px-2" />
               <SortHeader label="Avg/Project" col="averagePerProject" className="text-right px-3" />
+              <SortHeader label="Windex" col="windex" className="text-center px-2" />
+              <SortHeader label="Winners" col="winningProjects" className="text-center px-2" />
               <TableHead className="text-muted-foreground font-semibold text-xs px-3">Clients</TableHead>
               <TableHead className="text-muted-foreground font-semibold text-xs text-center px-1 w-28">Trend</TableHead>
               <SortHeader label="Last Active" col="lastPaymentDate" className="text-right px-3" />
@@ -120,6 +129,12 @@ export function CreatorTable({ creators }: CreatorTableProps) {
                 </TableCell>
                 <TableCell className="text-right font-mono text-sm px-3">
                   {formatDollars(creator.averagePerProject)}
+                </TableCell>
+                <TableCell className="text-center px-2">
+                  <WindexCell creator={creator} />
+                </TableCell>
+                <TableCell className="text-center font-mono text-sm px-2">
+                  <WinnersCell creator={creator} />
                 </TableCell>
                 <TableCell className="text-sm px-3 max-w-[200px]">
                   <ClientsList clients={creator.clients} />
@@ -160,6 +175,79 @@ export function CreatorTable({ creators }: CreatorTableProps) {
         </div>
       )}
     </div>
+  );
+}
+
+function WindexCell({ creator }: { creator: CreatorSummary }) {
+  if (creator.windex === null) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="text-xs text-muted-foreground/60 cursor-help">—</span>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p className="text-xs max-w-xs">
+            {creator.winnerMatched
+              ? "Matched a Fibery contractor but no client baseline data yet."
+              : "No matching Fibery contractor found for this name. Expense name may differ from their Fibery contractor name."}
+          </p>
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+  const color =
+    creator.windex >= 150 ? "text-emerald-400" :
+    creator.windex >= 100 ? "text-emerald-500/80" :
+    creator.windex >= 70 ? "text-amber-500" :
+    "text-red-500/80";
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className={cn("font-mono text-sm font-medium cursor-help", color)}>
+          {creator.windex}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>
+        <p className="text-xs">
+          {creator.winningProjects} winners on {creator.totalContributionProjects} completed projects
+          <br />
+          {creator.totalContributionProjects > 0
+            ? Math.round((creator.winningProjects / creator.totalContributionProjects) * 100)
+            : 0}% raw win rate · baseline-adjusted = {creator.windex}
+        </p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+function WinnersCell({ creator }: { creator: CreatorSummary }) {
+  if (!creator.winnerMatched) {
+    return <span className="text-xs text-muted-foreground/60">—</span>;
+  }
+  if (creator.winningProjects === 0) {
+    return <span className="text-xs text-muted-foreground">0</span>;
+  }
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="cursor-help text-primary font-medium">{creator.winningProjects}</span>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-sm">
+        <div className="space-y-1">
+          <p className="text-xs font-semibold">Winning projects:</p>
+          <ul className="text-xs space-y-0.5">
+            {creator.winnerProjectNames.slice(0, 10).map((w, i) => (
+              <li key={i} className="truncate">
+                <span className="text-muted-foreground">{w.client}:</span> {w.name}
+              </li>
+            ))}
+            {creator.winnerProjectNames.length > 10 && (
+              <li className="text-muted-foreground/60">+{creator.winnerProjectNames.length - 10} more</li>
+            )}
+          </ul>
+        </div>
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
