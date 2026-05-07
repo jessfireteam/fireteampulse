@@ -134,10 +134,19 @@ function getWinnerDate(project: WinnersProject): string | null {
   return null;
 }
 
-function processWinnersData(projects: WinnersProject[], dateFilter: string): WinnersData {
-  // Always exclude projects before winner tracking began
+function processWinnersData(
+  projects: WinnersProject[],
+  dateFilter: string,
+  retiredClients: Set<string>
+): WinnersData {
+  // Always exclude projects before winner tracking began. Also exclude any
+  // project whose client is in Retired status — the dashboard only shows
+  // active clients, so the rates and contributor stats should match.
   let filtered = projects.filter(
-    (p) => p.creationDate && p.creationDate >= WINNERS_TRACKING_START
+    (p) =>
+      p.creationDate &&
+      p.creationDate >= WINNERS_TRACKING_START &&
+      !(p.client?.name && retiredClients.has(p.client.name))
   );
 
   // Apply additional date filter
@@ -405,21 +414,40 @@ function processWinnersData(projects: WinnersProject[], dateFilter: string): Win
   };
 }
 
+interface ClientsResponse {
+  findClients: Array<{ name: string; status: { name: string } | null }>;
+}
+
 export function useWinnersData(dateFilter: string) {
-  const query = useQuery({
+  const winnersQuery = useQuery({
     queryKey: ["fibery", "winners"],
     queryFn: () => queryFibery<WinnersResponse>("winners"),
     staleTime: 5 * 60 * 1000,
   });
 
-  const processed = query.data
-    ? processWinnersData(query.data.findProjects, dateFilter)
+  // Pull client list separately so we can identify retired clients without
+  // changing the winners GraphQL query (which would require an Edge Function
+  // redeploy). Joined client-side by name.
+  const clientsQuery = useQuery({
+    queryKey: ["fibery", "clients"],
+    queryFn: () => queryFibery<ClientsResponse>("clients"),
+    staleTime: 30 * 60 * 1000,
+  });
+
+  const retiredClients = new Set<string>(
+    (clientsQuery.data?.findClients ?? [])
+      .filter((c) => c.status?.name === "Retired")
+      .map((c) => c.name)
+  );
+
+  const processed = winnersQuery.data
+    ? processWinnersData(winnersQuery.data.findProjects, dateFilter, retiredClients)
     : null;
 
   return {
     data: processed,
-    isLoading: query.isLoading,
-    error: query.error,
+    isLoading: winnersQuery.isLoading || clientsQuery.isLoading,
+    error: winnersQuery.error ?? clientsQuery.error,
   };
 }
 
@@ -447,11 +475,16 @@ export function normalizeCreatorName(name: string): string {
 }
 
 function processCreatorWinnerStats(
-  projects: WinnersProject[]
+  projects: WinnersProject[],
+  retiredClients: Set<string>
 ): Map<string, CreatorWinnerStats> {
-  // Only projects since winner tracking began
+  // Only projects since winner tracking began, and skip retired clients so
+  // creator stats line up with the active-only contributor view.
   const filtered = projects.filter(
-    (p) => p.creationDate && p.creationDate >= WINNERS_TRACKING_START
+    (p) =>
+      p.creationDate &&
+      p.creationDate >= WINNERS_TRACKING_START &&
+      !(p.client?.name && retiredClients.has(p.client.name))
   );
 
   // Build client baselines — same logic as processWinnersData, minus date filter
@@ -563,13 +596,31 @@ function processCreatorWinnerStats(
 }
 
 export function useCreatorWinnerStats() {
-  const query = useQuery({
+  const winnersQuery = useQuery({
     queryKey: ["fibery", "winners"],
     queryFn: () => queryFibery<WinnersResponse>("winners"),
     staleTime: 5 * 60 * 1000,
   });
 
-  const stats = query.data ? processCreatorWinnerStats(query.data.findProjects) : null;
+  const clientsQuery = useQuery({
+    queryKey: ["fibery", "clients"],
+    queryFn: () => queryFibery<ClientsResponse>("clients"),
+    staleTime: 30 * 60 * 1000,
+  });
 
-  return { stats, isLoading: query.isLoading, error: query.error };
+  const retiredClients = new Set<string>(
+    (clientsQuery.data?.findClients ?? [])
+      .filter((c) => c.status?.name === "Retired")
+      .map((c) => c.name)
+  );
+
+  const stats = winnersQuery.data
+    ? processCreatorWinnerStats(winnersQuery.data.findProjects, retiredClients)
+    : null;
+
+  return {
+    stats,
+    isLoading: winnersQuery.isLoading || clientsQuery.isLoading,
+    error: winnersQuery.error ?? clientsQuery.error,
+  };
 }
