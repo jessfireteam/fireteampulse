@@ -188,13 +188,18 @@ export interface RoleGroup {
 export const EXCLUDED_MEMBERS = new Set(['riteesh@fireteam.is']);
 
 // Explicit role assignments with primary task types
+// Keys are the Fibery user display name (`user/name`), NOT the email — that's what
+// the edge function returns as `assignee.name` and what the capacity matcher
+// compares against. Amanda + Shreya were previously keyed by email and
+// silently disappeared from the capacity dashboard. Keep this in sync with
+// Fibery display names; if a teammate is renamed there, update here too.
 const ROLE_ASSIGNMENTS: Record<string, { role: RoleType; primaryTaskType: string }[]> = {
   'Niki Brazier': [{ role: 'Account', primaryTaskType: 'Briefs Sent' }, { role: 'Creative Review', primaryTaskType: 'Creative Review' }],
   'Emily Peter': [{ role: 'Account', primaryTaskType: 'Briefs Sent' }, { role: 'Creative Review', primaryTaskType: 'Creative Review' }],
-  'amanda@fireteam.is': [{ role: 'Account', primaryTaskType: 'Briefs Sent' }, { role: 'Creative Review', primaryTaskType: 'Creative Review' }],
+  'Amanda': [{ role: 'Account', primaryTaskType: 'Briefs Sent' }, { role: 'Creative Review', primaryTaskType: 'Creative Review' }],
   'Jess Bachman': [{ role: 'Copywriters', primaryTaskType: 'Brief Work' }, { role: 'Creative Review', primaryTaskType: 'Creative Review' }],
   'riteesh@fireteam.is': [{ role: 'Copywriters', primaryTaskType: 'Brief Work' }],
-  'shreya8881@gmail.com': [{ role: 'Copywriters', primaryTaskType: 'Brief Work' }],
+  'Shreya': [{ role: 'Copywriters', primaryTaskType: 'Brief Work' }],
   'Erik Furtado': [{ role: 'Design', primaryTaskType: 'Design' }],
   'Reynelle Reid': [{ role: 'Design', primaryTaskType: 'Design' }],
   'Vaiv Singh': [{ role: 'Video', primaryTaskType: 'Video Editing' }],
