@@ -1,5 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
+// FB Ads Supabase project — read-only anon key (public, safe to include here)
+// Project: ojqdhqbynccwgowbzhir (Facebook ad spend data)
+const FB_ADS_SUPABASE_URL = 'https://ojqdhqbynccwgowbzhir.supabase.co'
+const FB_ADS_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qcWRocWJ5bmNjd2dvd2J6aGlyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwOTU1MzYsImV4cCI6MjA5MzY3MTUzNn0.nuN06cCiUSvbjco5ZH8Ka1D9WJBK43zlHH1O0R26QYQ'
+
 // Allowed origins for CORS - restrict to known domains
 const ALLOWED_ORIGINS = [
   'https://pulse.fireteam.is',
@@ -300,6 +305,8 @@ Deno.serve(async (req) => {
 
     // Dynamic query for client-months: fetch last 6 months of data
     // Name format is "YYYY-MM - ClientName", so we filter by name range
+    // Spend figures (totalSpend, fireTeamSpend) are overridden with accurate
+    // data from the FB Ads Supabase project; Fibery provides deliverables data only.
     if (queryType === 'client-months') {
       const now = new Date()
       const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1)
@@ -325,6 +332,69 @@ Deno.serve(async (req) => {
           }
         }
       }`
+
+      // Fetch from Fibery first
+      const fiberyResponse = await fetchWithRetry(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Token ${FIBERY_TOKEN}`
+        },
+        body: JSON.stringify({ query })
+      })
+      const fiberyText = await fiberyResponse.text()
+      if (!fiberyResponse.ok) {
+        console.error(`Fibery error for client-months: status=${fiberyResponse.status}`)
+        return new Response(
+          JSON.stringify({ error: 'External API error', status: fiberyResponse.status, detail: fiberyText.substring(0, 200) }),
+          { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      const fiberyData = JSON.parse(fiberyText)
+
+      // Fetch accurate spend totals from the FB Ads Supabase project
+      let spendLookup: Record<string, { total_spend: number; ft_spend: number }> = {}
+      try {
+        const fbClient = createClient(FB_ADS_SUPABASE_URL, FB_ADS_ANON_KEY)
+        const { data: spendRows, error: spendError } = await fbClient
+          .rpc('get_monthly_spend_by_client', { months_back: 7 })
+        if (spendError) {
+          console.error('FB Ads spend fetch error:', spendError.message)
+        } else if (spendRows) {
+          for (const row of spendRows as Array<{ client_name: string; month: string; total_spend: number; ft_spend: number }>) {
+            const key = `${row.client_name.trim().toLowerCase()}__${row.month}`
+            spendLookup[key] = { total_spend: Number(row.total_spend) || 0, ft_spend: Number(row.ft_spend) || 0 }
+          }
+        }
+      } catch (spendFetchErr) {
+        // Non-fatal: if FB Ads query fails, fall back to Fibery spend values
+        console.error('FB Ads spend fetch threw:', spendFetchErr)
+      }
+
+      // Merge: override totalSpend/fireTeamSpend on each Fibery record if Supabase has data
+      if (fiberyData?.data?.findClientMonths && Object.keys(spendLookup).length > 0) {
+        fiberyData.data.findClientMonths = fiberyData.data.findClientMonths.map(
+          (cm: { name: string; client: { name: string } | null; totalSpend: number | null; fireTeamSpend: number | null }) => {
+            const clientName = cm.client?.name?.trim()
+            const monthMatch = cm.name?.match(/^(\d{4}-\d{2})/)
+            if (!clientName || !monthMatch) return cm
+            const key = `${clientName.toLowerCase()}__${monthMatch[1]}`
+            const supabaseSpend = spendLookup[key]
+            if (supabaseSpend) {
+              return {
+                ...cm,
+                totalSpend: supabaseSpend.total_spend,
+                fireTeamSpend: supabaseSpend.ft_spend,
+              }
+            }
+            return cm
+          }
+        )
+      }
+
+      return new Response(JSON.stringify(fiberyData), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
     }
 
     // Dynamic query for project-upcoming: fetch projects due in current calendar month that aren't done
