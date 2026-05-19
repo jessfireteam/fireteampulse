@@ -373,6 +373,19 @@ export default function Accounts() {
     return key ? winRates[key] : undefined;
   }, [effectiveClient, winRates]);
 
+  const snapshotEntry = useMemo(() => {
+    if (!clientMonthlySpend.length) return undefined;
+    const prevMonthStr = format(subMonths(new Date(), 1), "yyyy-MM");
+    return (
+      clientMonthlySpend.find((d) => d.month === prevMonthStr) ??
+      clientMonthlySpend.filter((d) => d.month < format(new Date(), "yyyy-MM")).slice(-1)[0]
+    );
+  }, [clientMonthlySpend]);
+
+  const snapshotTitle = snapshotEntry
+    ? `Last Month — ${snapshotEntry.monthLabel}`
+    : "Last Month Snapshot";
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background">
@@ -471,40 +484,27 @@ export default function Accounts() {
                 </Section>
 
                 {/* Latest completed month at-a-glance */}
-                {(() => {
-                  const prevMonthStr = format(subMonths(new Date(), 1), "yyyy-MM");
-                  const snapshot = clientMonthlySpend.find((d) => d.month === prevMonthStr)
-                    ?? (clientMonthlySpend.length > 0
-                        ? clientMonthlySpend.filter((d) => d.month < format(new Date(), "yyyy-MM")).slice(-1)[0]
-                        : undefined);
-                  const sectionTitle = snapshot
-                    ? `Last Month — ${snapshot.monthLabel}`
-                    : "Last Month Snapshot";
-                  return (
-                    <Section title={sectionTitle}>
-                      {snapshot ? (
-                        <div className="flex flex-wrap gap-6 py-2">
-                          <div className="space-y-1">
-                            <p className="text-xs text-muted-foreground uppercase tracking-wide">Total Spend</p>
-                            <p className="text-2xl font-bold">{formatCurrency(snapshot.totalSpend)}</p>
-                          </div>
-                          <div className="space-y-1">
-                            <p className="text-xs text-muted-foreground uppercase tracking-wide">FT Spend</p>
-                            <p className="text-2xl font-bold">{formatCurrency(snapshot.ftSpend)}</p>
-                            <p className="text-xs text-muted-foreground">{snapshot.ftPct}% of total</p>
-                          </div>
-                          {snapshot.costPerDeliverable > 0 && (
-                            <div className="space-y-1">
-                              <p className="text-xs text-muted-foreground uppercase tracking-wide">Fee / Deliv</p>
-                              <p className="text-2xl font-bold">{formatCurrency(snapshot.costPerDeliverable)}</p>
-                              <p className="text-xs text-muted-foreground">{snapshot.deliverables} delivered</p>
-                            </div>
-                          )}
+                <Section title={snapshotTitle}>
+                  {snapshotEntry ? (
+                    <div className="flex flex-wrap gap-6 py-2">
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wide">Total Spend</p>
+                        <p className="text-2xl font-bold">{formatCurrency(snapshotEntry.totalSpend)}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wide">FT Spend</p>
+                        <p className="text-2xl font-bold">{formatCurrency(snapshotEntry.ftSpend)}</p>
+                        <p className="text-xs text-muted-foreground">{snapshotEntry.ftPct}% of total</p>
+                      </div>
+                      {snapshotEntry.costPerDeliverable > 0 && (
+                        <div className="space-y-1">
+                          <p className="text-xs text-muted-foreground uppercase tracking-wide">Fee / Deliv</p>
+                          <p className="text-2xl font-bold">{formatCurrency(snapshotEntry.costPerDeliverable)}</p>
+                          <p className="text-xs text-muted-foreground">{snapshotEntry.deliverables} delivered</p>
                         </div>
-                      ) : <EmptyState label="snapshot" />}
-                    </Section>
-                  );
-                })()}
+                      )}
+                    </div>
+                  ) : <EmptyState label="snapshot" />}
                 </Section>
               </div>
 
