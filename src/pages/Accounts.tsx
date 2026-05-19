@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { format, subMonths } from "date-fns";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -469,31 +470,41 @@ export default function Accounts() {
                   <WinRateCard winRate={clientWinRate} />
                 </Section>
 
-                {/* Latest month at-a-glance */}
-                <Section title="Last Month Snapshot">
-                  {clientMonthlySpend.length > 0 ? (() => {
-                    const last = clientMonthlySpend[clientMonthlySpend.length - 1];
-                    return (
-                      <div className="flex flex-wrap gap-6 py-2">
-                        <div className="space-y-1">
-                          <p className="text-xs text-muted-foreground uppercase tracking-wide">Total Spend</p>
-                          <p className="text-2xl font-bold">{formatCurrency(last.totalSpend)}</p>
-                        </div>
-                        <div className="space-y-1">
-                          <p className="text-xs text-muted-foreground uppercase tracking-wide">FT Spend</p>
-                          <p className="text-2xl font-bold">{formatCurrency(last.ftSpend)}</p>
-                          <p className="text-xs text-muted-foreground">{last.ftPct}% of total</p>
-                        </div>
-                        {last.costPerDeliverable > 0 && (
+                {/* Latest completed month at-a-glance */}
+                {(() => {
+                  const prevMonthStr = format(subMonths(new Date(), 1), "yyyy-MM");
+                  const snapshot = clientMonthlySpend.find((d) => d.month === prevMonthStr)
+                    ?? (clientMonthlySpend.length > 0
+                        ? clientMonthlySpend.filter((d) => d.month < format(new Date(), "yyyy-MM")).slice(-1)[0]
+                        : undefined);
+                  const sectionTitle = snapshot
+                    ? `Last Month — ${snapshot.monthLabel}`
+                    : "Last Month Snapshot";
+                  return (
+                    <Section title={sectionTitle}>
+                      {snapshot ? (
+                        <div className="flex flex-wrap gap-6 py-2">
                           <div className="space-y-1">
-                            <p className="text-xs text-muted-foreground uppercase tracking-wide">Fee / Deliv</p>
-                            <p className="text-2xl font-bold">{formatCurrency(last.costPerDeliverable)}</p>
-                            <p className="text-xs text-muted-foreground">{last.deliverables} delivered</p>
+                            <p className="text-xs text-muted-foreground uppercase tracking-wide">Total Spend</p>
+                            <p className="text-2xl font-bold">{formatCurrency(snapshot.totalSpend)}</p>
                           </div>
-                        )}
-                      </div>
-                    );
-                  })() : <EmptyState label="snapshot" />}
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground uppercase tracking-wide">FT Spend</p>
+                            <p className="text-2xl font-bold">{formatCurrency(snapshot.ftSpend)}</p>
+                            <p className="text-xs text-muted-foreground">{snapshot.ftPct}% of total</p>
+                          </div>
+                          {snapshot.costPerDeliverable > 0 && (
+                            <div className="space-y-1">
+                              <p className="text-xs text-muted-foreground uppercase tracking-wide">Fee / Deliv</p>
+                              <p className="text-2xl font-bold">{formatCurrency(snapshot.costPerDeliverable)}</p>
+                              <p className="text-xs text-muted-foreground">{snapshot.deliverables} delivered</p>
+                            </div>
+                          )}
+                        </div>
+                      ) : <EmptyState label="snapshot" />}
+                    </Section>
+                  );
+                })()}
                 </Section>
               </div>
 
