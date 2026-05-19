@@ -202,6 +202,9 @@ export function useAccountsData() {
       });
     }
 
+    // Internal accounts that should never appear as clients
+    const EXCLUDED = new Set(["Fireteam", "FireTeam", "Fire Team"]);
+
     // Only include clients that have any data
     const hasData = (name: string) =>
       !!monthlySpend[name] ||
@@ -209,11 +212,11 @@ export function useAccountsData() {
       !!winRates[name];
 
     const active = Array.from(activeSet)
-      .filter(hasData)
+      .filter((name) => !EXCLUDED.has(name) && hasData(name))
       .sort((a, b) => a.localeCompare(b));
 
     const inactive = Array.from(inactiveSet)
-      .filter(hasData)
+      .filter((name) => !EXCLUDED.has(name) && hasData(name))
       .sort((a, b) => a.localeCompare(b));
 
     return { activeClients: active, inactiveClients: inactive };
