@@ -36,7 +36,7 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
 const ALLOWED_EMAIL_DOMAIN = '@fireteam.is'
 
 // Whitelisted query types - only these are allowed
-const ALLOWED_QUERY_TYPES = ['projects', 'tasks', 'pending-tasks', 'client-months', 'client-weeks', 'project-completions', 'project-upcoming', 'project-timeline-upcoming', 'project-pacing', 'shipped-tasks', 'client-expenses', 'creator-costs', 'leads', 'stage-tracking', 'clients', 'winners', 'slack-highlights'] as const
+const ALLOWED_QUERY_TYPES = ['projects', 'tasks', 'pending-tasks', 'client-months', 'client-weeks', 'project-completions', 'project-upcoming', 'project-timeline-upcoming', 'project-pacing', 'shipped-tasks', 'client-expenses', 'creator-costs', 'leads', 'stage-tracking', 'clients', 'winners', 'slack-highlights', 'revision-stats'] as const
 type QueryType = typeof ALLOWED_QUERY_TYPES[number]
 
 // Predefined queries for security - no arbitrary GraphQL allowed
@@ -104,6 +104,7 @@ const QUERIES: Record<QueryType, string> = {
   }`,
   'winners': 'DYNAMIC',
   'slack-highlights': 'DYNAMIC',
+  'revision-stats': 'DYNAMIC',
 }
 
 // Map query types to their Fibery endpoints
@@ -125,6 +126,7 @@ const QUERY_ENDPOINTS: Record<QueryType, string> = {
   'clients': 'https://fireteam.fibery.io/api/graphql/space/Clients',
   'winners': 'https://fireteam.fibery.io/api/graphql/space/Projects',
   'slack-highlights': '',  // handled before reaching the generic Fibery fetch
+  'revision-stats': 'https://fireteam.fibery.io/api/graphql/space/Projects',
 }
 
 // Retry with exponential backoff for rate limiting
@@ -591,6 +593,28 @@ Deno.serve(async (req) => {
               id
               name
             }
+          }
+        }
+      }`
+    }
+
+    // Dynamic query for revision-stats: fetch completed projects with version send-to-client counts
+    if (queryType === 'revision-stats') {
+      const now = new Date()
+      const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1)
+      const sixMonthsAgoDate = sixMonthsAgo.toISOString().split('T')[0]
+      query = `{
+        findProjects(
+          limit: 3000
+          doneDate: { greater: "${sixMonthsAgoDate}" }
+          orderBy: { doneDate: DESC }
+        ) {
+          name
+          doneDate
+          client { name }
+          type { name }
+          internalVersions {
+            sendToClient
           }
         }
       }`

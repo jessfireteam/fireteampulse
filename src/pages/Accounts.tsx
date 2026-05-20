@@ -24,10 +24,12 @@ import {
 } from "recharts";
 import { useAccountsData } from "@/hooks/useAccountsData";
 import { useSlackHighlights } from "@/hooks/useSlackHighlights";
+import { useRevisionStats } from "@/hooks/useRevisionStats";
 import type { ClientMonthlySpendEntry, ClientWinRate } from "@/hooks/useAccountsData";
 import type { ProcessedClientWeek } from "@/hooks/useClientWeeksData";
 import type { SlackMessage } from "@/hooks/useSlackHighlights";
-import { TrendingUp, TrendingDown, Minus, MessageSquare } from "lucide-react";
+import type { FlaggedProject } from "@/hooks/useRevisionStats";
+import { TrendingUp, TrendingDown, Minus, MessageSquare, AlertTriangle } from "lucide-react";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -294,6 +296,88 @@ function WinRateCard({ winRate }: { winRate: ClientWinRate | undefined }) {
           {allTime !== null ? `${allTime}%` : "—"}
         </span>
       </div>
+    </div>
+  );
+}
+
+// ─── Revision Stats ──────────────────────────────────────────────────────────
+
+function RevisionStatsSection({ client }: { client: string }) {
+  const { stats, isLoading } = useRevisionStats(client);
+
+  if (isLoading) {
+    return (
+      <div className="space-y-3 py-2">
+        {[...Array(3)].map((_, i) => (
+          <Skeleton key={i} className="h-10 w-full" />
+        ))}
+      </div>
+    );
+  }
+
+  if (!stats || stats.totalProjects === 0) {
+    return <EmptyState label="revision data" />;
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Summary stats */}
+      <div className="flex flex-wrap gap-8 py-2">
+        <div className="space-y-1">
+          <p className="text-xs text-muted-foreground uppercase tracking-wide">Avg Rounds / Project</p>
+          <p className="text-3xl font-bold">{stats.avgRounds}</p>
+          <p className="text-xs text-muted-foreground">{stats.totalProjects} projects tracked</p>
+        </div>
+        <div className="space-y-1">
+          <p className="text-xs text-muted-foreground uppercase tracking-wide">3+ Round Rate</p>
+          <div className="flex items-baseline gap-2">
+            <p className="text-3xl font-bold">{stats.highRevisionRate}%</p>
+            {stats.highRevisionRate >= 40 && (
+              <Badge className="gap-1 bg-amber-500/20 text-amber-400 border-amber-500/30">
+                <AlertTriangle className="h-3 w-3" />
+                High
+              </Badge>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">{stats.flaggedProjects.length} flagged</p>
+        </div>
+      </div>
+
+      {/* Flagged projects */}
+      {stats.flaggedProjects.length > 0 && (
+        <div>
+          <p className="text-xs text-muted-foreground uppercase tracking-wide mb-3">
+            Flagged Projects — 3+ Client Rounds
+          </p>
+          <div className="space-y-0">
+            {stats.flaggedProjects.map((p: FlaggedProject, i: number) => (
+              <div
+                key={i}
+                className="flex items-center justify-between py-2.5 border-b border-border/30 last:border-0"
+              >
+                <div className="flex-1 min-w-0 pr-4">
+                  <p className="text-sm text-foreground truncate">{p.name}</p>
+                  <p className="text-xs text-muted-foreground">{p.type}</p>
+                </div>
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <span className="text-xs text-muted-foreground">
+                    {format(new Date(p.doneDate), "MMM d")}
+                  </span>
+                  <Badge
+                    className={
+                      p.rounds >= 5
+                        ? "bg-red-500/20 text-red-400 border-red-500/30 hover:bg-red-500/20"
+                        : "bg-amber-500/20 text-amber-400 border-amber-500/30 hover:bg-amber-500/20"
+                    }
+                  >
+                    {p.rounds} rounds
+                  </Badge>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -584,6 +668,11 @@ export default function Accounts() {
               {/* Fee per Deliverable */}
               <Section title="Fee per Deliverable (monthly)">
                 <FeePerDeliverableChart data={clientMonthlySpend} />
+              </Section>
+
+              {/* Revision Stats */}
+              <Section title="Revision Load — Last 6 Months">
+                <RevisionStatsSection client={effectiveClient} />
               </Section>
 
               {/* Slack Highlights */}
