@@ -285,27 +285,57 @@ Deno.serve(async (req) => {
       }`
     }
 
-    // Dynamic query for client-weeks: fetch last ~10 weeks of data
+    // client-weeks: pull directly from FB Ads Supabase — Fibery's ClientWeeks entity
+    // is sparsely populated and misses most clients. Supabase has full history.
     if (queryType === 'client-weeks') {
-      const now = new Date()
-      const tenWeeksAgo = new Date(now.getTime() - 10 * 7 * 24 * 60 * 60 * 1000)
-      const startDate = tenWeeksAgo.toISOString().split('T')[0]
-      // Use end of current week to include current week's data
-      const endOfWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
-      const endDate = endOfWeek.toISOString().split('T')[0]
-      query = `{
-        findClientWeeks(
-          limit: 500
-          orderBy: { dateRange: { start: ASC } }
-          dateRange: { start: { greaterOrEquals: "${startDate}", less: "${endDate}" } }
-        ) {
-          client { name }
-          totalSpend
-          agencySpend
-          dateRange { start end }
-          week { name isoWeeknum current }
+      try {
+        const fbClient = createClient(FB_ADS_SUPABASE_URL, FB_ADS_ANON_KEY)
+        const { data: weekRows, error: weekError } = await fbClient
+          .rpc('get_weekly_spend_by_client', { weeks_back: 12 })
+
+        if (weekError) {
+          console.error('Weekly spend fetch error:', weekError.message)
+          return new Response(
+            JSON.stringify({ error: 'Failed to fetch weekly spend', detail: weekError.message }),
+            { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
         }
-      }`
+
+        // Compute ISO week number from a YYYY-MM-DD Monday date
+        function isoWeekNum(dateStr: string): number {
+          const d = new Date(dateStr + 'T00:00:00Z')
+          const jan4 = new Date(Date.UTC(d.getUTCFullYear(), 0, 4))
+          const startOfWeek1 = new Date(jan4.getTime() - ((jan4.getUTCDay() || 7) - 1) * 86400000)
+          return Math.floor((d.getTime() - startOfWeek1.getTime()) / (7 * 86400000)) + 1
+        }
+
+        type WeekRow = { client_name: string; week_start: string; week_end: string; total_spend: number; ft_spend: number }
+        const findClientWeeks = (weekRows as WeekRow[]).map(row => {
+          const totalSpend = Number(row.total_spend) || 0
+          const ftSpend = Number(row.ft_spend) || 0
+          const agencyFraction = totalSpend > 0 ? ftSpend / totalSpend : 0
+          const weekNum = isoWeekNum(row.week_start)
+          const year = row.week_start.substring(0, 4)
+          return {
+            client: { name: row.client_name },
+            totalSpend,
+            agencySpend: agencyFraction,
+            dateRange: { start: row.week_start, end: row.week_end },
+            week: { name: `W${weekNum} ${year}`, isoWeeknum: weekNum, current: false },
+          }
+        })
+
+        return new Response(
+          JSON.stringify({ data: { findClientWeeks } }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      } catch (err) {
+        console.error('Weekly spend threw:', err)
+        return new Response(
+          JSON.stringify({ error: 'Failed to fetch weekly spend' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
     }
 
     // Dynamic query for client-months: fetch last 6 months of data
