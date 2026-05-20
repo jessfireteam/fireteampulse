@@ -36,7 +36,7 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
 const ALLOWED_EMAIL_DOMAIN = '@fireteam.is'
 
 // Whitelisted query types - only these are allowed
-const ALLOWED_QUERY_TYPES = ['projects', 'tasks', 'pending-tasks', 'client-months', 'client-weeks', 'project-completions', 'project-upcoming', 'project-timeline-upcoming', 'project-pacing', 'shipped-tasks', 'client-expenses', 'creator-costs', 'leads', 'stage-tracking', 'clients', 'winners'] as const
+const ALLOWED_QUERY_TYPES = ['projects', 'tasks', 'pending-tasks', 'client-months', 'client-weeks', 'project-completions', 'project-upcoming', 'project-timeline-upcoming', 'project-pacing', 'shipped-tasks', 'client-expenses', 'creator-costs', 'leads', 'stage-tracking', 'clients', 'winners', 'slack-highlights'] as const
 type QueryType = typeof ALLOWED_QUERY_TYPES[number]
 
 // Predefined queries for security - no arbitrary GraphQL allowed
@@ -103,6 +103,7 @@ const QUERIES: Record<QueryType, string> = {
     }
   }`,
   'winners': 'DYNAMIC',
+  'slack-highlights': 'DYNAMIC',
 }
 
 // Map query types to their Fibery endpoints
@@ -123,6 +124,7 @@ const QUERY_ENDPOINTS: Record<QueryType, string> = {
   'stage-tracking': 'https://fireteam.fibery.io/api/graphql/space/Projects',
   'clients': 'https://fireteam.fibery.io/api/graphql/space/Clients',
   'winners': 'https://fireteam.fibery.io/api/graphql/space/Projects',
+  'slack-highlights': '',  // handled before reaching the generic Fibery fetch
 }
 
 // Retry with exponential backoff for rate limiting
@@ -208,7 +210,8 @@ Deno.serve(async (req) => {
       )
     }
 
-    const { queryType } = await req.json()
+    const body = await req.json()
+    const { queryType, channelId } = body
 
     // Validate query type against whitelist
     if (!queryType || !ALLOWED_QUERY_TYPES.includes(queryType)) {
@@ -591,6 +594,70 @@ Deno.serve(async (req) => {
           }
         }
       }`
+    }
+
+    // Slack highlights — fetch recent messages from a client channel
+    if (queryType === 'slack-highlights') {
+      const SLACK_TOKEN = Deno.env.get('SLACK_BOT_TOKEN')
+      if (!SLACK_TOKEN) {
+        return new Response(
+          JSON.stringify({ messages: [], error: 'Slack not configured' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      if (!channelId) {
+        return new Response(
+          JSON.stringify({ messages: [], error: 'channelId required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const thirtyDaysAgo = Math.floor((Date.now() - 30 * 24 * 60 * 60 * 1000) / 1000)
+      const histRes = await fetch(
+        `https://slack.com/api/conversations.history?channel=${channelId}&oldest=${thirtyDaysAgo}&limit=20`,
+        { headers: { Authorization: `Bearer ${SLACK_TOKEN}` } }
+      )
+      const histData = await histRes.json()
+
+      if (!histData.ok) {
+        console.error('Slack history error:', histData.error)
+        return new Response(
+          JSON.stringify({ messages: [], error: histData.error }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      type SlackRawMsg = { ts: string; text?: string; user?: string; bot_id?: string; subtype?: string }
+      const filtered = ((histData.messages || []) as SlackRawMsg[])
+        .filter(m => m.text?.trim() && m.subtype !== 'channel_join' && m.subtype !== 'channel_leave')
+        .slice(0, 15)
+
+      // Resolve unique user names in parallel
+      const userIds = [...new Set(filtered.filter(m => m.user).map(m => m.user!))]
+      const userNames: Record<string, string> = {}
+      await Promise.all(userIds.map(async (uid) => {
+        try {
+          const res = await fetch(`https://slack.com/api/users.info?user=${uid}`, {
+            headers: { Authorization: `Bearer ${SLACK_TOKEN}` }
+          })
+          const data = await res.json()
+          if (data.ok) {
+            userNames[uid] = data.user?.profile?.display_name || data.user?.real_name || data.user?.name || uid
+          }
+        } catch { /* fall back to uid */ }
+        if (!userNames[uid]) userNames[uid] = uid
+      }))
+
+      const messages = filtered.reverse().map(m => ({
+        ts: m.ts,
+        text: m.text!,
+        authorName: m.user ? (userNames[m.user] || m.user) : 'Bot',
+        isoDate: new Date(parseFloat(m.ts) * 1000).toISOString(),
+      }))
+
+      return new Response(JSON.stringify({ messages }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
     }
 
     const response = await fetchWithRetry(url, {
