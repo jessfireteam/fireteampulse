@@ -387,18 +387,29 @@ Deno.serve(async (req) => {
       }
       const fiberyData = JSON.parse(fiberyText)
 
-      // Fetch accurate spend totals from the FB Ads Supabase project
+      // Fetch accurate spend totals AND computed fees from the FB Ads Supabase project
       let spendLookup: Record<string, { total_spend: number; ft_spend: number }> = {}
+      let feeLookup: Record<string, number> = {}
       try {
         const fbClient = createClient(FB_ADS_SUPABASE_URL, FB_ADS_ANON_KEY)
-        const { data: spendRows, error: spendError } = await fbClient
-          .rpc('get_monthly_spend_by_client', { months_back: 7 })
-        if (spendError) {
-          console.error('FB Ads spend fetch error:', spendError.message)
-        } else if (spendRows) {
-          for (const row of spendRows as Array<{ client_name: string; month: string; total_spend: number; ft_spend: number }>) {
+        const [spendResult, feeResult] = await Promise.all([
+          fbClient.rpc('get_monthly_spend_by_client', { months_back: 7 }),
+          fbClient.rpc('get_monthly_fee_by_client', { months_back: 7 }),
+        ])
+        if (spendResult.error) {
+          console.error('FB Ads spend fetch error:', spendResult.error.message)
+        } else if (spendResult.data) {
+          for (const row of spendResult.data as Array<{ client_name: string; month: string; total_spend: number; ft_spend: number }>) {
             const key = `${row.client_name.trim().toLowerCase()}__${row.month}`
             spendLookup[key] = { total_spend: Number(row.total_spend) || 0, ft_spend: Number(row.ft_spend) || 0 }
+          }
+        }
+        if (feeResult.error) {
+          console.error('FB Ads fee fetch error:', feeResult.error.message)
+        } else if (feeResult.data) {
+          for (const row of feeResult.data as Array<{ client_name: string; month: string; computed_fee: number }>) {
+            const key = `${row.client_name.trim().toLowerCase()}__${row.month}`
+            feeLookup[key] = Number(row.computed_fee) || 0
           }
         }
       } catch (spendFetchErr) {
@@ -406,8 +417,8 @@ Deno.serve(async (req) => {
         console.error('FB Ads spend fetch threw:', spendFetchErr)
       }
 
-      // Merge: override totalSpend/fireTeamSpend on each Fibery record if Supabase has data
-      if (fiberyData?.data?.findClientMonths && Object.keys(spendLookup).length > 0) {
+      // Merge: override totalSpend/fireTeamSpend and add computedRevenue on each Fibery record
+      if (fiberyData?.data?.findClientMonths) {
         fiberyData.data.findClientMonths = fiberyData.data.findClientMonths.map(
           (cm: { name: string; client: { name: string } | null; totalSpend: number | null; fireTeamSpend: number | null }) => {
             const clientName = cm.client?.name?.trim()
@@ -415,14 +426,15 @@ Deno.serve(async (req) => {
             if (!clientName || !monthMatch) return cm
             const key = `${clientName.toLowerCase()}__${monthMatch[1]}`
             const supabaseSpend = spendLookup[key]
-            if (supabaseSpend) {
-              return {
-                ...cm,
+            const computedRevenue = feeLookup[key] ?? null
+            return {
+              ...cm,
+              ...(supabaseSpend ? {
                 totalSpend: supabaseSpend.total_spend,
                 fireTeamSpend: supabaseSpend.ft_spend,
-              }
+              } : {}),
+              computedRevenue,
             }
-            return cm
           }
         )
       }

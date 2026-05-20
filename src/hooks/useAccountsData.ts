@@ -24,6 +24,7 @@ function processMonthlySpend(
     client: { name: string } | null;
     totalSpend: number | null;
     fireTeamSpend: number | null;
+    computedRevenue?: number | null;
     pricingPlanMonths: Array<{
       costPerDeliverable: number | null;
       deliverablesShipped: number | null;
@@ -51,10 +52,14 @@ function processMonthlySpend(
     const ppm = cm.pricingPlanMonths?.[0];
     const rawCpd = ppm?.costPerDeliverable ?? 0;
     const deliverables = ppm?.deliverablesShipped ?? 0;
-    const revenue = ppm?.revenue ?? 0;
+    // Prefer Supabase-computed fee (accurate) over Fibery revenue (often missing)
+    const fiberyRevenue = ppm?.revenue ?? 0;
+    const effectiveRevenue = (cm.computedRevenue ?? 0) > 0
+      ? (cm.computedRevenue as number)
+      : fiberyRevenue;
     const costPerDeliverable = rawCpd > 0
       ? rawCpd
-      : (deliverables > 0 && revenue > 0 ? revenue / deliverables : 0);
+      : (deliverables > 0 && effectiveRevenue > 0 ? effectiveRevenue / deliverables : 0);
 
     let monthLabel = monthStr;
     try {
