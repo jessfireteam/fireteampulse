@@ -314,11 +314,19 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
     last30DaysTotal: number;
   }>> = {};
 
+  // Separate per-person tally of the *actual* taskTemplateRole on the last
+  // 30 days of completed tasks. Used to gate the dynamic Design/Video
+  // role-buckets — getTaskCategory() infers from the task NAME (so "Assign
+  // Designer" gets bucketed as Design even though the template role is PM),
+  // which puts approvers/reviewers into the wrong role section.
+  const personTemplateRoleLast30: Record<string, Record<string, number>> = {};
+
   filteredTasks.forEach((task) => {
     const assigneeName = task.assignee?.name;
     if (!assigneeName) return;
 
     const taskType = getTaskCategory(task.name);
+    const templateRoleName = task.taskTemplateRole?.name ?? null;
 
     if (!personData[assigneeName]) {
       personData[assigneeName] = {};
@@ -340,9 +348,14 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
     if (task.done && task.doneDate) {
       const doneDate = parseTaskDate(task.doneDate);
       if (!doneDate) return;
-      
+
       if (doneDate >= last30Days && doneDate <= today) {
         data.last30DaysTotal++;
+        if (templateRoleName) {
+          if (!personTemplateRoleLast30[assigneeName]) personTemplateRoleLast30[assigneeName] = {};
+          personTemplateRoleLast30[assigneeName][templateRoleName] =
+            (personTemplateRoleLast30[assigneeName][templateRoleName] ?? 0) + 1;
+        }
       }
       
       weeks.forEach((week, index) => {
@@ -480,38 +493,44 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
     }
   });
 
-  // Dynamically add anyone with Design completions
+  // Dynamically add anyone with Design completions — but only if their tasks
+  // actually carry the Graphic Designer (GD) template role. Without this gate,
+  // anyone doing "Assign Designer" or "Approve static" tasks (template role PM
+  // or CD) gets sorted into the Design bucket via keyword inference.
   const existingDesign = new Set(people.filter(p => p.role === 'Design').map(p => p.name));
   Object.entries(personData).forEach(([name, taskTypes]) => {
     if (existingDesign.has(name)) return;
     const d = taskTypes['Design'];
-    if (d && d.last30DaysTotal > 0) {
-      const dRow: TaskTypeRow = {
-        taskType: 'Design',
-        avg30Day: d.last30DaysTotal,
-        weekCounts: [...d.weekCounts].reverse(),
-        maxWeek26: Math.max(...d.weekCounts26),
-        inheritedOverdue: d.inheritedOverdue, trueOverdue: d.trueOverdue, due7Days: d.due7Days, due30Days: d.due30Days,
-      };
-      people.push({ name, role: 'Design', primaryTaskType: 'Design', taskTypes: [dRow], subtotal: dRow });
-    }
+    if (!d || d.last30DaysTotal <= 0) return;
+    const gdCompletions = personTemplateRoleLast30[name]?.['Graphic Designer (GD)'] ?? 0;
+    if (gdCompletions <= 0) return;
+    const dRow: TaskTypeRow = {
+      taskType: 'Design',
+      avg30Day: d.last30DaysTotal,
+      weekCounts: [...d.weekCounts].reverse(),
+      maxWeek26: Math.max(...d.weekCounts26),
+      inheritedOverdue: d.inheritedOverdue, trueOverdue: d.trueOverdue, due7Days: d.due7Days, due30Days: d.due30Days,
+    };
+    people.push({ name, role: 'Design', primaryTaskType: 'Design', taskTypes: [dRow], subtotal: dRow });
   });
 
-  // Dynamically add anyone with Video Editing completions
+  // Dynamically add anyone with Video Editing completions — same role-gate
+  // pattern as Design above, scoped to Video Editor (VE) template role.
   const existingVideo = new Set(people.filter(p => p.role === 'Video').map(p => p.name));
   Object.entries(personData).forEach(([name, taskTypes]) => {
     if (existingVideo.has(name)) return;
     const v = taskTypes['Video Editing'];
-    if (v && v.last30DaysTotal > 0) {
-      const vRow: TaskTypeRow = {
-        taskType: 'Video Editing',
-        avg30Day: v.last30DaysTotal,
-        weekCounts: [...v.weekCounts].reverse(),
-        maxWeek26: Math.max(...v.weekCounts26),
-        inheritedOverdue: v.inheritedOverdue, trueOverdue: v.trueOverdue, due7Days: v.due7Days, due30Days: v.due30Days,
-      };
-      people.push({ name, role: 'Video', primaryTaskType: 'Video Editing', taskTypes: [vRow], subtotal: vRow });
-    }
+    if (!v || v.last30DaysTotal <= 0) return;
+    const veCompletions = personTemplateRoleLast30[name]?.['Video Editor (VE)'] ?? 0;
+    if (veCompletions <= 0) return;
+    const vRow: TaskTypeRow = {
+      taskType: 'Video Editing',
+      avg30Day: v.last30DaysTotal,
+      weekCounts: [...v.weekCounts].reverse(),
+      maxWeek26: Math.max(...v.weekCounts26),
+      inheritedOverdue: v.inheritedOverdue, trueOverdue: v.trueOverdue, due7Days: v.due7Days, due30Days: v.due30Days,
+    };
+    people.push({ name, role: 'Video', primaryTaskType: 'Video Editing', taskTypes: [vRow], subtotal: vRow });
   });
 
   people.sort((a, b) => b.subtotal.avg30Day - a.subtotal.avg30Day);
