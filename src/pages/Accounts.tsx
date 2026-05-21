@@ -245,8 +245,9 @@ function FeePerDeliverableChart({ data }: { data: ClientMonthlySpendEntry[] }) {
 // ─── Deliverable Recommendation ──────────────────────────────────────────────
 
 function DeliverableRecommendation({ data }: { data: ClientMonthlySpendEntry[] }) {
+  const currentMonthStr = format(new Date(), "yyyy-MM");
   const latest = [...data]
-    .filter((d) => d.costPerDeliverable > 0 && d.fee > 0)
+    .filter((d) => d.costPerDeliverable > 0 && d.fee > 0 && d.month < currentMonthStr)
     .sort((a, b) => b.month.localeCompare(a.month))[0];
 
   if (!latest) return null;
