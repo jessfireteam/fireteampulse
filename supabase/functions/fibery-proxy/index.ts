@@ -715,13 +715,65 @@ Deno.serve(async (req) => {
       }))
 
       const messages = filtered.reverse().map(m => ({
-        ts: m.ts,
-        text: m.text!,
         authorName: m.user ? (userNames[m.user] || m.user) : 'Bot',
-        isoDate: new Date(parseFloat(m.ts) * 1000).toISOString(),
-      }))
+        text: m.text!
+          .replace(/<@[A-Z0-9]+\|([^>]+)>/g, '@$1')
+          .replace(/<@[A-Z0-9]+>/g, '@someone')
+          .replace(/<#[A-Z0-9]+\|([^>]+)>/g, '#$1')
+          .replace(/<([^|>]+)\|([^>]+)>/g, '$2')
+          .replace(/<([^>]+)>/g, '$1')
+          .replace(/\*([^*]+)\*/g, '$1')
+          .trim(),
+        date: new Date(parseFloat(m.ts) * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      })).filter(m => m.text)
 
-      return new Response(JSON.stringify({ messages }), {
+      if (messages.length === 0) {
+        return new Response(JSON.stringify({ bullets: [] }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+
+      // Summarize into actionable bullets using Claude
+      const ANTHROPIC_KEY = Deno.env.get('ANTHROPIC_API_KEY')
+      if (!ANTHROPIC_KEY) {
+        // Fallback: return raw messages if no AI key
+        return new Response(JSON.stringify({ bullets: messages.map(m => `${m.date} — ${m.authorName}: ${m.text}`) }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+
+      const transcript = messages.map(m => `[${m.date}] ${m.authorName}: ${m.text}`).join('\n')
+      const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': ANTHROPIC_KEY,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5',
+          max_tokens: 512,
+          messages: [{
+            role: 'user',
+            content: `These are recent Slack messages from a client channel at a performance marketing agency. Summarize into 3-6 concise bullet points for an account manager. Focus on: open action items, decisions made, things waiting on responses, and notable creative or performance updates. Skip small talk and pleasantries. Be specific — include names, creative names, or specific asks where relevant. Return only the bullet points, one per line, each starting with "•".\n\nMessages:\n${transcript}`
+          }]
+        })
+      })
+
+      let bullets: string[] = []
+      if (aiRes.ok) {
+        const aiData = await aiRes.json()
+        const content = aiData.content?.[0]?.text ?? ''
+        bullets = content
+          .split('\n')
+          .map((line: string) => line.replace(/^[•\-*]\s*/, '').trim())
+          .filter((line: string) => line.length > 0)
+      } else {
+        console.error('Anthropic error:', await aiRes.text())
+        bullets = messages.slice(0, 5).map(m => `${m.authorName} (${m.date}): ${m.text.substring(0, 120)}`)
+      }
+
+      return new Response(JSON.stringify({ bullets }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }

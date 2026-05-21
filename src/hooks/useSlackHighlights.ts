@@ -20,28 +20,21 @@ const CLIENT_CHANNEL_MAP: Record<string, string> = {
   "Rejuvia":       "C04HXJTCZHU",
 };
 
-export interface SlackMessage {
-  ts: string;
-  text: string;
-  authorName: string;
-  isoDate: string;
-}
-
 export function useSlackHighlights(clientName: string) {
   const channelId = CLIENT_CHANNEL_MAP[clientName] ?? null;
 
   return useQuery({
     queryKey: ["slack-highlights", channelId],
-    queryFn: async (): Promise<SlackMessage[]> => {
+    queryFn: async (): Promise<string[]> => {
       if (!channelId) return [];
       const { data, error } = await supabase.functions.invoke("fibery-proxy", {
         body: { queryType: "slack-highlights", channelId },
       });
       if (error) throw new Error(error.message);
       if (data?.error) throw new Error(data.error);
-      return (data?.messages ?? []) as SlackMessage[];
+      return (data?.bullets ?? []) as string[];
     },
     enabled: !!channelId,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 10 * 60 * 1000,
   });
 }

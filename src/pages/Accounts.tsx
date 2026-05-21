@@ -27,7 +27,7 @@ import { useSlackHighlights } from "@/hooks/useSlackHighlights";
 import { useRevisionStats } from "@/hooks/useRevisionStats";
 import type { ClientMonthlySpendEntry, ClientWinRate } from "@/hooks/useAccountsData";
 import type { ProcessedClientWeek } from "@/hooks/useClientWeeksData";
-import type { SlackMessage } from "@/hooks/useSlackHighlights";
+
 import type { FlaggedProject } from "@/hooks/useRevisionStats";
 import { TrendingUp, TrendingDown, Minus, MessageSquare, AlertTriangle } from "lucide-react";
 
@@ -385,73 +385,36 @@ function RevisionStatsSection({ client }: { client: string }) {
 // ─── Slack Highlights ────────────────────────────────────────────────────────
 
 function SlackHighlights({ client }: { client: string }) {
-  const { data: messages, isLoading, error } = useSlackHighlights(client);
+  const { data: bullets, isLoading, error } = useSlackHighlights(client);
 
   if (isLoading) {
     return (
       <div className="space-y-3 py-2">
         {[...Array(4)].map((_, i) => (
-          <div key={i} className="space-y-1.5">
-            <div className="h-3 w-24 bg-muted/40 rounded animate-pulse" />
-            <div className="h-4 w-full bg-muted/30 rounded animate-pulse" />
-          </div>
+          <div key={i} className="h-4 bg-muted/30 rounded animate-pulse" style={{ width: `${70 + (i % 3) * 10}%` }} />
         ))}
       </div>
     );
   }
 
-  if (error || !messages || messages.length === 0) {
+  if (error || !bullets || bullets.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-8 gap-2 text-muted-foreground">
         <MessageSquare className="h-8 w-8 opacity-40" />
-        <p className="text-sm">{error ? "Couldn't load Slack messages" : `No messages in the last 30 days`}</p>
+        <p className="text-sm">{error ? "Couldn't load Slack messages" : "No messages in the last 30 days"}</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-3">
-      {messages.map((msg: SlackMessage) => (
-        <SlackMessageRow key={msg.ts} msg={msg} />
+    <ul className="space-y-2">
+      {bullets.map((bullet, i) => (
+        <li key={i} className="flex gap-2 text-sm text-foreground/80 leading-relaxed">
+          <span className="text-primary mt-0.5 flex-shrink-0">•</span>
+          <span>{bullet}</span>
+        </li>
       ))}
-    </div>
-  );
-}
-
-function SlackMessageRow({ msg }: { msg: SlackMessage }) {
-  const date = new Date(msg.isoDate);
-  const now = new Date();
-  const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-  const timeLabel = diffDays === 0
-    ? "Today"
-    : diffDays === 1
-    ? "Yesterday"
-    : date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-
-  // Clean up Slack mention/formatting syntax for display
-  const cleanText = msg.text
-    .replace(/<@[A-Z0-9]+>/g, "@someone")
-    .replace(/<#[A-Z0-9]+\|([^>]+)>/g, "#$1")
-    .replace(/<([^|>]+)\|([^>]+)>/g, "$2")
-    .replace(/<([^>]+)>/g, "$1")
-    .replace(/\*([^*]+)\*/g, "$1")
-    .trim();
-
-  if (!cleanText) return null;
-
-  return (
-    <div className="flex gap-3 py-2 border-b border-border/30 last:border-0">
-      <div className="flex-shrink-0 w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-semibold text-primary uppercase">
-        {msg.authorName.charAt(0)}
-      </div>
-      <div className="flex-1 min-w-0 space-y-0.5">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-foreground">{msg.authorName}</span>
-          <span className="text-[11px] text-muted-foreground">{timeLabel}</span>
-        </div>
-        <p className="text-sm text-foreground/80 leading-relaxed line-clamp-3">{cleanText}</p>
-      </div>
-    </div>
+    </ul>
   );
 }
 
