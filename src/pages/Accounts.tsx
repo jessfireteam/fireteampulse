@@ -29,7 +29,12 @@ import type { ClientMonthlySpendEntry, ClientWinRate } from "@/hooks/useAccounts
 import type { ProcessedClientWeek } from "@/hooks/useClientWeeksData";
 
 import type { FlaggedProject } from "@/hooks/useRevisionStats";
-import { TrendingUp, TrendingDown, Minus, MessageSquare, AlertTriangle } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, MessageSquare, AlertTriangle, ArrowDown, ArrowUp, CheckCircle2 } from "lucide-react";
+
+// ─── Fee per deliverable thresholds ──────────────────────────────────────────
+const CPD_MIN = 1000;
+const CPD_MAX = 2000;
+const CPD_TARGET = 1500;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -233,6 +238,78 @@ function FeePerDeliverableChart({ data }: { data: ClientMonthlySpendEntry[] }) {
           <Bar dataKey="costPerDeliverable" fill="hsl(22,77%,70%)" radius={[4, 4, 0, 0]} maxBarSize={50} />
         </BarChart>
       </ResponsiveContainer>
+    </div>
+  );
+}
+
+// ─── Deliverable Recommendation ──────────────────────────────────────────────
+
+function DeliverableRecommendation({ data }: { data: ClientMonthlySpendEntry[] }) {
+  const latest = [...data]
+    .filter((d) => d.costPerDeliverable > 0 && d.ftSpend > 0)
+    .sort((a, b) => b.month.localeCompare(a.month))[0];
+
+  if (!latest) return null;
+
+  const { costPerDeliverable, ftSpend, monthLabel } = latest;
+  const recommended = Math.max(1, Math.round(ftSpend / CPD_TARGET));
+
+  type Status = "low" | "high" | "on-target";
+  let status: Status;
+  let headline: string;
+  let body: string;
+
+  if (costPerDeliverable < CPD_MIN) {
+    status = "low";
+    headline = "Reduce ad count — below profitable range";
+    body = `At ${formatCurrency(costPerDeliverable)}/deliverable in ${monthLabel}, FireTeam isn't covering costs. Based on that fee of ${formatCurrency(ftSpend)}, target ${recommended} ads next month to reach ${formatCurrency(CPD_TARGET)}/deliverable.`;
+  } else if (costPerDeliverable > CPD_MAX) {
+    status = "high";
+    headline = "Increase ad count — reinvest the margin";
+    body = `At ${formatCurrency(costPerDeliverable)}/deliverable in ${monthLabel}, there's room to do more for this client. Based on that fee of ${formatCurrency(ftSpend)}, target ${recommended} ads next month to reach ${formatCurrency(CPD_TARGET)}/deliverable.`;
+  } else {
+    status = "on-target";
+    headline = "On target — maintain current pace";
+    body = `At ${formatCurrency(costPerDeliverable)}/deliverable in ${monthLabel}, this client is in the healthy $${CPD_MIN / 1000}k–$${CPD_MAX / 1000}k range. Aim for around ${recommended} ads next month.`;
+  }
+
+  const styles: Record<Status, { wrap: string; text: string; badge: string; icon: React.ReactNode }> = {
+    low: {
+      wrap: "bg-red-500/10 border-red-500/30",
+      text: "text-red-400",
+      badge: "bg-red-500/20 text-red-400 border-red-500/30 hover:bg-red-500/20",
+      icon: <ArrowDown className="h-4 w-4 text-red-400 flex-shrink-0 mt-0.5" />,
+    },
+    high: {
+      wrap: "bg-blue-500/10 border-blue-500/30",
+      text: "text-blue-400",
+      badge: "bg-blue-500/20 text-blue-400 border-blue-500/30 hover:bg-blue-500/20",
+      icon: <ArrowUp className="h-4 w-4 text-blue-400 flex-shrink-0 mt-0.5" />,
+    },
+    "on-target": {
+      wrap: "bg-green-500/10 border-green-500/30",
+      text: "text-green-400",
+      badge: "bg-green-500/20 text-green-400 border-green-500/30 hover:bg-green-500/20",
+      icon: <CheckCircle2 className="h-4 w-4 text-green-400 flex-shrink-0 mt-0.5" />,
+    },
+  };
+
+  const s = styles[status];
+
+  return (
+    <div className={`mt-4 rounded-lg border p-4 ${s.wrap}`}>
+      <div className="flex items-start gap-3">
+        {s.icon}
+        <div className="flex-1 space-y-1.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className={`text-sm font-semibold ${s.text}`}>{headline}</p>
+            <Badge className={`text-xs font-medium ${s.badge}`}>
+              {recommended} ads next month
+            </Badge>
+          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed">{body}</p>
+        </div>
+      </div>
     </div>
   );
 }
@@ -631,6 +708,7 @@ export default function Accounts() {
               {/* Fee per Deliverable */}
               <Section title="Fee per Deliverable (monthly)">
                 <FeePerDeliverableChart data={clientMonthlySpend} />
+                <DeliverableRecommendation data={clientMonthlySpend} />
               </Section>
 
               {/* Revision Stats */}
