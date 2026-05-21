@@ -262,8 +262,8 @@ function DeliverableRecommendation({ data }: { data: ClientMonthlySpendEntry[] }
 
   if (costPerDeliverable < CPD_MIN) {
     status = "low";
-    headline = "Reduce ad count — below profitable range";
-    body = `At ${formatCurrency(costPerDeliverable)}/deliverable in ${monthLabel}, FireTeam isn't covering costs. Target ${recommended} ads next month to reach ${formatCurrency(CPD_TARGET)}/deliverable.`;
+    headline = "Reduce ad count — below ideal range";
+    body = `At ${formatCurrency(costPerDeliverable)}/deliverable in ${monthLabel}, FireTeam is over-investing relative to the fee. Target ${recommended} ads next month to reach ${formatCurrency(CPD_TARGET)}/deliverable.`;
   } else if (costPerDeliverable > CPD_MAX) {
     status = "high";
     headline = "Increase ad count — reinvest the margin";
