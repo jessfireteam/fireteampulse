@@ -34,7 +34,7 @@ import { TrendingUp, TrendingDown, Minus, MessageSquare, AlertTriangle, ArrowDow
 // ─── Fee per deliverable thresholds ──────────────────────────────────────────
 const CPD_MIN = 1000;
 const CPD_MAX = 2000;
-const CPD_TARGET = 1500;
+const CPD_TARGET = 1000;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -262,11 +262,11 @@ function DeliverableRecommendation({ data }: { data: ClientMonthlySpendEntry[] }
   if (costPerDeliverable < CPD_MIN) {
     status = "low";
     headline = "Reduce ad count — below profitable range";
-    body = `At ${formatCurrency(costPerDeliverable)}/deliverable in ${monthLabel}, FireTeam isn't covering costs. Based on that fee of ${formatCurrency(fee)}, target ${recommended} ads next month to reach ${formatCurrency(CPD_TARGET)}/deliverable.`;
+    body = `At ${formatCurrency(costPerDeliverable)}/deliverable in ${monthLabel}, FireTeam isn't covering costs. Target ${recommended} ads next month to reach ${formatCurrency(CPD_TARGET)}/deliverable.`;
   } else if (costPerDeliverable > CPD_MAX) {
     status = "high";
     headline = "Increase ad count — reinvest the margin";
-    body = `At ${formatCurrency(costPerDeliverable)}/deliverable in ${monthLabel}, there's room to do more for this client. Based on that fee of ${formatCurrency(fee)}, target ${recommended} ads next month to reach ${formatCurrency(CPD_TARGET)}/deliverable.`;
+    body = `At ${formatCurrency(costPerDeliverable)}/deliverable in ${monthLabel}, there's room to do more for this client. Target ${recommended} ads next month to reach ${formatCurrency(CPD_TARGET)}/deliverable.`;
   } else {
     status = "on-target";
     headline = "On target — maintain current pace";
