@@ -246,13 +246,13 @@ function FeePerDeliverableChart({ data }: { data: ClientMonthlySpendEntry[] }) {
 
 function DeliverableRecommendation({ data }: { data: ClientMonthlySpendEntry[] }) {
   const latest = [...data]
-    .filter((d) => d.costPerDeliverable > 0 && d.ftSpend > 0)
+    .filter((d) => d.costPerDeliverable > 0 && d.fee > 0)
     .sort((a, b) => b.month.localeCompare(a.month))[0];
 
   if (!latest) return null;
 
-  const { costPerDeliverable, ftSpend, monthLabel } = latest;
-  const recommended = Math.max(1, Math.round(ftSpend / CPD_TARGET));
+  const { costPerDeliverable, fee, monthLabel } = latest;
+  const recommended = Math.max(1, Math.round(fee / CPD_TARGET));
 
   type Status = "low" | "high" | "on-target";
   let status: Status;
@@ -262,11 +262,11 @@ function DeliverableRecommendation({ data }: { data: ClientMonthlySpendEntry[] }
   if (costPerDeliverable < CPD_MIN) {
     status = "low";
     headline = "Reduce ad count — below profitable range";
-    body = `At ${formatCurrency(costPerDeliverable)}/deliverable in ${monthLabel}, FireTeam isn't covering costs. Based on that fee of ${formatCurrency(ftSpend)}, target ${recommended} ads next month to reach ${formatCurrency(CPD_TARGET)}/deliverable.`;
+    body = `At ${formatCurrency(costPerDeliverable)}/deliverable in ${monthLabel}, FireTeam isn't covering costs. Based on that fee of ${formatCurrency(fee)}, target ${recommended} ads next month to reach ${formatCurrency(CPD_TARGET)}/deliverable.`;
   } else if (costPerDeliverable > CPD_MAX) {
     status = "high";
     headline = "Increase ad count — reinvest the margin";
-    body = `At ${formatCurrency(costPerDeliverable)}/deliverable in ${monthLabel}, there's room to do more for this client. Based on that fee of ${formatCurrency(ftSpend)}, target ${recommended} ads next month to reach ${formatCurrency(CPD_TARGET)}/deliverable.`;
+    body = `At ${formatCurrency(costPerDeliverable)}/deliverable in ${monthLabel}, there's room to do more for this client. Based on that fee of ${formatCurrency(fee)}, target ${recommended} ads next month to reach ${formatCurrency(CPD_TARGET)}/deliverable.`;
   } else {
     status = "on-target";
     headline = "On target — maintain current pace";
