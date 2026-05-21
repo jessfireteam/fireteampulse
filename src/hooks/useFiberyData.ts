@@ -149,10 +149,13 @@ function getTaskCategory(taskName: string): string {
   if (name.includes('review creative')) return 'Creative Review';
   if (name.includes('review')) return 'Review';
   if ((name.includes('edit video') || name.includes('video edit'))) return 'Video Editing';
-  if (name.includes('design') || name.includes('static')) return 'Design';
-  if (name.includes('upload')) return 'Upload';
+  // Check "assign" / coordination tasks BEFORE the design/static keyword check.
+  // "Assign Designer" contains "design" but is a PM coordination task, not actual
+  // design work — it should bucket as Assignments, not Design.
   if (name.includes('assign editor')) return 'Assign Editor';
   if (name.includes('assign')) return 'Assignments';
+  if (name.includes('design') || name.includes('static')) return 'Design';
+  if (name.includes('upload')) return 'Upload';
   if (name.includes('cast creator')) return 'Cast Creator';
   if (name.includes('footage') || name.includes('pull')) return 'Footage/Assets';
   return 'Other';
@@ -493,13 +496,19 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
     }
   });
 
-  // Dynamically add anyone with Design completions — but only if their tasks
-  // actually carry the Graphic Designer (GD) template role. Without this gate,
-  // anyone doing "Assign Designer" or "Approve static" tasks (template role PM
-  // or CD) gets sorted into the Design bucket via keyword inference.
+  // Dynamically add anyone with Design completions, with two gates:
+  //   1. They must have an actual Graphic Designer (GD) template-role
+  //      completion in the last 30 days (caught real designers like Prince
+  //      who aren't in ROLE_ASSIGNMENTS).
+  //   2. They must NOT already be explicitly mapped in ROLE_ASSIGNMENTS for a
+  //      non-Design role. If they're mapped as Account/Copywriters/etc., that
+  //      assignment is authoritative — they don't leak into Design even if a
+  //      stray GD-template task happened to close under their name (e.g.
+  //      revision-handoff tasks where the AM clicks Done).
   const existingDesign = new Set(people.filter(p => p.role === 'Design').map(p => p.name));
   Object.entries(personData).forEach(([name, taskTypes]) => {
     if (existingDesign.has(name)) return;
+    if (getAssigneeRoles(name)) return; // explicit role mapping takes precedence
     const d = taskTypes['Design'];
     if (!d || d.last30DaysTotal <= 0) return;
     const gdCompletions = personTemplateRoleLast30[name]?.['Graphic Designer (GD)'] ?? 0;
@@ -514,11 +523,12 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
     people.push({ name, role: 'Design', primaryTaskType: 'Design', taskTypes: [dRow], subtotal: dRow });
   });
 
-  // Dynamically add anyone with Video Editing completions — same role-gate
-  // pattern as Design above, scoped to Video Editor (VE) template role.
+  // Dynamically add anyone with Video Editing completions — same two gates as
+  // Design above, scoped to Video Editor (VE) template role.
   const existingVideo = new Set(people.filter(p => p.role === 'Video').map(p => p.name));
   Object.entries(personData).forEach(([name, taskTypes]) => {
     if (existingVideo.has(name)) return;
+    if (getAssigneeRoles(name)) return; // explicit role mapping takes precedence
     const v = taskTypes['Video Editing'];
     if (!v || v.last30DaysTotal <= 0) return;
     const veCompletions = personTemplateRoleLast30[name]?.['Video Editor (VE)'] ?? 0;
