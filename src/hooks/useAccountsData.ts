@@ -14,6 +14,7 @@ export interface ClientMonthlySpendEntry {
   totalSpend: number;
   ftSpend: number;
   ftPct: number;          // 0–100
+  fee: number;            // FireTeam's earned fee (revenue)
   costPerDeliverable: number;
   deliverables: number;
 }
@@ -74,6 +75,7 @@ function processMonthlySpend(
       totalSpend,
       ftSpend,
       ftPct: Math.round(ftPct * 10) / 10,
+      fee: Math.round(effectiveRevenue),
       costPerDeliverable: Math.round(costPerDeliverable),
       deliverables,
     });
