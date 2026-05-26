@@ -149,10 +149,12 @@ function getTaskCategory(taskName: string): string {
   if (name.includes('review creative')) return 'Creative Review';
   if (name.includes('review')) return 'Review';
   if ((name.includes('edit video') || name.includes('video edit'))) return 'Video Editing';
-  if (name.includes('design') || name.includes('static')) return 'Design';
-  if (name.includes('upload')) return 'Upload';
+  // Check "assign" coordination tasks BEFORE the design/static keyword check.
+  // "Assign Designer" contains "design" but is a PM task, not design work.
   if (name.includes('assign editor')) return 'Assign Editor';
   if (name.includes('assign')) return 'Assignments';
+  if (name.includes('design') || name.includes('static')) return 'Design';
+  if (name.includes('upload')) return 'Upload';
   if (name.includes('cast creator')) return 'Cast Creator';
   if (name.includes('footage') || name.includes('pull')) return 'Footage/Assets';
   return 'Other';
@@ -187,24 +189,42 @@ export interface RoleGroup {
 // Departed team members — excluded from capacity summary bars (but historical completions still count)
 export const EXCLUDED_MEMBERS = new Set(['riteesh@fireteam.is']);
 
-// Explicit role assignments with primary task types
-// Keys are the Fibery user display name (`user/name`), NOT the email — that's what
-// the edge function returns as `assignee.name` and what the capacity matcher
-// compares against. Amanda + Shreya were previously keyed by email and
-// silently disappeared from the capacity dashboard. Keep this in sync with
-// Fibery display names; if a teammate is renamed there, update here too.
+// Explicit role assignments with primary task types.
+//
+// ROLE_ASSIGNMENTS is now the SINGLE SOURCE OF TRUTH for who appears on each
+// Team Capacity role card. Previously, the system also did keyword-based
+// dynamic-adds (anyone with "design"-bucketed completions got pushed onto the
+// Design card, anyone with "video edit"-bucketed completions onto Video, etc.)
+// — which produced a cascade of false positives whenever a task name happened
+// to contain "design" / "static" / "edit video" but was actually PM / AM /
+// approval work. That auto-promotion has been removed; if someone does the
+// work and you want them on a role card, add them here explicitly.
+//
+// Keys are the Fibery user display name (`user/name`), NOT the email — that's
+// what the edge function returns as `assignee.name`. Keep in sync with Fibery
+// display names; if a teammate is renamed there, update here too.
 const ROLE_ASSIGNMENTS: Record<string, { role: RoleType; primaryTaskType: string }[]> = {
+  // Account
   'Niki Brazier': [{ role: 'Account', primaryTaskType: 'Briefs Sent' }, { role: 'Creative Review', primaryTaskType: 'Creative Review' }],
   'Emily Peter': [{ role: 'Account', primaryTaskType: 'Briefs Sent' }, { role: 'Creative Review', primaryTaskType: 'Creative Review' }],
   'Amanda': [{ role: 'Account', primaryTaskType: 'Briefs Sent' }, { role: 'Creative Review', primaryTaskType: 'Creative Review' }],
+  // Copywriters
   'Jess Bachman': [{ role: 'Copywriters', primaryTaskType: 'Brief Work' }, { role: 'Creative Review', primaryTaskType: 'Creative Review' }],
   'riteesh@fireteam.is': [{ role: 'Copywriters', primaryTaskType: 'Brief Work' }],
   'Shreya': [{ role: 'Copywriters', primaryTaskType: 'Brief Work' }],
+  // Design (internal + Prince as external GD contractor)
   'Erik Furtado': [{ role: 'Design', primaryTaskType: 'Design' }],
   'Reynelle Reid': [{ role: 'Design', primaryTaskType: 'Design' }],
+  'Prince': [{ role: 'Design', primaryTaskType: 'Design' }],
+  // Video (internal + Alex as external VE contractor; Sanchit Singh corrects
+  // the previous "Sanchit"-keyed entry that never matched the Fibery display name)
   'Vaiv Singh': [{ role: 'Video', primaryTaskType: 'Video Editing' }],
-  'Sanchit': [{ role: 'Video', primaryTaskType: 'Video Editing' }],
+  'Sanchit Singh': [{ role: 'Video', primaryTaskType: 'Video Editing' }],
   'Ike': [{ role: 'Video', primaryTaskType: 'Video Editing' }],
+  'Alex': [{ role: 'Video', primaryTaskType: 'Video Editing' }],
+  // Other / Ops / PM
+  'Angelia Saplan': [{ role: 'Other', primaryTaskType: 'Assignments' }],
+  'Rachyl Jackson': [{ role: 'Other', primaryTaskType: 'Other' }],
   'Kenny Fisher': [{ role: 'Other', primaryTaskType: 'Assign Editor' }],
   'Nicolle Valladares': [{ role: 'Other', primaryTaskType: 'Cast Creator' }],
   'Jada Hall': [{ role: 'Other', primaryTaskType: 'Upload' }],
@@ -314,19 +334,11 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
     last30DaysTotal: number;
   }>> = {};
 
-  // Separate per-person tally of the *actual* taskTemplateRole on the last
-  // 30 days of completed tasks. Used to gate the dynamic Design/Video
-  // role-buckets — getTaskCategory() infers from the task NAME (so "Assign
-  // Designer" gets bucketed as Design even though the template role is PM),
-  // which puts approvers/reviewers into the wrong role section.
-  const personTemplateRoleLast30: Record<string, Record<string, number>> = {};
-
   filteredTasks.forEach((task) => {
     const assigneeName = task.assignee?.name;
     if (!assigneeName) return;
 
     const taskType = getTaskCategory(task.name);
-    const templateRoleName = task.taskTemplateRole?.name ?? null;
 
     if (!personData[assigneeName]) {
       personData[assigneeName] = {};
@@ -351,11 +363,6 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
 
       if (doneDate >= last30Days && doneDate <= today) {
         data.last30DaysTotal++;
-        if (templateRoleName) {
-          if (!personTemplateRoleLast30[assigneeName]) personTemplateRoleLast30[assigneeName] = {};
-          personTemplateRoleLast30[assigneeName][templateRoleName] =
-            (personTemplateRoleLast30[assigneeName][templateRoleName] ?? 0) + 1;
-        }
       }
       
       weeks.forEach((week, index) => {
@@ -439,99 +446,14 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
     });
   });
 
-  // Dynamically add anyone with Brief Work completions to Copywriters
-  const existingCopywriters = new Set(people.filter(p => p.role === 'Copywriters').map(p => p.name));
-  Object.entries(personData).forEach(([name, taskTypes]) => {
-    if (existingCopywriters.has(name)) return;
-    const briefWork = taskTypes['Brief Work'];
-    if (briefWork && briefWork.last30DaysTotal > 0) {
-      // Only show the Brief Work row for dynamic copywriters
-      const briefWorkRow: TaskTypeRow = {
-        taskType: 'Brief Work',
-        avg30Day: briefWork.last30DaysTotal,
-        weekCounts: [...briefWork.weekCounts].reverse(),
-        maxWeek26: Math.max(...briefWork.weekCounts26),
-        inheritedOverdue: briefWork.inheritedOverdue,
-        trueOverdue: briefWork.trueOverdue,
-        due7Days: briefWork.due7Days,
-        due30Days: briefWork.due30Days,
-      };
-
-      people.push({
-        name,
-        role: 'Copywriters',
-        primaryTaskType: 'Brief Work',
-        taskTypes: [briefWorkRow],
-        subtotal: briefWorkRow,
-      });
-    }
-  });
-
-  // Dynamically add anyone with Creative Review completions
-  const existingCR = new Set(people.filter(p => p.role === 'Creative Review').map(p => p.name));
-  Object.entries(personData).forEach(([name, taskTypes]) => {
-    if (existingCR.has(name)) return;
-    const cr = taskTypes['Creative Review'];
-    if (cr && cr.last30DaysTotal > 0) {
-      const crRow: TaskTypeRow = {
-        taskType: 'Creative Review',
-        avg30Day: cr.last30DaysTotal,
-        weekCounts: [...cr.weekCounts].reverse(),
-        maxWeek26: Math.max(...cr.weekCounts26),
-        inheritedOverdue: cr.inheritedOverdue,
-        trueOverdue: cr.trueOverdue,
-        due7Days: cr.due7Days,
-        due30Days: cr.due30Days,
-      };
-      people.push({
-        name,
-        role: 'Creative Review',
-        primaryTaskType: 'Creative Review',
-        taskTypes: [crRow],
-        subtotal: crRow,
-      });
-    }
-  });
-
-  // Dynamically add anyone with Design completions — but only if their tasks
-  // actually carry the Graphic Designer (GD) template role. Without this gate,
-  // anyone doing "Assign Designer" or "Approve static" tasks (template role PM
-  // or CD) gets sorted into the Design bucket via keyword inference.
-  const existingDesign = new Set(people.filter(p => p.role === 'Design').map(p => p.name));
-  Object.entries(personData).forEach(([name, taskTypes]) => {
-    if (existingDesign.has(name)) return;
-    const d = taskTypes['Design'];
-    if (!d || d.last30DaysTotal <= 0) return;
-    const gdCompletions = personTemplateRoleLast30[name]?.['Graphic Designer (GD)'] ?? 0;
-    if (gdCompletions <= 0) return;
-    const dRow: TaskTypeRow = {
-      taskType: 'Design',
-      avg30Day: d.last30DaysTotal,
-      weekCounts: [...d.weekCounts].reverse(),
-      maxWeek26: Math.max(...d.weekCounts26),
-      inheritedOverdue: d.inheritedOverdue, trueOverdue: d.trueOverdue, due7Days: d.due7Days, due30Days: d.due30Days,
-    };
-    people.push({ name, role: 'Design', primaryTaskType: 'Design', taskTypes: [dRow], subtotal: dRow });
-  });
-
-  // Dynamically add anyone with Video Editing completions — same role-gate
-  // pattern as Design above, scoped to Video Editor (VE) template role.
-  const existingVideo = new Set(people.filter(p => p.role === 'Video').map(p => p.name));
-  Object.entries(personData).forEach(([name, taskTypes]) => {
-    if (existingVideo.has(name)) return;
-    const v = taskTypes['Video Editing'];
-    if (!v || v.last30DaysTotal <= 0) return;
-    const veCompletions = personTemplateRoleLast30[name]?.['Video Editor (VE)'] ?? 0;
-    if (veCompletions <= 0) return;
-    const vRow: TaskTypeRow = {
-      taskType: 'Video Editing',
-      avg30Day: v.last30DaysTotal,
-      weekCounts: [...v.weekCounts].reverse(),
-      maxWeek26: Math.max(...v.weekCounts26),
-      inheritedOverdue: v.inheritedOverdue, trueOverdue: v.trueOverdue, due7Days: v.due7Days, due30Days: v.due30Days,
-    };
-    people.push({ name, role: 'Video', primaryTaskType: 'Video Editing', taskTypes: [vRow], subtotal: vRow });
-  });
+  // NOTE: Previously this section had four "Dynamically add anyone with X
+  // completions" blocks (Brief Work / Creative Review / Design / Video) that
+  // promoted people onto role cards based on keyword-bucketed task counts.
+  // That mechanism repeatedly produced false positives — task names like
+  // "Assign Designer", "Approve static", "Review static comp" all matched
+  // keyword filters and pulled approvers/PMs into design/video role cards
+  // they had no business being on. ROLE_ASSIGNMENTS above is now the single
+  // source of truth; if someone does the work, add them there explicitly.
 
   people.sort((a, b) => b.subtotal.avg30Day - a.subtotal.avg30Day);
 
