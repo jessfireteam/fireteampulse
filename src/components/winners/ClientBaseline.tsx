@@ -8,12 +8,16 @@ interface Props {
   clients: ClientStat[];
 }
 
+// Client win-rate baseline color tiers. Tightened to match how we actually
+// think about these numbers: green is the truly strong baselines, yellow is
+// a broad on-par band (anything with at least some wins), red is zero.
+// Previous thresholds (4% → green, 2.5% → yellow, 1.5% → orange) put 8 of
+// 13 active clients in green, which made the dashboard feel like everything
+// was fine. New cutoffs: 12% = green, anything >0 = yellow, 0 = red.
 function rateColor(rate: number): string {
-  if (rate > 0.04) return "text-emerald-400 border-emerald-400/30 bg-emerald-400/10";
-  if (rate > 0.025) return "text-yellow-400 border-yellow-400/30 bg-yellow-400/10";
-  if (rate > 0.015) return "text-orange-400 border-orange-400/30 bg-orange-400/10";
-  if (rate > 0) return "text-red-400 border-red-400/30 bg-red-400/10";
-  return "text-red-300 border-red-500/30 bg-red-500/10";
+  if (rate >= 0.12) return "text-emerald-400 border-emerald-400/30 bg-emerald-400/10";
+  if (rate > 0) return "text-yellow-400 border-yellow-400/30 bg-yellow-400/10";
+  return "text-red-400 border-red-500/30 bg-red-500/10";
 }
 
 export function ClientBaseline({ clients }: Props) {
