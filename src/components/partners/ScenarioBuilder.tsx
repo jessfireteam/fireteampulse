@@ -3,12 +3,11 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SectionHeader } from "@/components/dashboard/SectionHeader";
-import type { ClientBaseline, ScenarioClient } from "@/lib/forecast/types";
+import type { ScenarioClient } from "@/lib/forecast/types";
 import { cn } from "@/lib/utils";
 
 interface Props {
   clients: ScenarioClient[];
-  baselines: ClientBaseline[];
   horizonMonths: number;
   onUpdate: (id: string, patch: Partial<ScenarioClient>) => void;
   onAdd: () => void;
@@ -25,9 +24,7 @@ function TrendBadge({ pct }: { pct: number | null }) {
   );
 }
 
-export function ScenarioBuilder({ clients, baselines, horizonMonths, onUpdate, onAdd, onRemove }: Props) {
-  const trendFor = (name: string) => baselines.find((b) => b.client === name)?.trendPct ?? null;
-
+export function ScenarioBuilder({ clients, horizonMonths, onUpdate, onAdd, onRemove }: Props) {
   return (
     <div className="space-y-3">
       <SectionHeader title="Scenario" />
@@ -40,7 +37,7 @@ export function ScenarioBuilder({ clients, baselines, horizonMonths, onUpdate, o
               value={c.name}
               onChange={(e) => onUpdate(c.id, { name: e.target.value })}
             />
-            {!c.hypothetical && <TrendBadge pct={trendFor(c.name)} />}
+            {!c.hypothetical && <TrendBadge pct={c.trendPct ?? null} />}
             <label className="text-xs text-muted-foreground">assets/mo</label>
             <Input
               type="number"
@@ -51,6 +48,7 @@ export function ScenarioBuilder({ clients, baselines, horizonMonths, onUpdate, o
             />
             <label className="text-xs text-muted-foreground">start</label>
             <select
+              aria-label="Start month"
               className="bg-background border border-border/50 rounded px-1 py-1 text-sm"
               value={c.startMonthIndex}
               onChange={(e) => onUpdate(c.id, { startMonthIndex: parseInt(e.target.value) })}
@@ -61,7 +59,7 @@ export function ScenarioBuilder({ clients, baselines, horizonMonths, onUpdate, o
                 </option>
               ))}
             </select>
-            <Button variant="ghost" size="sm" onClick={() => onRemove(c.id)}>
+            <Button aria-label="Remove client" variant="ghost" size="sm" onClick={() => onRemove(c.id)}>
               ✕
             </Button>
           </div>

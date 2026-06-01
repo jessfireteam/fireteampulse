@@ -19,6 +19,7 @@ export function useScenario(baselines: ClientBaseline[]) {
         assetsPerMonth: b.monthlyRate,
         enabled: true,
         hypothetical: false,
+        trendPct: b.trendPct,
       })),
     );
     setSeeded(true);

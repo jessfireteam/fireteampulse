@@ -51,6 +51,8 @@ export interface ScenarioClient {
   enabled: boolean;
   /** true when added by a partner (not seeded from history). */
   hypothetical: boolean;
+  /** Carried from the seeding baseline so the trend survives a name edit; undefined for hypotheticals. */
+  trendPct?: number | null;
 }
 
 export type RoleStatus = "ok" | "warning" | "critical" | "over";

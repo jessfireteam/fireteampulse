@@ -34,7 +34,6 @@ function PartnersInner() {
         <div className="space-y-8">
           <ScenarioBuilder
             clients={clients}
-            baselines={baselines}
             horizonMonths={HORIZON_MONTHS}
             onUpdate={update}
             onAdd={addClient}
