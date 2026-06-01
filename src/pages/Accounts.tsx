@@ -182,7 +182,8 @@ function WeeklyFTChart({ data }: { data: ProcessedClientWeek[] }) {
 // ─── Fee per Deliverable chart (monthly) ─────────────────────────────────────
 
 function FeePerDeliverableChart({ data }: { data: ClientMonthlySpendEntry[] }) {
-  const chartData = data.filter((d) => d.costPerDeliverable > 0);
+  const currentMonthStr = format(new Date(), "yyyy-MM");
+  const chartData = data.filter((d) => d.costPerDeliverable > 0 && d.month < currentMonthStr);
   if (chartData.length === 0) return <EmptyState label="fee per deliverable" />;
 
   return (
