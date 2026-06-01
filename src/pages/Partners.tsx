@@ -3,6 +3,7 @@ import { addMonths, format, subMonths } from "date-fns";
 import { PartnerGate } from "@/components/partners/PartnerGate";
 import { useForecastData } from "@/hooks/useForecastData";
 import { useScenario } from "@/hooks/useScenario";
+import { useAuth } from "@/hooks/useAuth";
 import { runForecast } from "@/lib/forecast/engine";
 import { HORIZON_MONTHS, HISTORY_MONTHS } from "@/lib/forecast/types";
 import { ScenarioBuilder } from "@/components/partners/ScenarioBuilder";
@@ -12,7 +13,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 function PartnersInner() {
   const { peaks, histories, isLoading, error } = useForecastData();
-  const { clients, update, addClient, removeClient } = useScenario(histories);
+  const { user } = useAuth();
+  const { clients, update, addClient, removeClient, saveState } = useScenario(histories, user?.email);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const monthLabels = useMemo(
@@ -35,7 +37,12 @@ function PartnersInner() {
 
   return (
     <div className="container mx-auto p-6 space-y-8">
-      <h1 className="text-2xl font-semibold">Partners — Capacity Forecast</h1>
+      <div className="flex items-center gap-3">
+        <h1 className="text-2xl font-semibold">Partners — Capacity Forecast</h1>
+        {saveState === "saving" && <span className="text-xs text-muted-foreground">Saving…</span>}
+        {saveState === "saved" && <span className="text-xs text-muted-foreground">Saved</span>}
+        {saveState === "error" && <span className="text-xs text-destructive">Save failed</span>}
+      </div>
       <ForecastChart result={result} />
       <HireTimeline result={result} />
       <ScenarioBuilder
