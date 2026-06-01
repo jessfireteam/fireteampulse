@@ -660,7 +660,7 @@ describe("isPartner", () => {
     expect(isPartner("Jess@FireTeam.is")).toBe(true);
   });
   it("rejects a non-partner fireteam email", () => {
-    expect(isPartner("rachyl@fireteam.is")).toBe(false);
+    expect(isPartner("emily@fireteam.is")).toBe(false);
   });
   it("rejects null/undefined", () => {
     expect(isPartner(null)).toBe(false);
@@ -685,8 +685,8 @@ Expected: FAIL — `isPartner` not defined.
  */
 export const PARTNER_EMAILS = new Set<string>([
   "jess@fireteam.is",
-  "REPLACE_ME_PARTNER_2@fireteam.is",
-  "REPLACE_ME_PARTNER_3@fireteam.is",
+  "rachyl@fireteam.is",
+  "niki@fireteam.is",
 ]);
 
 export function isPartner(email?: string | null): boolean {
@@ -698,7 +698,7 @@ export function isPartner(email?: string | null): boolean {
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run src/lib/__tests__/partners.test.ts`
-Expected: PASS (3 tests). The `rachyl@` test passes regardless of the placeholder emails.
+Expected: PASS (3 tests). `emily@fireteam.is` is a non-partner control.
 
 - [ ] **Step 5: Commit**
 
