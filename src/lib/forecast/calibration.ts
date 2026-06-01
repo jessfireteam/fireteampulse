@@ -29,16 +29,34 @@ export function computeRolePeaks(roleGroups: RoleGroup[]): RolePeaks {
 
 interface MinimalProject { doneDate: string | null }
 
+/**
+ * Parse a Fibery date as a local-midnight Date so date-only strings line up with
+ * the local week boundaries date-fns produces (avoids a one-day TZ drift in
+ * negative-offset timezones). Datetime strings parse as-is.
+ */
+function parseLocalDate(d: string): Date {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+    const [y, m, day] = d.split("-").map(Number);
+    return new Date(y, m - 1, day);
+  }
+  return new Date(d);
+}
+
 export function computeCalibration(
   tasks: Task[],
   projects: MinimalProject[],
   referenceDate: Date,
   windowWeeks: number,
 ): Calibration {
-  const windowStart = startOfWeek(subWeeks(referenceDate, windowWeeks), { weekStartsOn: 1 });
-  const windowEnd = endOfWeek(subWeeks(referenceDate, 1), { weekStartsOn: 1 });
+  const refLocal = new Date(
+    referenceDate.getUTCFullYear(),
+    referenceDate.getUTCMonth(),
+    referenceDate.getUTCDate(),
+  );
+  const windowStart = startOfWeek(subWeeks(refLocal, windowWeeks), { weekStartsOn: 1 });
+  const windowEnd = endOfWeek(subWeeks(refLocal, 1), { weekStartsOn: 1 });
   const inWindow = (d: string | null) =>
-    !!d && isWithinInterval(new Date(d), { start: windowStart, end: windowEnd });
+    !!d && isWithinInterval(parseLocalDate(d), { start: windowStart, end: windowEnd });
 
   const assetCount = projects.filter((p) => inWindow(p.doneDate)).length;
 
