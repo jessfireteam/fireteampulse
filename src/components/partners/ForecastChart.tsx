@@ -1,5 +1,5 @@
 // src/components/partners/ForecastChart.tsx
-import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis, Legend } from "recharts";
+import { Line, LineChart, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis, Legend } from "recharts";
 import { FORECAST_ROLES, type ForecastResult } from "@/lib/forecast/types";
 import { SectionHeader } from "@/components/dashboard/SectionHeader";
 
@@ -30,6 +30,9 @@ export function ForecastChart({ result }: { result: ForecastResult }) {
             <YAxis tick={{ fontSize: 12 }} domain={[0, "dataMax + 20"]} unit="%" />
             <Tooltip />
             <Legend />
+            <ReferenceArea y1={50} y2={75} fill="#10b981" fillOpacity={0.08} />
+            <ReferenceArea y1={75} y2={85} fill="#f59e0b" fillOpacity={0.1} />
+            <ReferenceArea y1={85} y2={1000} fill="#ef4444" fillOpacity={0.1} />
             <ReferenceLine y={100} stroke="#ef4444" strokeDasharray="4 4" label="peak" />
             {FORECAST_ROLES.map((role) => (
               <Line
