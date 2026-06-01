@@ -1,6 +1,6 @@
 // src/lib/forecast/__tests__/calibration.test.ts
 import { describe, it, expect } from "vitest";
-import { computeRolePeaks, computeCalibration } from "../calibration";
+import { computeRolePeaks, computeCalibration, computeTypedCalibration } from "../calibration";
 import type { RoleGroup } from "@/hooks/useFiberyData";
 import type { Task } from "@/lib/fibery";
 
@@ -55,5 +55,26 @@ describe("computeCalibration", () => {
     const now = new Date(2026, 5, 1);
     const cal = computeCalibration([], [], now, 12);
     expect(cal.Design).toBe(0);
+  });
+});
+
+describe("computeTypedCalibration", () => {
+  const now = new Date(2026, 5, 1);
+  const inWindow = "2026-05-15";
+  it("derives separate per-video and per-static role ratios via project-name join", () => {
+    // 1 video project + 1 static project in window; tasks attributed by project name
+    const projects = [
+      { doneDate: inWindow, name: "Spring UGC Video", client: { name: "C" }, type: { name: "Video" } },
+      { doneDate: inWindow, name: "Spring Static", client: { name: "C" }, type: { name: "Static" } },
+    ];
+    const tasks = [
+      { id: "1", name: "Edit video", done: true, doneDate: inWindow, dueDate: null, assignee: { name: "X" }, taskTemplateRole: null, project: { name: "Spring UGC Video", client: { name: "C" }, status: null } },
+      { id: "2", name: "Design the static", done: true, doneDate: inWindow, dueDate: null, assignee: { name: "X" }, taskTemplateRole: null, project: { name: "Spring Static", client: { name: "C" }, status: null } },
+    ];
+    const cal = computeTypedCalibration(tasks as never, projects as never, now, 12);
+    expect(cal.video.Video).toBeCloseTo(1, 5);   // 1 edit task / 1 video asset
+    expect(cal.static.Design).toBeCloseTo(1, 5);  // 1 design task / 1 static asset
+    expect(cal.video.Design).toBe(0);             // no design tasks on videos
+    expect(cal.static.Video).toBe(0);
   });
 });

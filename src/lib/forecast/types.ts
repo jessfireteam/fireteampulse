@@ -35,6 +35,25 @@ export type RolePeaks = Record<ForecastRoleKey, number>;
 /** role -> role-tasks generated per delivered asset (calibration ratio). */
 export type Calibration = Record<ForecastRoleKey, number>;
 
+/** role -> tasks generated per asset, one ratio set per asset type. */
+export interface TypedCalibration {
+  video: Calibration;
+  static: Calibration;
+}
+
+/** Months of read-only historical actuals shown left of the editable future. */
+export const HISTORY_MONTHS = 3;
+
+export interface ClientHistory {
+  client: string;
+  /** length HISTORY_MONTHS, oldest -> newest. */
+  videosByMonth: number[];
+  staticsByMonth: number[];
+  /** suggested flat seed for the future grid (recent monthly run-rate, per type). */
+  seedVideos: number;
+  seedStatics: number;
+}
+
 export interface ClientBaseline {
   client: string;
   /** Recent run-rate in assets/month from the last 4 completed weeks. */
@@ -48,13 +67,12 @@ export interface ClientBaseline {
 export interface ScenarioClient {
   id: string;
   name: string;
-  /** One asset count per forecast month; length === horizon (12). */
-  assetsByMonth: number[];
+  /** per-month video counts; length === HORIZON_MONTHS. */
+  videosByMonth: number[];
+  /** per-month static counts; length === HORIZON_MONTHS. */
+  staticsByMonth: number[];
   enabled: boolean;
-  /** true when added by a partner (not seeded from history). */
   hypothetical: boolean;
-  /** Carried from the seeding baseline so the trend survives a name edit; undefined for hypotheticals. */
-  trendPct?: number | null;
 }
 
 export type RoleStatus = "ok" | "warning" | "critical" | "over";

@@ -3,7 +3,7 @@ import { addMonths, format } from "date-fns";
 import {
   FORECAST_ROLES,
   WEEKS_PER_MONTH,
-  type Calibration,
+  type TypedCalibration,
   type ForecastMonth,
   type ForecastResult,
   type ForecastRoleKey,
@@ -24,7 +24,7 @@ const ROLE_KEYS = FORECAST_ROLES.map((r) => r.key);
 
 export function runForecast(
   scenario: ScenarioClient[],
-  calibration: Calibration,
+  calibration: TypedCalibration,
   peaks: RolePeaks,
   horizonMonths: number,
   referenceDate: Date,
@@ -36,15 +36,19 @@ export function runForecast(
   }, {} as Record<ForecastRoleKey, number | null>);
 
   for (let m = 0; m < horizonMonths; m++) {
-    const assets = scenario
-      .filter((c) => c.enabled)
-      .reduce((sum, c) => sum + (c.assetsByMonth[m] ?? 0), 0);
-    const assetsPerWeek = assets / WEEKS_PER_MONTH;
+    const enabled = scenario.filter((c) => c.enabled);
+    const videos = enabled.reduce((sum, c) => sum + (c.videosByMonth[m] ?? 0), 0);
+    const statics = enabled.reduce((sum, c) => sum + (c.staticsByMonth[m] ?? 0), 0);
+    const assets = videos + statics;
+    const videosPerWeek = videos / WEEKS_PER_MONTH;
+    const staticsPerWeek = statics / WEEKS_PER_MONTH;
 
     const roles = {} as Record<ForecastRoleKey, RoleMonthCell>;
     ROLE_KEYS.forEach((key) => {
       const peak = peaks[key] ?? 0;
-      const demandPerWeek = assetsPerWeek * (calibration[key] ?? 0);
+      const demandPerWeek =
+        videosPerWeek * (calibration.video[key] ?? 0) +
+        staticsPerWeek * (calibration.static[key] ?? 0);
       const utilization = peak > 0 ? demandPerWeek / peak : 0;
       const status = statusFor(utilization);
       roles[key] = { role: key, demandPerWeek, peak, utilization, status };
