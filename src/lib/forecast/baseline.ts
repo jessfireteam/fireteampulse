@@ -1,25 +1,11 @@
 // src/lib/forecast/baseline.ts
 import { startOfWeek, endOfWeek, subWeeks, isWithinInterval } from "date-fns";
 import { WEEKS_PER_MONTH, type ClientBaseline } from "./types";
+import { parseLocalDate } from "./dates";
 
 interface MinimalProject {
   doneDate: string | null;
   client: { name: string } | null;
-}
-
-/**
- * Parse a Fibery date as a local-midnight Date. Date-only strings ("2026-05-04")
- * otherwise parse as UTC midnight, which drifts across local week boundaries
- * produced by date-fns and mis-buckets completions by a day in negative-offset
- * timezones. Datetime strings are parsed as-is.
- */
-function parseLocalDate(d: string): Date {
-  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.exec(d);
-  if (dateOnly) {
-    const [y, m, day] = d.split("-").map(Number);
-    return new Date(y, m - 1, day);
-  }
-  return new Date(d);
 }
 
 export function computeClientBaselines(
@@ -27,16 +13,9 @@ export function computeClientBaselines(
   referenceDate: Date,
   windowWeeks: number,
 ): ClientBaseline[] {
-  // Anchor week boundaries on the local-midnight of the reference calendar day so
-  // they line up with the local-midnight doneDates parsed below (see parseLocalDate).
-  const refLocal = new Date(
-    referenceDate.getUTCFullYear(),
-    referenceDate.getUTCMonth(),
-    referenceDate.getUTCDate(),
-  );
   const weeks = Array.from({ length: windowWeeks }, (_, i) => {
     const weeksAgo = windowWeeks - i;
-    const start = startOfWeek(subWeeks(refLocal, weeksAgo), { weekStartsOn: 1 });
+    const start = startOfWeek(subWeeks(referenceDate, weeksAgo), { weekStartsOn: 1 });
     const end = endOfWeek(start, { weekStartsOn: 1 });
     return { start, end };
   });

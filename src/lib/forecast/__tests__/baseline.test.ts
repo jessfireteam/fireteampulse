@@ -7,7 +7,7 @@ function p(client: string, doneDate: string) {
 }
 
 describe("computeClientBaselines", () => {
-  const now = new Date("2026-06-01T00:00:00Z");
+  const now = new Date(2026, 5, 1);
 
   it("derives monthly run-rate from the last 4 completed weeks", () => {
     const projects = [

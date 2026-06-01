@@ -29,15 +29,6 @@ export function runForecast(
   horizonMonths: number,
   referenceDate: Date,
 ): ForecastResult {
-  // Anchor labels on the reference calendar day in local time so that a
-  // UTC-midnight referenceDate doesn't render the prior month in negative-offset
-  // timezones.
-  const refLocal = new Date(
-    referenceDate.getUTCFullYear(),
-    referenceDate.getUTCMonth(),
-    referenceDate.getUTCDate(),
-  );
-
   const months: ForecastMonth[] = [];
   const hireByRole = ROLE_KEYS.reduce((acc, k) => {
     acc[k] = null;
@@ -62,7 +53,7 @@ export function runForecast(
 
     months.push({
       monthIndex: m,
-      label: format(addMonths(refLocal, m), "MMM yy"),
+      label: format(addMonths(referenceDate, m), "MMM yy"),
       assets,
       roles,
     });

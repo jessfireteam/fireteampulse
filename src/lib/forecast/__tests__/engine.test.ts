@@ -15,7 +15,7 @@ function client(over: Partial<ScenarioClient>): ScenarioClient {
 }
 
 describe("runForecast", () => {
-  const ref = new Date("2026-06-01T00:00:00Z");
+  const ref = new Date(2026, 5, 1);
 
   it("produces `horizon` months with cumulative active demand", () => {
     const scenario = [client({ assetsPerMonth: 43.45 })];

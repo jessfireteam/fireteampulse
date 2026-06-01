@@ -40,7 +40,7 @@ describe("computeRolePeaks", () => {
 
 describe("computeCalibration", () => {
   it("computes role-tasks per delivered asset over the window", () => {
-    const now = new Date("2026-06-01T00:00:00Z");
+    const now = new Date(2026, 5, 1);
     const inWindow = "2026-05-15";
     const tasks: Task[] = [
       task("Design the static", inWindow),
@@ -52,7 +52,7 @@ describe("computeCalibration", () => {
   });
 
   it("returns 0 for a role with no completed assets in window", () => {
-    const now = new Date("2026-06-01T00:00:00Z");
+    const now = new Date(2026, 5, 1);
     const cal = computeCalibration([], [], now, 12);
     expect(cal.Design).toBe(0);
   });
