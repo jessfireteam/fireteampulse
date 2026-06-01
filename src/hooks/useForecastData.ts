@@ -1,6 +1,8 @@
 // src/hooks/useForecastData.ts
 import { useMemo } from "react";
-import { useTasksData, useProjectsData, processTasksForCapacity } from "@/hooks/useFiberyData";
+import { useQuery } from "@tanstack/react-query";
+import { queryFibery, type ProjectCompletionsResponse } from "@/lib/fibery";
+import { useTasksData, processTasksForCapacity } from "@/hooks/useFiberyData";
 import { computeRolePeaks, computeTypedCalibration } from "@/lib/forecast/calibration";
 import { computeClientHistory } from "@/lib/forecast/history";
 import { HISTORY_MONTHS, type ClientHistory, type RolePeaks, type TypedCalibration } from "@/lib/forecast/types";
@@ -17,7 +19,12 @@ export interface ForecastData {
 
 export function useForecastData(): ForecastData {
   const tasksQuery = useTasksData();
-  const projectsQuery = useProjectsData();
+  const projectsQuery = useQuery({
+    queryKey: ["fibery-project-completions"],
+    queryFn: () => queryFibery<ProjectCompletionsResponse>("project-completions"),
+    staleTime: 5 * 60 * 1000,
+    retry: 2,
+  });
 
   return useMemo(() => {
     const now = new Date();

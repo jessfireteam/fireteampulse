@@ -10,4 +10,9 @@ describe("classifyAssetType", () => {
     expect(classifyAssetType("New Reel for TikTok", null)).toBe("video");
     expect(classifyAssetType("Headline test", null)).toBe("static");
   });
+  it("treats STATIC - UGC as static (static wins over ugc)", () => {
+    expect(classifyAssetType("BE - Woman Outdoors", "STATIC - UGC")).toBe("static");
+    expect(classifyAssetType("X", "STATIC")).toBe("static");
+    expect(classifyAssetType("X", "VIDEO - LoFi")).toBe("video");
+  });
 });
