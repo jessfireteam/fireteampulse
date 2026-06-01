@@ -32,15 +32,6 @@ export const HORIZON_MONTHS = 12;
 /** role -> peak role-tasks/week (supply ceiling). */
 export type RolePeaks = Record<ForecastRoleKey, number>;
 
-/** role -> role-tasks generated per delivered asset (calibration ratio). */
-export type Calibration = Record<ForecastRoleKey, number>;
-
-/** role -> tasks generated per asset, one ratio set per asset type. */
-export interface TypedCalibration {
-  video: Calibration;
-  static: Calibration;
-}
-
 /** Months of read-only historical actuals shown left of the editable future. */
 export const HISTORY_MONTHS = 3;
 

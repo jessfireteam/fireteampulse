@@ -59,22 +59,39 @@ Existing clients are pre-seeded with a forward assets/month value that reflects 
 - **Forward input** = partner-entered assets/month, **pre-filled** with the baseline rate, displayed beside the trend signal so the partner sets the number with trajectory in view.
 - **No auto-extrapolation** of the slope into the forecast by default. Weekly delivery data is noisy and partners have better forward knowledge than a regression. (Optional "project the trend forward" toggle is a fast follow, not v1.)
 
-### The scenario model
+### The scenario model (revised after first live review)
 
-A scenario is a list of clients, each with:
+A scenario is an editable **grid**: clients as rows, the next **12 months** as columns, every cell an editable asset count for that client that month. Each client row carries:
 
 - **name**
-- **start month** (when they begin contributing demand)
-- **assets/month** (forward input, pre-filled per above for existing clients; partner-estimated for hypotheticals)
+- **assetsByMonth** — an array of 12 monthly asset counts (forward input, pre-filled flat with the run-rate baseline for existing clients; 0s for hypotheticals)
 - **enabled** toggle (include/exclude from the forecast)
+- **trendPct** (carried from the baseline seed, shown as a badge)
 
-Existing clients load in pre-seeded and editable. Partners add hypothetical clients with a name + asset estimate. v1 = **one working scenario** edited live (no saving of multiple named scenarios).
+Existing clients load in pre-seeded (each month = current run-rate) and editable. Partners add hypothetical clients (a name + a row of zeros) and type the volumes in directly. v1 = **one working scenario** edited live (no saving of multiple named scenarios).
 
-For v1, each client contributes a **flat assets/month from its start month**. The onboarding burst (≈12 assets in the first ~6 weeks, then dropping to a spend-based steady state) is real and affects near-term spikes, but is a **fast follow**, not v1.
+This grid replaces the earlier "flat assets/month + start-month offset" model — it was counterintuitive to run scenarios by nudging current clients with month offsets. The grid is strictly more expressive: a ramp (15 → 20 → 22) is typed directly, "starts in August" is leaving early months at 0, and churn is trailing months back to 0. It natively subsumes both the start-month picker and the deferred onboarding-ramp fast-follow.
+
+### Round 2 revisions (after second live review)
+
+1. **Split input into videos + statics.** A video and a static are different work (video → editing, no static design; static → design, no editing). Inputting a single blended "assets" number forced the calibration to average them, which is why Video Editing came out at a misleading 0.42. Each client row becomes **two sub-rows — Videos and Statics** — with a per-month count in each. Fibery already tags every project video/static; reuse `classifyType(name, typeName)` from `ProjectsTimeline.tsx` (video if name/type contains video/ugc/reel/tiktok; static otherwise).
+
+2. **Calibration removed entirely (Round 3).** The empirical "tasks per asset" derivation was both confusing and structurally broken (it attributed in-window tasks to in-window *completed* projects, but early-stage tasks like briefs complete weeks before their project does, so they were orphaned — undercounting early roles worst; the `limit: 3000` task feed compounded it). It's unnecessary: FireTeam's workflow runs exactly **one task per role per project** via fixed templates. So demand uses a hardcoded role-incidence map of 1s and 0s, no derivation, no editable table, no Advanced toggle:
+   - Every project (video or static): 1 Account, 1 Creative Review, 1 Copywriting
+   - Videos only: 1 Video Editing. Statics only: 1 Design.
+   Demand per role/week = (videos/wk × videoIncidence[role]) + (statics/wk × staticIncidence[role]). This reconciles with Pulse's actuals, which are themselves one-task-per-project counts.
+
+3. **Historical actual columns.** Prepend **3 months** of read-only past actuals (videos and statics per client per month, from completed Fibery projects) to the left of the editable future months, so trajectory reads directly left-to-right. This **replaces the trend % badge**, which is removed. (3 months chosen to keep the doubled-column grid usable; trivially bumped to 6.)
+
+4. **Enable toggle recolor.** A checked-but-red toggle reads as an error. Recolor "enabled" to an active (non-destructive) color and dim disabled rows.
+
+5. **Calibration table → Advanced.** With videos/statics as the intuitive input, the per-type calibration moves behind an "Advanced" toggle, out of the primary view (still editable as an escape hatch).
+
+6. **Layout.** The grid is now wide (3 history + 12 future months × video/static). Stack the surface vertically: utilization chart + hire signal on top at full width, full-width scenario grid below, advanced calibration last. Replaces the earlier two-column split.
 
 ### The math (per future month, per role)
 
-1. Sum assets/month across all enabled clients active that month.
+1. Sum each enabled client's `assetsByMonth[m]` for that month.
 2. Convert to weekly role-tasks per role via the calibration ratio.
 3. Compare projected demand per role against peak capacity per role (`maxWeek26` sum).
 4. Output per role per month: utilization %, healthy/overload status (same bands as today), and a **hire signal** when projected demand crosses peak.
@@ -117,4 +134,4 @@ Partner-only, **three partners**, gated by **Google OAuth restricted to an allow
 
 - **Partner access:** Google OAuth restricted to an allowlist of the 3 partner emails. (Fill in the two non-Jess emails during planning.)
 - **Asset:** every Fibery Project; delivered when marked completed (`doneDate` set). No type filtering.
-- **Forecast horizon:** 6 months.
+- **Forecast horizon:** 12 months (revised from 6 when the input became a per-month grid).

@@ -1,23 +1,18 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { addMonths, format, subMonths } from "date-fns";
 import { PartnerGate } from "@/components/partners/PartnerGate";
 import { useForecastData } from "@/hooks/useForecastData";
 import { useScenario } from "@/hooks/useScenario";
 import { runForecast } from "@/lib/forecast/engine";
-import { HORIZON_MONTHS, HISTORY_MONTHS, type TypedCalibration } from "@/lib/forecast/types";
+import { HORIZON_MONTHS, HISTORY_MONTHS } from "@/lib/forecast/types";
 import { ScenarioBuilder } from "@/components/partners/ScenarioBuilder";
-import { CalibrationTable } from "@/components/partners/CalibrationTable";
 import { ForecastChart } from "@/components/partners/ForecastChart";
 import { HireTimeline } from "@/components/partners/HireTimeline";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function PartnersInner() {
-  const { peaks, typedCalibration, histories, isLoading, error } = useForecastData();
+  const { peaks, histories, isLoading, error } = useForecastData();
   const { clients, update, addClient, removeClient } = useScenario(histories);
-  const [override, setOverride] = useState<TypedCalibration | null>(null);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const calibration = override ?? typedCalibration;
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const monthLabels = useMemo(
@@ -31,8 +26,8 @@ function PartnersInner() {
   );
 
   const result = useMemo(
-    () => runForecast(clients, calibration, peaks, HORIZON_MONTHS, new Date()),
-    [clients, calibration, peaks],
+    () => runForecast(clients, peaks, HORIZON_MONTHS, new Date()),
+    [clients, peaks],
   );
 
   if (isLoading) return <Skeleton className="h-96 m-8" />;
@@ -52,16 +47,6 @@ function PartnersInner() {
         onAdd={addClient}
         onRemove={removeClient}
       />
-      <div>
-        <Button variant="ghost" size="sm" onClick={() => setShowAdvanced((s) => !s)}>
-          {showAdvanced ? "Hide advanced" : "Advanced: calibration"}
-        </Button>
-        {showAdvanced && (
-          <div className="mt-3 max-w-md">
-            <CalibrationTable calibration={calibration} onChange={setOverride} />
-          </div>
-        )}
-      </div>
     </div>
   );
 }

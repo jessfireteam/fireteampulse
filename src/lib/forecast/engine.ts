@@ -3,7 +3,6 @@ import { addMonths, format } from "date-fns";
 import {
   FORECAST_ROLES,
   WEEKS_PER_MONTH,
-  type TypedCalibration,
   type ForecastMonth,
   type ForecastResult,
   type ForecastRoleKey,
@@ -12,6 +11,15 @@ import {
   type RoleStatus,
   type ScenarioClient,
 } from "./types";
+
+/** Fixed: each project generates exactly one task per applicable role. */
+const ROLE_INCIDENCE: Record<ForecastRoleKey, { video: number; static: number }> = {
+  Account: { video: 1, static: 1 },
+  "Creative Review": { video: 1, static: 1 },
+  Copywriters: { video: 1, static: 1 },
+  Design: { video: 0, static: 1 },
+  Video: { video: 1, static: 0 },
+};
 
 function statusFor(utilization: number): RoleStatus {
   if (utilization > 1) return "over";
@@ -24,7 +32,6 @@ const ROLE_KEYS = FORECAST_ROLES.map((r) => r.key);
 
 export function runForecast(
   scenario: ScenarioClient[],
-  calibration: TypedCalibration,
   peaks: RolePeaks,
   horizonMonths: number,
   referenceDate: Date,
@@ -46,9 +53,8 @@ export function runForecast(
     const roles = {} as Record<ForecastRoleKey, RoleMonthCell>;
     ROLE_KEYS.forEach((key) => {
       const peak = peaks[key] ?? 0;
-      const demandPerWeek =
-        videosPerWeek * (calibration.video[key] ?? 0) +
-        staticsPerWeek * (calibration.static[key] ?? 0);
+      const inc = ROLE_INCIDENCE[key];
+      const demandPerWeek = videosPerWeek * inc.video + staticsPerWeek * inc.static;
       const utilization = peak > 0 ? demandPerWeek / peak : 0;
       const status = statusFor(utilization);
       roles[key] = { role: key, demandPerWeek, peak, utilization, status };
