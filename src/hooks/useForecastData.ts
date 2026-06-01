@@ -3,6 +3,8 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { queryFibery, type ProjectCompletionsResponse } from "@/lib/fibery";
 import { useTasksData, processTasksForCapacity } from "@/hooks/useFiberyData";
+import { useClientsData } from "@/hooks/useClientsData";
+import { activeClientNames, filterActiveHistories } from "@/lib/forecast/activeClients";
 import { computeRolePeaks, computeTypedCalibration } from "@/lib/forecast/calibration";
 import { computeClientHistory } from "@/lib/forecast/history";
 import { HISTORY_MONTHS, type ClientHistory, type RolePeaks, type TypedCalibration } from "@/lib/forecast/types";
@@ -25,23 +27,27 @@ export function useForecastData(): ForecastData {
     staleTime: 5 * 60 * 1000,
     retry: 2,
   });
+  const clientsQuery = useClientsData();
 
   return useMemo(() => {
     const now = new Date();
     const tasks = tasksQuery.data?.findProjectSpecificTasks ?? [];
     const projects = projectsQuery.data?.findProjects ?? [];
+    const clients = clientsQuery.data?.findClients ?? [];
 
     const roleGroups = processTasksForCapacity(tasks, "all");
     const peaks = computeRolePeaks(roleGroups);
     const typedCalibration = computeTypedCalibration(tasks, projects, now, CALIBRATION_WINDOW_WEEKS);
-    const histories = computeClientHistory(projects, now, HISTORY_MONTHS);
+    const rawHistories = computeClientHistory(projects, now, HISTORY_MONTHS);
+    const active = activeClientNames(clients);
+    const histories = filterActiveHistories(rawHistories, active);
 
     return {
       peaks,
       typedCalibration,
       histories,
-      isLoading: tasksQuery.isLoading || projectsQuery.isLoading,
-      error: tasksQuery.error ?? projectsQuery.error,
+      isLoading: tasksQuery.isLoading || projectsQuery.isLoading || clientsQuery.isLoading,
+      error: tasksQuery.error ?? projectsQuery.error ?? clientsQuery.error,
     };
-  }, [tasksQuery.data, projectsQuery.data, tasksQuery.isLoading, projectsQuery.isLoading, tasksQuery.error, projectsQuery.error]);
+  }, [tasksQuery.data, projectsQuery.data, clientsQuery.data, tasksQuery.isLoading, projectsQuery.isLoading, clientsQuery.isLoading, tasksQuery.error, projectsQuery.error, clientsQuery.error]);
 }
