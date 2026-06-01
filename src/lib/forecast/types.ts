@@ -11,16 +11,14 @@ export type ForecastRoleKey =
 export interface ForecastRole {
   key: ForecastRoleKey;
   display: string;
-  /** getTaskCategory() output that represents this role's primary throughput. */
-  category: string;
 }
 
 export const FORECAST_ROLES: ForecastRole[] = [
-  { key: "Account", display: "Account", category: "Briefs Sent" },
-  { key: "Creative Review", display: "Creative Review", category: "Creative Review" },
-  { key: "Copywriters", display: "Copywriting", category: "Brief Work" },
-  { key: "Design", display: "Design", category: "Design" },
-  { key: "Video", display: "Video Editing", category: "Video Editing" },
+  { key: "Account", display: "Account" },
+  { key: "Creative Review", display: "Creative Review" },
+  { key: "Copywriters", display: "Copywriting" },
+  { key: "Design", display: "Design" },
+  { key: "Video", display: "Video Editing" },
 ];
 
 /** Average weeks per calendar month, used for month<->week conversions. */
