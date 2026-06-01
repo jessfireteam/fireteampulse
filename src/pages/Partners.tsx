@@ -1,23 +1,25 @@
 // src/pages/Partners.tsx
 import { useMemo, useState } from "react";
+import { addMonths, format } from "date-fns";
 import { PartnerGate } from "@/components/partners/PartnerGate";
 import { useForecastData } from "@/hooks/useForecastData";
 import { useScenario } from "@/hooks/useScenario";
 import { runForecast } from "@/lib/forecast/engine";
-import type { Calibration } from "@/lib/forecast/types";
+import { HORIZON_MONTHS, type Calibration } from "@/lib/forecast/types";
 import { ScenarioBuilder } from "@/components/partners/ScenarioBuilder";
 import { CalibrationTable } from "@/components/partners/CalibrationTable";
 import { ForecastChart } from "@/components/partners/ForecastChart";
 import { HireTimeline } from "@/components/partners/HireTimeline";
 import { Skeleton } from "@/components/ui/skeleton";
 
-const HORIZON_MONTHS = 6;
-
 function PartnersInner() {
   const { peaks, calibration: seededCalibration, baselines, isLoading, error } = useForecastData();
   const { clients, update, addClient, removeClient } = useScenario(baselines);
   const [calibrationOverride, setCalibrationOverride] = useState<Calibration | null>(null);
   const calibration = calibrationOverride ?? seededCalibration;
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const monthLabels = useMemo(() => Array.from({ length: HORIZON_MONTHS }, (_, i) => format(addMonths(new Date(), i), "MMM")), []);
 
   const result = useMemo(
     () => runForecast(clients, calibration, peaks, HORIZON_MONTHS, new Date()),
@@ -34,7 +36,7 @@ function PartnersInner() {
         <div className="space-y-8">
           <ScenarioBuilder
             clients={clients}
-            horizonMonths={HORIZON_MONTHS}
+            monthLabels={monthLabels}
             onUpdate={update}
             onAdd={addClient}
             onRemove={removeClient}

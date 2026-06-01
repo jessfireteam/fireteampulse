@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 
 interface Props {
   clients: ScenarioClient[];
-  horizonMonths: number;
+  monthLabels: string[]; // 12 short labels, e.g. ["Jun","Jul",...]
   onUpdate: (id: string, patch: Partial<ScenarioClient>) => void;
   onAdd: () => void;
   onRemove: (id: string) => void;
@@ -24,46 +24,74 @@ function TrendBadge({ pct }: { pct: number | null }) {
   );
 }
 
-export function ScenarioBuilder({ clients, horizonMonths, onUpdate, onAdd, onRemove }: Props) {
+export function ScenarioBuilder({ clients, monthLabels, onUpdate, onAdd, onRemove }: Props) {
   return (
     <div className="space-y-3">
       <SectionHeader title="Scenario" />
-      <div className="space-y-2">
-        {clients.map((c) => (
-          <div key={c.id} className="flex items-center gap-2 rounded-md border border-border/50 p-2">
-            <Checkbox checked={c.enabled} onCheckedChange={(v) => onUpdate(c.id, { enabled: !!v })} />
-            <Input
-              className="flex-1"
-              value={c.name}
-              onChange={(e) => onUpdate(c.id, { name: e.target.value })}
-            />
-            {!c.hypothetical && <TrendBadge pct={c.trendPct ?? null} />}
-            <label className="text-xs text-muted-foreground">assets/mo</label>
-            <Input
-              type="number"
-              min="0"
-              className="w-20 font-mono text-right"
-              value={c.assetsPerMonth}
-              onChange={(e) => onUpdate(c.id, { assetsPerMonth: parseInt(e.target.value) || 0 })}
-            />
-            <label className="text-xs text-muted-foreground">start</label>
-            <select
-              aria-label="Start month"
-              className="bg-background border border-border/50 rounded px-1 py-1 text-sm"
-              value={c.startMonthIndex}
-              onChange={(e) => onUpdate(c.id, { startMonthIndex: parseInt(e.target.value) })}
-            >
-              {Array.from({ length: horizonMonths }, (_, i) => (
-                <option key={i} value={i}>
-                  +{i}mo
-                </option>
+      <div className="overflow-x-auto">
+        <table className="border-collapse">
+          <thead>
+            <tr>
+              <th className="text-left text-xs text-muted-foreground font-medium px-2 py-1 whitespace-nowrap">
+                Client
+              </th>
+              {monthLabels.map((label, i) => (
+                <th
+                  key={i}
+                  className="text-xs text-muted-foreground font-mono font-normal px-1 py-1 text-center whitespace-nowrap"
+                >
+                  {label}
+                </th>
               ))}
-            </select>
-            <Button aria-label="Remove client" variant="ghost" size="sm" onClick={() => onRemove(c.id)}>
-              ✕
-            </Button>
-          </div>
-        ))}
+              <th className="px-1 py-1" aria-hidden />
+            </tr>
+          </thead>
+          <tbody>
+            {clients.map((c) => (
+              <tr key={c.id} className="border-t border-border/50">
+                <td className="px-2 py-1 whitespace-nowrap">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      checked={c.enabled}
+                      onCheckedChange={(v) => onUpdate(c.id, { enabled: !!v })}
+                    />
+                    <Input
+                      className="w-40"
+                      value={c.name}
+                      onChange={(e) => onUpdate(c.id, { name: e.target.value })}
+                    />
+                    {!c.hypothetical && <TrendBadge pct={c.trendPct ?? null} />}
+                  </div>
+                </td>
+                {c.assetsByMonth.map((value, i) => (
+                  <td key={i} className="px-0.5 py-1">
+                    <Input
+                      type="number"
+                      min="0"
+                      className="w-14 font-mono text-right"
+                      value={value}
+                      onChange={(e) => {
+                        const next = [...c.assetsByMonth];
+                        next[i] = parseInt(e.target.value) || 0;
+                        onUpdate(c.id, { assetsByMonth: next });
+                      }}
+                    />
+                  </td>
+                ))}
+                <td className="px-1 py-1">
+                  <Button
+                    aria-label="Remove client"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onRemove(c.id)}
+                  >
+                    ✕
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
       <Button variant="outline" size="sm" onClick={onAdd}>
         + Add hypothetical client
