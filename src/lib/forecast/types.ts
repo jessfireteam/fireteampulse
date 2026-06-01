@@ -26,6 +26,9 @@ export const FORECAST_ROLES: ForecastRole[] = [
 /** Average weeks per calendar month, used for month<->week conversions. */
 export const WEEKS_PER_MONTH = 4.345;
 
+/** Forecast horizon in months (grid column count). */
+export const HORIZON_MONTHS = 12;
+
 /** role -> peak role-tasks/week (supply ceiling). */
 export type RolePeaks = Record<ForecastRoleKey, number>;
 
@@ -45,9 +48,8 @@ export interface ClientBaseline {
 export interface ScenarioClient {
   id: string;
   name: string;
-  /** 0 = current month, 1 = next month, ... */
-  startMonthIndex: number;
-  assetsPerMonth: number;
+  /** One asset count per forecast month; length === horizon (12). */
+  assetsByMonth: number[];
   enabled: boolean;
   /** true when added by a partner (not seeded from history). */
   hypothetical: boolean;

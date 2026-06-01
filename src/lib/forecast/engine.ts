@@ -37,8 +37,8 @@ export function runForecast(
 
   for (let m = 0; m < horizonMonths; m++) {
     const assets = scenario
-      .filter((c) => c.enabled && c.startMonthIndex <= m)
-      .reduce((sum, c) => sum + c.assetsPerMonth, 0);
+      .filter((c) => c.enabled)
+      .reduce((sum, c) => sum + (c.assetsByMonth[m] ?? 0), 0);
     const assetsPerWeek = assets / WEEKS_PER_MONTH;
 
     const roles = {} as Record<ForecastRoleKey, RoleMonthCell>;

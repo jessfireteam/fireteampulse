@@ -1,6 +1,6 @@
 // src/hooks/useScenario.ts
 import { useEffect, useState } from "react";
-import type { ClientBaseline, ScenarioClient } from "@/lib/forecast/types";
+import { HORIZON_MONTHS, type ClientBaseline, type ScenarioClient } from "@/lib/forecast/types";
 
 let idCounter = 0;
 const nextId = () => `client-${++idCounter}`;
@@ -15,8 +15,7 @@ export function useScenario(baselines: ClientBaseline[]) {
       baselines.map((b) => ({
         id: nextId(),
         name: b.client,
-        startMonthIndex: 0,
-        assetsPerMonth: b.monthlyRate,
+        assetsByMonth: new Array(HORIZON_MONTHS).fill(b.monthlyRate),
         enabled: true,
         hypothetical: false,
         trendPct: b.trendPct,
@@ -31,7 +30,7 @@ export function useScenario(baselines: ClientBaseline[]) {
   const addClient = () =>
     setClients((cs) => [
       ...cs,
-      { id: nextId(), name: "New client", startMonthIndex: 0, assetsPerMonth: 12, enabled: true, hypothetical: true },
+      { id: nextId(), name: "New client", assetsByMonth: new Array(HORIZON_MONTHS).fill(0), enabled: true, hypothetical: true },
     ]);
 
   const removeClient = (id: string) => setClients((cs) => cs.filter((c) => c.id !== id));
