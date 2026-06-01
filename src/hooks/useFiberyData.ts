@@ -141,7 +141,7 @@ function getWeekBoundaries(referenceDate: Date, weeksAgo: number) {
 }
 
 // Categorize task by name keywords
-function getTaskCategory(taskName: string): string {
+export function getTaskCategory(taskName: string): string {
   const name = taskName?.toLowerCase() || '';
   if (name.includes('approve and send brief')) return 'Briefs Sent';
   if (name.includes('write brief') || name.includes('write the brief') || name.includes('draft brief')) return 'Brief Work';
