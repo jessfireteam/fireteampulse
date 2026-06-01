@@ -55,12 +55,13 @@ function processMonthlySpend(
     const deliverables = ppm?.deliverablesShipped ?? 0;
     // Prefer Supabase-computed fee (accurate) over Fibery revenue (often missing)
     const fiberyRevenue = ppm?.revenue ?? 0;
-    const effectiveRevenue = (cm.computedRevenue ?? 0) > 0
-      ? (cm.computedRevenue as number)
-      : fiberyRevenue;
-    const costPerDeliverable = rawCpd > 0
-      ? rawCpd
-      : (deliverables > 0 && effectiveRevenue > 0 ? effectiveRevenue / deliverables : 0);
+    const computedRevenue = (cm.computedRevenue ?? 0) > 0 ? (cm.computedRevenue as number) : 0;
+    const effectiveRevenue = computedRevenue > 0 ? computedRevenue : fiberyRevenue;
+    // When Supabase has a computed fee, always use fee/deliverables — ignore Fibery's stale rawCpd.
+    // Only fall back to rawCpd when we have no fee data at all.
+    const costPerDeliverable = computedRevenue > 0 && deliverables > 0
+      ? computedRevenue / deliverables
+      : (rawCpd > 0 ? rawCpd : (deliverables > 0 && fiberyRevenue > 0 ? fiberyRevenue / deliverables : 0));
 
     let monthLabel = monthStr;
     try {
