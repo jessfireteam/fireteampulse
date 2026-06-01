@@ -1,33 +1,48 @@
 // src/components/partners/ScenarioBuilder.tsx
+import { Fragment } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SectionHeader } from "@/components/dashboard/SectionHeader";
-import type { ScenarioClient } from "@/lib/forecast/types";
+import type { ScenarioClient, ClientHistory } from "@/lib/forecast/types";
 import { cn } from "@/lib/utils";
 
 interface Props {
   clients: ScenarioClient[];
-  monthLabels: string[]; // 12 short labels, e.g. ["Jun","Jul",...]
+  historyLabels: string[]; // 3 past month labels, oldest->newest, e.g. ["Mar","Apr","May"]
+  monthLabels: string[]; // 12 future labels, e.g. ["Jun","Jul",...]
+  histories: ClientHistory[]; // for the read-only past cells, matched by client name
   onUpdate: (id: string, patch: Partial<ScenarioClient>) => void;
   onAdd: () => void;
   onRemove: (id: string) => void;
 }
 
-function TrendBadge({ pct }: { pct: number | null }) {
-  if (pct === null) return <span className="text-xs text-muted-foreground">—</span>;
-  const up = pct >= 0;
-  return (
-    <span className={cn("text-xs font-mono", up ? "text-emerald-500" : "text-destructive")}>
-      {up ? "▲" : "▼"} {Math.abs(pct)}%
-    </span>
-  );
-}
+const checkboxClass =
+  "data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600 data-[state=checked]:text-white";
 
-export function ScenarioBuilder({ clients, monthLabels, onUpdate, onAdd, onRemove }: Props) {
+export function ScenarioBuilder({
+  clients,
+  historyLabels,
+  monthLabels,
+  histories,
+  onUpdate,
+  onAdd,
+  onRemove,
+}: Props) {
+  const onCell = (
+    c: ScenarioClient,
+    kind: "videosByMonth" | "staticsByMonth",
+    i: number,
+    raw: string,
+  ) => {
+    const next = [...c[kind]];
+    next[i] = parseInt(raw) || 0;
+    onUpdate(c.id, { [kind]: next });
+  };
+
   return (
     <div className="space-y-3">
-      <SectionHeader title="Scenario" />
+      <SectionHeader title="Scenario — videos & statics per month" />
       <div className="overflow-x-auto">
         <table className="border-collapse">
           <thead>
@@ -35,61 +50,96 @@ export function ScenarioBuilder({ clients, monthLabels, onUpdate, onAdd, onRemov
               <th className="text-left text-xs text-muted-foreground font-medium px-2 py-1 whitespace-nowrap">
                 Client
               </th>
-              {monthLabels.map((label, i) => (
+              <th className="text-xs text-muted-foreground font-medium px-2 py-1 whitespace-nowrap" aria-hidden />
+              {historyLabels.map((label, i) => (
                 <th
-                  key={i}
-                  className="text-xs text-muted-foreground font-mono font-normal px-1 py-1 text-center whitespace-nowrap"
+                  key={`h-${i}`}
+                  className="text-xs italic text-muted-foreground font-normal px-1 py-1 text-center whitespace-nowrap"
                 >
                   {label}
                 </th>
               ))}
-              <th className="px-1 py-1" aria-hidden />
+              {monthLabels.map((label, i) => (
+                <th
+                  key={`f-${i}`}
+                  className={cn(
+                    "text-xs text-muted-foreground font-mono font-normal px-1 py-1 text-center whitespace-nowrap",
+                    i === 0 && "border-l border-border",
+                  )}
+                >
+                  {label}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {clients.map((c) => (
-              <tr key={c.id} className="border-t border-border/50">
-                <td className="px-2 py-1 whitespace-nowrap">
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      checked={c.enabled}
-                      onCheckedChange={(v) => onUpdate(c.id, { enabled: !!v })}
-                    />
-                    <Input
-                      className="w-40"
-                      value={c.name}
-                      onChange={(e) => onUpdate(c.id, { name: e.target.value })}
-                    />
-                    {!c.hypothetical && <TrendBadge pct={c.trendPct ?? null} />}
-                  </div>
-                </td>
-                {c.assetsByMonth.map((value, i) => (
-                  <td key={i} className="px-0.5 py-1">
-                    <Input
-                      type="number"
-                      min="0"
-                      className="w-14 font-mono text-right"
-                      value={value}
-                      onChange={(e) => {
-                        const next = [...c.assetsByMonth];
-                        next[i] = parseInt(e.target.value) || 0;
-                        onUpdate(c.id, { assetsByMonth: next });
-                      }}
-                    />
-                  </td>
-                ))}
-                <td className="px-1 py-1">
-                  <Button
-                    aria-label="Remove client"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onRemove(c.id)}
-                  >
-                    ✕
-                  </Button>
-                </td>
-              </tr>
-            ))}
+            {clients.map((c) => {
+              const hist = histories.find((h) => h.client === c.name);
+              return (
+                <Fragment key={c.id}>
+                  <tr className={cn("border-t border-border/50", !c.enabled && "opacity-50")}>
+                    <td rowSpan={2} className="px-2 py-1 align-top whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          className={checkboxClass}
+                          checked={c.enabled}
+                          onCheckedChange={(v) => onUpdate(c.id, { enabled: !!v })}
+                        />
+                        <Input
+                          className="w-40 flex-1"
+                          value={c.name}
+                          onChange={(e) => onUpdate(c.id, { name: e.target.value })}
+                        />
+                        <Button
+                          aria-label="Remove client"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onRemove(c.id)}
+                        >
+                          ✕
+                        </Button>
+                      </div>
+                    </td>
+                    <td className="px-2 py-1 text-xs text-muted-foreground whitespace-nowrap">Videos</td>
+                    {historyLabels.map((_, i) => (
+                      <td key={`hv-${i}`} className="text-center text-xs text-muted-foreground">
+                        {hist?.videosByMonth[i] ?? 0}
+                      </td>
+                    ))}
+                    {monthLabels.map((_, i) => (
+                      <td key={`fv-${i}`} className={cn("px-0.5 py-1", i === 0 && "border-l border-border")}>
+                        <Input
+                          type="number"
+                          min="0"
+                          className="w-14 font-mono text-right"
+                          value={c.videosByMonth[i]}
+                          onChange={(e) => onCell(c, "videosByMonth", i, e.target.value)}
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                  <tr className={cn(!c.enabled && "opacity-50")}>
+                    <td className="px-2 py-1 text-xs text-muted-foreground whitespace-nowrap">Statics</td>
+                    {historyLabels.map((_, i) => (
+                      <td key={`hs-${i}`} className="text-center text-xs text-muted-foreground">
+                        {hist?.staticsByMonth[i] ?? 0}
+                      </td>
+                    ))}
+                    {monthLabels.map((_, i) => (
+                      <td key={`fs-${i}`} className={cn("px-0.5 py-1", i === 0 && "border-l border-border")}>
+                        <Input
+                          type="number"
+                          min="0"
+                          className="w-14 font-mono text-right"
+                          value={c.staticsByMonth[i]}
+                          onChange={(e) => onCell(c, "staticsByMonth", i, e.target.value)}
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>
