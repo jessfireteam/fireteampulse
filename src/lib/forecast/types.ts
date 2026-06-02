@@ -105,7 +105,7 @@ export interface ClientPricing {
 export interface ProductionPerson {
   id: string;
   name: string;
-  side: "video" | "static";
+  side: "video" | "static" | "both";
   monthlyCost: number;
   startMonthIndex: number; // 0 = active now; >0 = a hire beginning that month
 }
