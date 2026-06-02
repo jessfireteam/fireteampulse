@@ -32,7 +32,12 @@ export function runPnL(params: {
     const activeTeam = team.filter((p) => p.startMonthIndex <= m);
     const videoSideCost = activeTeam.filter((p) => p.side === "video").reduce((s, p) => s + p.monthlyCost, 0);
     const staticSideCost = activeTeam.filter((p) => p.side === "static").reduce((s, p) => s + p.monthlyCost, 0);
-    const productionCost = videoSideCost + staticSideCost;
+    const bothCost = activeTeam.filter((p) => p.side === "both").reduce((s, p) => s + p.monthlyCost, 0);
+    const productionCost = videoSideCost + staticSideCost + bothCost;
+    // allocate "both" cost across types by this month's output mix
+    const videoShare = deliverables === 0 ? 0 : videos / deliverables;
+    const videoAlloc = bothCost * videoShare;
+    const staticAlloc = bothCost - videoAlloc;
 
     const fixedCost = (costConfig.partnerSalaryByMonth[m] ?? 0) + (costConfig.rentByMonth[m] ?? 0) + (costConfig.overheadByMonth?.[m] ?? 0);
     const totalCost = fixedCost + productionCost;
@@ -44,8 +49,8 @@ export function runPnL(params: {
       deliverables, videos, statics,
       feePerDeliverable: deliverables === 0 ? null : revenue / deliverables,
       costPerDeliverable: deliverables === 0 ? null : totalCost / deliverables,
-      costPerVideo: videos === 0 ? null : videoSideCost / videos,
-      costPerStatic: statics === 0 ? null : staticSideCost / statics,
+      costPerVideo: videos === 0 ? null : (videoSideCost + videoAlloc) / videos,
+      costPerStatic: statics === 0 ? null : (staticSideCost + staticAlloc) / statics,
     };
   });
 }

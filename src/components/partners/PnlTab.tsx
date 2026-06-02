@@ -140,10 +140,11 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
               aria-label="Side"
               className="bg-background border border-input rounded px-2 h-7 text-sm"
               value={p.side}
-              onChange={(e) => updatePerson(p.id, { side: e.target.value as "video" | "static" })}
+              onChange={(e) => updatePerson(p.id, { side: e.target.value as "video" | "static" | "both" })}
             >
               <option value="video">Video</option>
               <option value="static">Static</option>
+              <option value="both">Both</option>
             </select>
             <MoneyInput value={p.monthlyCost} onChange={(n) => updatePerson(p.id, { monthlyCost: n })} className="w-28" />
             <select

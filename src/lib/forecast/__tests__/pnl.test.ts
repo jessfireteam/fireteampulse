@@ -62,4 +62,27 @@ describe("runPnL", () => {
     expect(rows[0].costPerVideo).toBeNull();
     expect(rows[0].costPerStatic).toBeCloseTo(1000, 5);
   });
+
+  it("splits a 'both'-side person's cost across video and static by output mix", () => {
+    const clients = [client({ videosByMonth: [30,30], staticsByMonth: [10,10] })]; // 75% video
+    const team = [person({ id:"cw", side:"both", monthlyCost: 9000 })];
+    const rows = runPnL({ clients, costConfig: cost({ team }), monthLabels: ["Jun","Jul"] });
+    expect(rows[0].productionCost).toBe(9000);
+    // both-cost allocated by mix: 6750 video / 30 = 225 ; 2250 static / 10 = 225
+    expect(rows[0].costPerVideo).toBeCloseTo(225, 5);
+    expect(rows[0].costPerStatic).toBeCloseTo(225, 5);
+  });
+
+  it("combines side-specific and 'both' costs in per-type figures", () => {
+    const clients = [client({ videosByMonth: [10,10], staticsByMonth: [10,10] })]; // 50/50
+    const team = [
+      person({ id:"v", side:"video", monthlyCost: 1000 }),
+      person({ id:"b", side:"both", monthlyCost: 2000 }),
+    ];
+    const rows = runPnL({ clients, costConfig: cost({ team }), monthLabels: ["Jun","Jul"] });
+    // video: (1000 + 2000*0.5) / 10 = 200 ; static: (0 + 2000*0.5) / 10 = 100
+    expect(rows[0].costPerVideo).toBeCloseTo(200, 5);
+    expect(rows[0].costPerStatic).toBeCloseTo(100, 5);
+    expect(rows[0].productionCost).toBe(3000);
+  });
 });
