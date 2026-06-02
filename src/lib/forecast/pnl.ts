@@ -1,4 +1,5 @@
 import { computeFee } from "./fee";
+import { isClientActive } from "./active";
 import type { ClientPricing, CostConfig, PnlMonth } from "./types";
 
 interface PnlClient {
@@ -9,6 +10,8 @@ interface PnlClient {
   videosByMonth?: number[];
   staticsByMonth?: number[];
   enabled?: boolean;
+  startMonthIndex?: number;
+  endMonthIndex?: number | null;
 }
 
 export function runPnL(params: {
@@ -17,19 +20,19 @@ export function runPnL(params: {
   monthLabels: string[];
 }): PnlMonth[] {
   const { clients, costConfig, monthLabels } = params;
-  const active = clients.filter((c) => c.enabled !== false);
   const team = costConfig.team ?? [];
 
   return monthLabels.map((label, m) => {
-    const revenue = active.reduce((sum, c) => {
+    const revenue = clients.reduce((sum, c) => {
+      if (!isClientActive(c, m)) return sum;
       let r = 0;
       if (c.pricing) r += computeFee(c.adSpendByMonth?.[m] ?? 0, c.agencyPctByMonth?.[m] ?? 0, c.pricing);
       r += c.oneOffsByMonth?.[m] ?? 0;
       return sum + r;
     }, 0);
 
-    const videos = active.reduce((s, c) => s + (c.videosByMonth?.[m] ?? 0), 0);
-    const statics = active.reduce((s, c) => s + (c.staticsByMonth?.[m] ?? 0), 0);
+    const videos = clients.reduce((s, c) => s + (isClientActive(c, m) ? (c.videosByMonth?.[m] ?? 0) : 0), 0);
+    const statics = clients.reduce((s, c) => s + (isClientActive(c, m) ? (c.staticsByMonth?.[m] ?? 0) : 0), 0);
     const deliverables = videos + statics;
 
     const activeTeam = team.filter((p) => p.startMonthIndex <= m);

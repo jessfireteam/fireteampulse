@@ -44,6 +44,18 @@ describe("runForecast", () => {
     expect(result.months[0].assets).toBe(0);
   });
 
+  it("excludes a client's deliverables after its end month", () => {
+    const result = runForecast([client(flat(43.45), flat(0), { endMonthIndex: 0 })], peaks, 6, ref);
+    expect(result.months[0].assets).toBeCloseTo(43.45, 2);
+    expect(result.months[1].assets).toBe(0);
+  });
+
+  it("excludes a client's deliverables before its start month", () => {
+    const result = runForecast([client(flat(43.45), flat(0), { startMonthIndex: 1 })], peaks, 6, ref);
+    expect(result.months[0].assets).toBe(0);
+    expect(result.months[1].assets).toBeCloseTo(43.45, 2);
+  });
+
   it("labels months forward from the reference month", () => {
     const result = runForecast([], peaks, 3, ref);
     expect(result.months.map((m) => m.label)).toEqual(["Jun 26", "Jul 26", "Aug 26"]);

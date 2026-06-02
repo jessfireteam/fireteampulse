@@ -1,5 +1,6 @@
 // src/lib/forecast/engine.ts
 import { addMonths, format } from "date-fns";
+import { isClientActive } from "./active";
 import {
   FORECAST_ROLES,
   WEEKS_PER_MONTH,
@@ -43,9 +44,9 @@ export function runForecast(
   }, {} as Record<ForecastRoleKey, number | null>);
 
   for (let m = 0; m < horizonMonths; m++) {
-    const enabled = scenario.filter((c) => c.enabled);
-    const videos = enabled.reduce((sum, c) => sum + (c.videosByMonth[m] ?? 0), 0);
-    const statics = enabled.reduce((sum, c) => sum + (c.staticsByMonth[m] ?? 0), 0);
+    const active = scenario.filter((c) => isClientActive(c, m));
+    const videos = active.reduce((sum, c) => sum + (c.videosByMonth[m] ?? 0), 0);
+    const statics = active.reduce((sum, c) => sum + (c.staticsByMonth[m] ?? 0), 0);
     const assets = videos + statics;
     const videosPerWeek = videos / WEEKS_PER_MONTH;
     const staticsPerWeek = statics / WEEKS_PER_MONTH;

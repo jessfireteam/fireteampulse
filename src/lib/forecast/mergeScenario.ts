@@ -33,6 +33,8 @@ export function mergeScenario(
       agencyPctByMonth: goodLen(prior?.agencyPctByMonth) ? prior!.agencyPctByMonth : undefined,
       oneOffsByMonth: goodLen(prior?.oneOffsByMonth) ? prior!.oneOffsByMonth : undefined,
       oneOffLabelsByMonth: goodLabels(prior?.oneOffLabelsByMonth) ? prior!.oneOffLabelsByMonth : undefined,
+      startMonthIndex: prior?.startMonthIndex,
+      endMonthIndex: prior?.endMonthIndex,
     };
   });
 
@@ -51,6 +53,8 @@ export function mergeScenario(
       agencyPctByMonth: goodLen(c.agencyPctByMonth) ? c.agencyPctByMonth : undefined,
       oneOffsByMonth: goodLen(c.oneOffsByMonth) ? c.oneOffsByMonth : undefined,
       oneOffLabelsByMonth: goodLabels(c.oneOffLabelsByMonth) ? c.oneOffLabelsByMonth : undefined,
+      startMonthIndex: c.startMonthIndex,
+      endMonthIndex: c.endMonthIndex,
     }));
 
   return [...seeded, ...hypotheticals];

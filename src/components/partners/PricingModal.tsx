@@ -10,12 +10,21 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import type { ClientPricing, PricingTier } from "@/lib/forecast/types";
 
+export interface ActiveWindow {
+  startMonthIndex: number;
+  endMonthIndex: number | null;
+}
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  initial?: { name: string; pricing?: ClientPricing };
-  onSave: (name: string, pricing: ClientPricing) => void;
+  monthLabels: string[];
+  initial?: { name: string; pricing?: ClientPricing; startMonthIndex?: number; endMonthIndex?: number | null };
+  onSave: (name: string, pricing: ClientPricing, window: ActiveWindow) => void;
 }
+
+// Sentinel select value for the "Ongoing" (no end) option; maps to null on save.
+const ONGOING = "ongoing";
 
 // Editable tier shape: upTo is a string so the field can be cleared (empty = "and above").
 interface DraftTier {
@@ -36,11 +45,13 @@ function toDraftTiers(tiers?: PricingTier[]): DraftTier[] {
   return tiers.map((t) => ({ upTo: t.upTo === null ? "" : String(t.upTo), rate: String(t.rate) }));
 }
 
-export function PricingModal({ open, onOpenChange, initial, onSave }: Props) {
+export function PricingModal({ open, onOpenChange, monthLabels, initial, onSave }: Props) {
   const [name, setName] = useState("");
   const [baseFee, setBaseFee] = useState(DEFAULT_BASE_FEE);
   const [minFee, setMinFee] = useState(DEFAULT_MIN_FEE);
   const [tiers, setTiers] = useState<DraftTier[]>(DEFAULT_TIERS.map((t) => ({ ...t })));
+  const [startMonth, setStartMonth] = useState("0");
+  const [endMonth, setEndMonth] = useState(ONGOING);
   const [error, setError] = useState<string | null>(null);
 
   // Reset form state whenever the modal opens (or its initial values change).
@@ -50,6 +61,8 @@ export function PricingModal({ open, onOpenChange, initial, onSave }: Props) {
     setBaseFee(initial?.pricing ? String(initial.pricing.baseFee ?? 0) : DEFAULT_BASE_FEE);
     setMinFee(initial?.pricing ? String(initial.pricing.minFee) : DEFAULT_MIN_FEE);
     setTiers(toDraftTiers(initial?.pricing?.tiers));
+    setStartMonth(String(initial?.startMonthIndex ?? 0));
+    setEndMonth(initial?.endMonthIndex == null ? ONGOING : String(initial.endMonthIndex));
     setError(null);
   }, [open, initial]);
 
@@ -119,7 +132,14 @@ export function PricingModal({ open, onOpenChange, initial, onSave }: Props) {
     // Defensive sort: non-null tiers ascending, then the single null tier last.
     const finalTiers: PricingTier[] = [...sortedBounds, ...nullTiers];
 
-    onSave(trimmedName, { baseFee: baseFeeNum, minFee: minFeeNum, tiers: finalTiers });
+    const startMonthIndex = parseInt(startMonth, 10) || 0;
+    const endMonthIndex = endMonth === ONGOING ? null : parseInt(endMonth, 10);
+    if (endMonthIndex != null && endMonthIndex < startMonthIndex) {
+      setError("\"Active through\" must be on or after \"Active from\".");
+      return;
+    }
+
+    onSave(trimmedName, { baseFee: baseFeeNum, minFee: minFeeNum, tiers: finalTiers }, { startMonthIndex, endMonthIndex });
   };
 
   return (
@@ -180,6 +200,37 @@ export function PricingModal({ open, onOpenChange, initial, onSave }: Props) {
               </div>
             ))}
             <Button type="button" variant="outline" size="sm" onClick={addTier}>+ Add Tier</Button>
+          </div>
+
+          <div className="flex gap-3">
+            <div className="space-y-1 flex-1">
+              <label className="text-xs text-muted-foreground">Active from</label>
+              <select
+                aria-label="Active from"
+                className="w-full bg-background border border-input rounded px-2 h-9 text-sm"
+                value={startMonth}
+                onChange={(e) => setStartMonth(e.target.value)}
+              >
+                <option value="0">Now</option>
+                {monthLabels.slice(1).map((l, idx) => (
+                  <option key={idx + 1} value={idx + 1}>{l}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1 flex-1">
+              <label className="text-xs text-muted-foreground">Active through</label>
+              <select
+                aria-label="Active through"
+                className="w-full bg-background border border-input rounded px-2 h-9 text-sm"
+                value={endMonth}
+                onChange={(e) => setEndMonth(e.target.value)}
+              >
+                <option value={ONGOING}>Ongoing</option>
+                {monthLabels.map((l, idx) => (
+                  <option key={idx} value={idx}>{l}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {error && <div className="text-sm text-destructive">{error}</div>}

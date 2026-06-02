@@ -11,6 +11,7 @@ const client: ScenarioClient = {
   pricing: { minFee: 3000, tiers: [{ upTo: null, rate: 5 }] },
   adSpendByMonth: [100000, 100000, 100000], agencyPctByMonth: [40, 40, 40],
   oneOffsByMonth: [10000, 0, 0], oneOffLabelsByMonth: ["Onboarding", "", ""],
+  endMonthIndex: 0, // offboards after the first month; post-end cells render "—"
 };
 
 const costConfig = {

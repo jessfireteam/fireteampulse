@@ -44,6 +44,27 @@ describe("mergeScenario", () => {
     expect(r[0].adSpendByMonth).toEqual(new Array(H).fill(100000));
     expect(r[0].agencyPctByMonth).toEqual(new Array(H).fill(40));
   });
+  it("preserves saved active-window months for an active client", () => {
+    const r = mergeScenario(
+      [hist("Acme", 5, 2)],
+      [saved("Acme", { startMonthIndex: 1, endMonthIndex: 6 })],
+      H,
+      makeId,
+    );
+    expect(r[0].startMonthIndex).toBe(1);
+    expect(r[0].endMonthIndex).toBe(6);
+  });
+  it("preserves saved active-window months for a hypothetical client", () => {
+    const r = mergeScenario(
+      [hist("Acme")],
+      [saved("Prospect X", { hypothetical: true, startMonthIndex: 3, endMonthIndex: null })],
+      H,
+      makeId,
+    );
+    const px = r.find((c) => c.name === "Prospect X")!;
+    expect(px.startMonthIndex).toBe(3);
+    expect(px.endMonthIndex).toBeNull();
+  });
   it("preserves saved one-off fees for an active client", () => {
     const oneOffs = new Array(H).fill(0); oneOffs[0] = 10000;
     const r = mergeScenario(
