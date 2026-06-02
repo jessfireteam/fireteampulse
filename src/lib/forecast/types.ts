@@ -65,6 +65,8 @@ export interface ScenarioClient {
   pricing?: ClientPricing;
   adSpendByMonth?: number[];
   agencyPctByMonth?: number[]; // percent 0-100
+  oneOffsByMonth?: number[];      // one-off fee amount per month (0 where none)
+  oneOffLabelsByMonth?: string[]; // optional label per month, parallel to oneOffsByMonth
 }
 
 export type RoleStatus = "ok" | "warning" | "critical" | "over";

@@ -10,6 +10,7 @@ const client: ScenarioClient = {
   id: "1", name: "Acme", videosByMonth: [10, 10, 10], staticsByMonth: [5, 5, 5], enabled: true, hypothetical: false,
   pricing: { minFee: 3000, tiers: [{ upTo: null, rate: 5 }] },
   adSpendByMonth: [100000, 100000, 100000], agencyPctByMonth: [40, 40, 40],
+  oneOffsByMonth: [10000, 0, 0], oneOffLabelsByMonth: ["Onboarding", "", ""],
 };
 
 const costConfig = {

@@ -17,6 +17,7 @@ export function mergeScenario(
   const key = (s: string) => s.trim().toLowerCase();
   const savedByName = new Map(saved.map((c) => [key(c.name), c]));
   const goodLen = (a: unknown): a is number[] => Array.isArray(a) && a.length === horizon;
+  const goodLabels = (a: unknown): a is string[] => Array.isArray(a) && a.length === horizon;
 
   const seeded: ScenarioClient[] = histories.map((h) => {
     const prior = savedByName.get(key(h.client));
@@ -30,6 +31,8 @@ export function mergeScenario(
       pricing: prior?.pricing,
       adSpendByMonth: goodLen(prior?.adSpendByMonth) ? prior!.adSpendByMonth : undefined,
       agencyPctByMonth: goodLen(prior?.agencyPctByMonth) ? prior!.agencyPctByMonth : undefined,
+      oneOffsByMonth: goodLen(prior?.oneOffsByMonth) ? prior!.oneOffsByMonth : undefined,
+      oneOffLabelsByMonth: goodLabels(prior?.oneOffLabelsByMonth) ? prior!.oneOffLabelsByMonth : undefined,
     };
   });
 
@@ -46,6 +49,8 @@ export function mergeScenario(
       pricing: c.pricing,
       adSpendByMonth: goodLen(c.adSpendByMonth) ? c.adSpendByMonth : undefined,
       agencyPctByMonth: goodLen(c.agencyPctByMonth) ? c.agencyPctByMonth : undefined,
+      oneOffsByMonth: goodLen(c.oneOffsByMonth) ? c.oneOffsByMonth : undefined,
+      oneOffLabelsByMonth: goodLabels(c.oneOffLabelsByMonth) ? c.oneOffLabelsByMonth : undefined,
     }));
 
   return [...seeded, ...hypotheticals];

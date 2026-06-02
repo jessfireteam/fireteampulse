@@ -44,4 +44,14 @@ describe("mergeScenario", () => {
     expect(r[0].adSpendByMonth).toEqual(new Array(H).fill(100000));
     expect(r[0].agencyPctByMonth).toEqual(new Array(H).fill(40));
   });
+  it("preserves saved one-off fees for an active client", () => {
+    const oneOffs = new Array(H).fill(0); oneOffs[0] = 10000;
+    const r = mergeScenario(
+      [hist("Acme", 5, 2)],
+      [saved("Acme", { oneOffsByMonth: oneOffs })],
+      H,
+      makeId,
+    );
+    expect(r[0].oneOffsByMonth).toEqual(oneOffs);
+  });
 });
