@@ -5,6 +5,7 @@ import { BREAKEVEN_FLOOR, type ClientPricing, type CostConfig, type OverheadLine
 import { SectionHeader } from "@/components/dashboard/SectionHeader";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { PricingModal } from "@/components/partners/PricingModal";
 import { isClientActive } from "@/lib/forecast/active";
@@ -30,6 +31,9 @@ interface Props {
   onUpdateCost: (patch: Partial<CostConfig>) => void;
   onAddClientWithPricing?: (name: string, pricing: ClientPricing) => void;
 }
+
+const checkboxClass =
+  "data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600 data-[state=checked]:text-white";
 
 const fmt = (n: number) => `$${Math.round(n).toLocaleString()}`;
 const fmtu = (n: number | null) => (n === null ? "—" : `$${Math.round(n).toLocaleString()}`);
@@ -125,10 +129,18 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
             <tr><th className="text-left p-1">Client</th>{monthLabels.map((l) => <th key={l} className="p-1 text-right font-mono text-xs text-muted-foreground">{l}</th>)}</tr>
           </thead>
           <tbody>
-            {clients.filter((c) => c.enabled).map((c) => (
-              <tr key={c.id}>
+            {clients.map((c) => (
+              <tr key={c.id} className={cn(c.enabled === false && "opacity-40")}>
                 <td className="p-1 whitespace-nowrap">
-                  <button className="text-left hover:underline" onClick={() => setEditing(c)}>{c.name}</button>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      className={checkboxClass}
+                      checked={c.enabled !== false}
+                      onCheckedChange={(v) => onUpdate(c.id, { enabled: !!v })}
+                      aria-label={`Include ${c.name}`}
+                    />
+                    <button className="text-left hover:underline" onClick={() => setEditing(c)}>{c.name}</button>
+                  </div>
                   <PricingSummary pricing={c.pricing} />
                 </td>
                 {monthLabels.map((_, i) => {

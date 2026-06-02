@@ -56,6 +56,24 @@ describe("runForecast", () => {
     expect(result.months[1].assets).toBeCloseTo(43.45, 2);
   });
 
+  it("applies per-role tasks-per-deliverable rate to demand", () => {
+    // copy rate 0.5 halves Copywriting demand vs the default-1 baseline
+    const base = runForecast([client(flat(43.45), flat(0))], peaks, 6, ref, { Copywriters: 1 });
+    const half = runForecast([client(flat(43.45), flat(0))], peaks, 6, ref, { Copywriters: 0.5 });
+    expect(half.months[0].roles.Copywriters.demandPerWeek).toBeCloseTo(
+      base.months[0].roles.Copywriters.demandPerWeek * 0.5,
+      5,
+    );
+  });
+
+  it("defaults halve Copywriters and double Creative Review vs old flat-1", () => {
+    // old flat-1 demand for videos at 43.45/mo ~ 10/wk
+    const r = runForecast([client(flat(43.45), flat(0))], peaks, 6, ref);
+    const flatOne = (43.45 / 4.345) * 1; // ~10/wk, old behavior
+    expect(r.months[0].roles.Copywriters.demandPerWeek).toBeCloseTo(flatOne * 0.5, 5);
+    expect(r.months[0].roles["Creative Review"].demandPerWeek).toBeCloseTo(flatOne * 2, 5);
+  });
+
   it("labels months forward from the reference month", () => {
     const result = runForecast([], peaks, 3, ref);
     expect(result.months.map((m) => m.label)).toEqual(["Jun 26", "Jul 26", "Aug 26"]);

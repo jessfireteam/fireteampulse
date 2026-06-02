@@ -2,6 +2,7 @@
 import { addMonths, format } from "date-fns";
 import { isClientActive } from "./active";
 import {
+  DEFAULT_ROLE_RATES,
   FORECAST_ROLES,
   WEEKS_PER_MONTH,
   type ForecastMonth,
@@ -9,6 +10,7 @@ import {
   type ForecastRoleKey,
   type RoleMonthCell,
   type RolePeaks,
+  type RoleRates,
   type RoleStatus,
   type ScenarioClient,
 } from "./types";
@@ -36,6 +38,7 @@ export function runForecast(
   peaks: RolePeaks,
   horizonMonths: number,
   referenceDate: Date,
+  roleRates?: RoleRates,
 ): ForecastResult {
   const months: ForecastMonth[] = [];
   const hireByRole = ROLE_KEYS.reduce((acc, k) => {
@@ -55,7 +58,9 @@ export function runForecast(
     ROLE_KEYS.forEach((key) => {
       const peak = peaks[key] ?? 0;
       const inc = ROLE_INCIDENCE[key];
-      const demandPerWeek = videosPerWeek * inc.video + staticsPerWeek * inc.static;
+      const rate = roleRates?.[key] ?? DEFAULT_ROLE_RATES[key] ?? 1;
+      const demandPerWeek =
+        (videosPerWeek * inc.video + staticsPerWeek * inc.static) * rate;
       const utilization = peak > 0 ? demandPerWeek / peak : 0;
       const status = statusFor(utilization);
       roles[key] = { role: key, demandPerWeek, peak, utilization, status };
