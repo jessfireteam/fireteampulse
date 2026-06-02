@@ -134,9 +134,9 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
                     );
                   }
                   if (view === "spend") {
-                    return <td key={i} className="p-1"><MoneyInput value={adSpend} onChange={(n) => setClientCell(c, "adSpendByMonth", i, n)} className="w-full" /></td>;
+                    return <td key={i} className="p-1"><MoneyInput value={adSpend} onChange={(n) => setClientCell(c, "adSpendByMonth", i, n)} className={cn("w-full", momColor(c.adSpendByMonth, i))} /></td>;
                   }
-                  return <td key={i} className="p-1"><Input type="number" min="0" max="100" className="w-full h-7 font-mono text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" value={pct} onChange={(e) => setClientCell(c, "agencyPctByMonth", i, parseFloat(e.target.value) || 0)} /></td>;
+                  return <td key={i} className="p-1"><Input type="number" min="0" max="100" className={cn("w-full h-7 font-mono text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none", momColor(c.agencyPctByMonth, i))} value={pct} onChange={(e) => setClientCell(c, "agencyPctByMonth", i, parseFloat(e.target.value) || 0)} /></td>;
                 })}
               </tr>
             ))}
@@ -238,6 +238,16 @@ function CostRow({ label, k, cfg, labels, onCell }: { label: string; k: keyof Co
       ))}
     </tr>
   );
+}
+
+// Month-over-month color: white if flat/first month, green if up vs prior month, red if down.
+function momColor(arr: number[] | undefined, i: number): string {
+  if (!arr || i === 0) return "";
+  const cur = arr[i] ?? 0;
+  const prev = arr[i - 1] ?? 0;
+  if (cur > prev) return "text-emerald-500";
+  if (cur < prev) return "text-destructive";
+  return "";
 }
 
 function MoneyInput({ value, onChange, className }: { value: number; onChange: (n: number) => void; className?: string }) {
