@@ -194,6 +194,12 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
 
       <div className="space-y-3">
         <SectionHeader title="Production team" />
+        {(costConfig.team ?? []).some((p) => p.employment === "salary") &&
+          !(costConfig.overheadLines ?? []).some((l) => (l.byMonth ?? []).some((v) => v > 0)) && (
+            <div className="text-xs text-amber-500">
+              ⚠ You have salaried producers but no overhead line with a value — their salary isn't in total cost. Add a "Salary" overhead line with your full payroll so it's counted once.
+            </div>
+          )}
         {(costConfig.team ?? []).map((p) => (
           <div key={p.id} className="flex gap-2 items-center">
             <Input className="flex-1" value={p.name} onChange={(e) => updatePerson(p.id, { name: e.target.value })} />
