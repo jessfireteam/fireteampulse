@@ -7,9 +7,17 @@ import type { ScenarioClient } from "@/lib/forecast/types";
 
 const months = ["Jun", "Jul", "Aug"];
 const client: ScenarioClient = {
-  id: "1", name: "Acme", videosByMonth: [], staticsByMonth: [], enabled: true, hypothetical: false,
+  id: "1", name: "Acme", videosByMonth: [10, 10, 10], staticsByMonth: [5, 5, 5], enabled: true, hypothetical: false,
   pricing: { minFee: 3000, tiers: [{ upTo: null, rate: 5 }] },
   adSpendByMonth: [100000, 100000, 100000], agencyPctByMonth: [40, 40, 40],
+};
+
+const costConfig = {
+  ...emptyCostConfig(3),
+  team: [
+    { id: "v", name: "Ed", side: "video" as const, monthlyCost: 8000, startMonthIndex: 0 },
+    { id: "s", name: "Dee", side: "static" as const, monthlyCost: 4000, startMonthIndex: 0 },
+  ],
 };
 
 describe("PnlTab", () => {
@@ -18,9 +26,8 @@ describe("PnlTab", () => {
       render(
         <PnlTab
           clients={[client]}
-          costConfig={emptyCostConfig(3)}
+          costConfig={costConfig}
           monthLabels={months}
-          deliverablesByMonth={[10, 12, 15]}
           onUpdate={() => {}}
           onUpdateCost={() => {}}
         />,

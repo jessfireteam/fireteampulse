@@ -86,7 +86,6 @@ function PartnersInner() {
             clients={clients}
             costConfig={costConfig}
             monthLabels={monthLabels}
-            deliverablesByMonth={result.months.map((mm) => mm.assets)}
             onUpdate={update}
             onUpdateCost={updateCost}
             onAddClientWithPricing={handleAddClientWithPricing}
