@@ -97,6 +97,7 @@ export interface PricingTier {
 }
 
 export interface ClientPricing {
+  baseFee?: number; // additive base, added to tiered amount before the minFee floor; defaults to 0
   minFee: number;
   tiers: PricingTier[];
 }

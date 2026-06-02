@@ -29,6 +29,7 @@ const DEFAULT_TIERS: DraftTier[] = [
   { upTo: "", rate: "5" },
 ];
 const DEFAULT_MIN_FEE = "3000";
+const DEFAULT_BASE_FEE = "0";
 
 function toDraftTiers(tiers?: PricingTier[]): DraftTier[] {
   if (!tiers || tiers.length === 0) return DEFAULT_TIERS.map((t) => ({ ...t }));
@@ -37,6 +38,7 @@ function toDraftTiers(tiers?: PricingTier[]): DraftTier[] {
 
 export function PricingModal({ open, onOpenChange, initial, onSave }: Props) {
   const [name, setName] = useState("");
+  const [baseFee, setBaseFee] = useState(DEFAULT_BASE_FEE);
   const [minFee, setMinFee] = useState(DEFAULT_MIN_FEE);
   const [tiers, setTiers] = useState<DraftTier[]>(DEFAULT_TIERS.map((t) => ({ ...t })));
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +47,7 @@ export function PricingModal({ open, onOpenChange, initial, onSave }: Props) {
   useEffect(() => {
     if (!open) return;
     setName(initial?.name ?? "");
+    setBaseFee(initial?.pricing ? String(initial.pricing.baseFee ?? 0) : DEFAULT_BASE_FEE);
     setMinFee(initial?.pricing ? String(initial.pricing.minFee) : DEFAULT_MIN_FEE);
     setTiers(toDraftTiers(initial?.pricing?.tiers));
     setError(null);
@@ -59,6 +62,11 @@ export function PricingModal({ open, onOpenChange, initial, onSave }: Props) {
     const trimmedName = name.trim();
     if (!trimmedName) {
       setError("Client name is required.");
+      return;
+    }
+    const baseFeeNum = parseFloat(baseFee);
+    if (!Number.isFinite(baseFeeNum) || baseFeeNum < 0) {
+      setError("Base fee must be 0 or greater.");
       return;
     }
     const minFeeNum = parseFloat(minFee);
@@ -111,7 +119,7 @@ export function PricingModal({ open, onOpenChange, initial, onSave }: Props) {
     // Defensive sort: non-null tiers ascending, then the single null tier last.
     const finalTiers: PricingTier[] = [...sortedBounds, ...nullTiers];
 
-    onSave(trimmedName, { minFee: minFeeNum, tiers: finalTiers });
+    onSave(trimmedName, { baseFee: baseFeeNum, minFee: minFeeNum, tiers: finalTiers });
   };
 
   return (
@@ -127,9 +135,15 @@ export function PricingModal({ open, onOpenChange, initial, onSave }: Props) {
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Prospective client" />
           </div>
 
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Minimum Fee ($)</label>
-            <Input type="number" min="0" value={minFee} onChange={(e) => setMinFee(e.target.value)} className="font-mono" />
+          <div className="flex gap-3">
+            <div className="space-y-1 flex-1">
+              <label className="text-xs text-muted-foreground">Base Fee ($)</label>
+              <Input type="number" min="0" value={baseFee} onChange={(e) => setBaseFee(e.target.value)} className="font-mono" />
+            </div>
+            <div className="space-y-1 flex-1">
+              <label className="text-xs text-muted-foreground">Minimum Fee ($)</label>
+              <Input type="number" min="0" value={minFee} onChange={(e) => setMinFee(e.target.value)} className="font-mono" />
+            </div>
           </div>
 
           <div className="space-y-2">
