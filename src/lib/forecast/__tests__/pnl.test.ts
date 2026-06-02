@@ -10,7 +10,7 @@ function person(over: Partial<ProductionPerson>): ProductionPerson {
   return { id: "p", name: "X", side: "video", monthlyCost: 0, startMonthIndex: 0, ...over };
 }
 function cost(over: Partial<CostConfig> = {}): CostConfig {
-  return { partnerSalaryByMonth: [0,0], rentByMonth: [0,0], overheadLines: [], overheadByMonth: [0,0], team: [], ...over };
+  return { partnerSalaryByMonth: [0,0], rentByMonth: [0,0], nonProdSalaryByMonth: [0,0], overheadLines: [], overheadByMonth: [0,0], team: [], ...over };
 }
 
 describe("runPnL", () => {
@@ -110,15 +110,28 @@ describe("runPnL", () => {
     expect(rows[0].fixedCost).toBe(5000);
   });
 
-  it("excludes SALARY producers from production cost line but includes them in per-type cost", () => {
-    const clients = [client({ videosByMonth:[10,10], staticsByMonth:[0,0] })];
+  it("production cost counts ALL producers regardless of employment", () => {
     const team = [
-      person({ id:"c", side:"video", monthlyCost:1000, employment:"contractor" }),
-      person({ id:"s", side:"video", monthlyCost:6500, employment:"salary" }),
+      person({ id:"c", side:"video", monthlyCost:5000, employment:"contractor" }),
+      person({ id:"s", side:"static", monthlyCost:6500, employment:"salary" }),
     ];
+    const clients = [client({ videosByMonth:[10,10], staticsByMonth:[10,10] })];
     const rows = runPnL({ clients, costConfig: cost({ team }), monthLabels: ["Jun","Jul"] });
-    expect(rows[0].productionCost).toBe(1000);          // contractor only
-    expect(rows[0].costPerVideo).toBeCloseTo(750, 5);   // (1000+6500)/10 — includes salaried
+    expect(rows[0].productionCost).toBe(11500); // both counted, toggle irrelevant here
+  });
+  it("dedicated non-prod salary nets out salaried producers; total counts each once", () => {
+    const team = [person({ id:"s", side:"static", monthlyCost:6500, employment:"salary" })];
+    const clients = [client({ videosByMonth:[0,0], staticsByMonth:[10,10] })];
+    const rows = runPnL({ clients, costConfig: cost({ team, nonProdSalaryByMonth:[37000,37000], partnerSalaryByMonth:[0,0], rentByMonth:[0,0] }), monthLabels: ["Jun","Jul"] });
+    expect(rows[0].nonProdSalaryNet).toBe(30500);  // 37000 - 6500
+    expect(rows[0].fixedCost).toBe(30500);          // partner0 + rent0 + salaryNet30500 + overhead0
+    expect(rows[0].totalCost).toBe(37000);          // fixed 30500 + production 6500 (counted once)
+  });
+  it("salary net floors at 0 when salaried producers exceed entered payroll", () => {
+    const team = [person({ id:"s", side:"static", monthlyCost:50000, employment:"salary" })];
+    const clients = [client({ videosByMonth:[0,0], staticsByMonth:[10,10] })];
+    const rows = runPnL({ clients, costConfig: cost({ team, nonProdSalaryByMonth:[37000,37000], partnerSalaryByMonth:[0,0], rentByMonth:[0,0] }), monthLabels: ["Jun","Jul"] });
+    expect(rows[0].nonProdSalaryNet).toBe(0);
   });
 
   it("defaults missing employment to contractor (counts in production cost)", () => {

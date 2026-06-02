@@ -35,14 +35,17 @@ export function runPnL(params: {
     const activeTeam = team.filter((p) => p.startMonthIndex <= m);
     const sideSum = (side: "video" | "static" | "both") =>
       activeTeam.filter((p) => p.side === side).reduce((s, p) => s + p.monthlyCost, 0);
-    // per-type cost uses ALL active producers (salaried included) so cost/video & cost/static stay accurate
+    // per-type cost uses ALL active producers so cost/video & cost/static stay accurate
     const videoSideCost = sideSum("video");
     const staticSideCost = sideSum("static");
     const bothCost = sideSum("both");
-    // production-cost LINE = contractors only (salaried producers are counted via the Salary overhead line)
-    const productionCost = activeTeam
-      .filter((p) => (p.employment ?? "contractor") !== "salary")
+    // production-cost LINE = ALL producers, regardless of employment classification
+    const productionCost = activeTeam.reduce((s, p) => s + p.monthlyCost, 0);
+    // salaried producers are already in production cost; subtract them from the entered full payroll so each is counted once
+    const salariedProducerCost = activeTeam
+      .filter((p) => p.employment === "salary")
       .reduce((s, p) => s + p.monthlyCost, 0);
+    const nonProdSalaryNet = Math.max(0, (costConfig.nonProdSalaryByMonth?.[m] ?? 0) - salariedProducerCost);
     // allocate "both" cost across types by this month's output mix
     const videoShare = deliverables === 0 ? 0 : videos / deliverables;
     const videoAlloc = bothCost * videoShare;
@@ -51,12 +54,12 @@ export function runPnL(params: {
     const overheadTotal = (costConfig.overheadLines && costConfig.overheadLines.length > 0)
       ? costConfig.overheadLines.reduce((s, line) => s + (line.byMonth?.[m] ?? 0), 0)
       : (costConfig.overheadByMonth?.[m] ?? 0);
-    const fixedCost = (costConfig.partnerSalaryByMonth[m] ?? 0) + (costConfig.rentByMonth[m] ?? 0) + overheadTotal;
+    const fixedCost = (costConfig.partnerSalaryByMonth[m] ?? 0) + (costConfig.rentByMonth[m] ?? 0) + nonProdSalaryNet + overheadTotal;
     const totalCost = fixedCost + productionCost;
     const netIncome = revenue - totalCost;
 
     return {
-      monthIndex: m, label, revenue, fixedCost, productionCost, totalCost, netIncome,
+      monthIndex: m, label, revenue, fixedCost, productionCost, nonProdSalaryNet, totalCost, netIncome,
       margin: revenue === 0 ? 0 : netIncome / revenue,
       deliverables, videos, statics,
       feePerDeliverable: deliverables === 0 ? null : revenue / deliverables,

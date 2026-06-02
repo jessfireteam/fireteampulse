@@ -110,7 +110,7 @@ export interface ProductionPerson {
   side: "video" | "static" | "both";
   monthlyCost: number;
   startMonthIndex: number; // 0 = active now; >0 = a hire beginning that month
-  /** "contractor" (default) cost hits the production-cost line; "salary" is counted via the Salary overhead line instead (still in per-unit cost). */
+  /** Classification only. Production cost counts ALL producers regardless; "salary" producers are subtracted from the dedicated Non-production salary line so each person is counted once. */
   employment?: "contractor" | "salary";
 }
 
@@ -125,7 +125,9 @@ export interface OverheadLine {
 export interface CostConfig {
   partnerSalaryByMonth: number[];
   rentByMonth: number[];
-  /** Named overhead lines (Salary, Software, Other, ...); summed into fixed cost. */
+  /** Full P&L payroll entered by the user. Salaried producers are subtracted from this (floored at 0) so each person is counted once; the NET feeds total cost. */
+  nonProdSalaryByMonth?: number[];
+  /** Named overhead lines (Software, Other, ...); summed into fixed cost. */
   overheadLines?: OverheadLine[];
   /** @deprecated legacy single overhead row; used only when overheadLines is absent/empty. */
   overheadByMonth?: number[];
@@ -143,6 +145,7 @@ export interface PnlMonth {
   revenue: number;
   fixedCost: number;
   productionCost: number;
+  nonProdSalaryNet: number;
   totalCost: number;
   netIncome: number;
   margin: number; // netIncome / revenue, 0 when revenue is 0
@@ -159,6 +162,7 @@ export function emptyCostConfig(horizon: number): CostConfig {
   return {
     partnerSalaryByMonth: new Array(horizon).fill(0),
     rentByMonth: new Array(horizon).fill(0),
+    nonProdSalaryByMonth: new Array(horizon).fill(0),
     overheadLines: [],
     overheadByMonth: new Array(horizon).fill(0),
     costPerDeliverableByMonth: new Array(horizon).fill(0),

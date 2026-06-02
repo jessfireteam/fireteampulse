@@ -56,6 +56,14 @@ export function useScenario(histories: ClientHistory[], userEmail?: string | nul
             if ((!cfg.overheadLines || cfg.overheadLines.length === 0) && (cfg.overheadByMonth ?? []).some((v) => v > 0)) {
               cfg.overheadLines = [{ id: "overhead-legacy", label: "Operating overhead", byMonth: [...cfg.overheadByMonth!] }];
             }
+            // Migrate a user's existing "Salary"-labeled overhead line into the dedicated non-prod salary field (don't keep both).
+            if ((!cfg.nonProdSalaryByMonth || cfg.nonProdSalaryByMonth.every((v) => !v)) && Array.isArray(cfg.overheadLines)) {
+              const salaryLine = cfg.overheadLines.find((l) => /salary/i.test(l.label));
+              if (salaryLine) {
+                cfg.nonProdSalaryByMonth = [...salaryLine.byMonth];
+                cfg.overheadLines = cfg.overheadLines.filter((l) => l !== salaryLine);
+              }
+            }
             setCostConfig(cfg);
           }
         }
