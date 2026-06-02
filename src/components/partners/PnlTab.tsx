@@ -180,14 +180,14 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
             <CostRow label="Partner salary" k="partnerSalaryByMonth" cfg={costConfig} labels={monthLabels} onCell={setCostCell} />
             <CostRow label="Rent / lease" k="rentByMonth" cfg={costConfig} labels={monthLabels} onCell={setCostCell} />
             <tr>
-              <td className="p-1 whitespace-nowrap">Non-production salary <span className="text-[10px] text-muted-foreground">(full payroll)</span></td>
+              <td className="p-1 whitespace-nowrap">P&amp;L salary <span className="text-[10px] text-muted-foreground">(full payroll)</span></td>
               {monthLabels.map((_, i) => (
                 <td key={i} className="p-1"><MoneyInput value={costConfig.nonProdSalaryByMonth?.[i] ?? 0} onChange={(n) => setNonProdSalary(i, n)} className="w-full" /></td>
               ))}
             </tr>
             {(costConfig.team ?? []).some((p) => p.employment === "salary") && (
               <tr className="text-muted-foreground">
-                <td className="p-1 whitespace-nowrap text-[11px] pl-3">→ net of salaried production</td>
+                <td className="p-1 whitespace-nowrap text-[11px] pl-3">→ non-production salary</td>
                 {rows.map((r) => <td key={r.monthIndex} className="p-1 text-right font-mono text-[11px]">{fmt(r.nonProdSalaryNet)}</td>)}
               </tr>
             )}
