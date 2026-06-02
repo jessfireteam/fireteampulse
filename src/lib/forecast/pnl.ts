@@ -33,16 +33,25 @@ export function runPnL(params: {
     const deliverables = videos + statics;
 
     const activeTeam = team.filter((p) => p.startMonthIndex <= m);
-    const videoSideCost = activeTeam.filter((p) => p.side === "video").reduce((s, p) => s + p.monthlyCost, 0);
-    const staticSideCost = activeTeam.filter((p) => p.side === "static").reduce((s, p) => s + p.monthlyCost, 0);
-    const bothCost = activeTeam.filter((p) => p.side === "both").reduce((s, p) => s + p.monthlyCost, 0);
-    const productionCost = videoSideCost + staticSideCost + bothCost;
+    const sideSum = (side: "video" | "static" | "both") =>
+      activeTeam.filter((p) => p.side === side).reduce((s, p) => s + p.monthlyCost, 0);
+    // per-type cost uses ALL active producers (salaried included) so cost/video & cost/static stay accurate
+    const videoSideCost = sideSum("video");
+    const staticSideCost = sideSum("static");
+    const bothCost = sideSum("both");
+    // production-cost LINE = contractors only (salaried producers are counted via the Salary overhead line)
+    const productionCost = activeTeam
+      .filter((p) => (p.employment ?? "contractor") !== "salary")
+      .reduce((s, p) => s + p.monthlyCost, 0);
     // allocate "both" cost across types by this month's output mix
     const videoShare = deliverables === 0 ? 0 : videos / deliverables;
     const videoAlloc = bothCost * videoShare;
     const staticAlloc = bothCost - videoAlloc;
 
-    const fixedCost = (costConfig.partnerSalaryByMonth[m] ?? 0) + (costConfig.rentByMonth[m] ?? 0) + (costConfig.overheadByMonth?.[m] ?? 0);
+    const overheadTotal = (costConfig.overheadLines && costConfig.overheadLines.length > 0)
+      ? costConfig.overheadLines.reduce((s, line) => s + (line.byMonth?.[m] ?? 0), 0)
+      : (costConfig.overheadByMonth?.[m] ?? 0);
+    const fixedCost = (costConfig.partnerSalaryByMonth[m] ?? 0) + (costConfig.rentByMonth[m] ?? 0) + overheadTotal;
     const totalCost = fixedCost + productionCost;
     const netIncome = revenue - totalCost;
 

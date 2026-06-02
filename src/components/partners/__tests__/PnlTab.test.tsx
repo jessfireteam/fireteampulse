@@ -15,8 +15,9 @@ const client: ScenarioClient = {
 
 const costConfig = {
   ...emptyCostConfig(3),
+  overheadLines: [{ id: "sal", label: "Salary", byMonth: [25000, 25000, 25000] }],
   team: [
-    { id: "v", name: "Ed", side: "video" as const, monthlyCost: 8000, startMonthIndex: 0 },
+    { id: "v", name: "Ed", side: "video" as const, monthlyCost: 8000, startMonthIndex: 0, employment: "salary" as const },
     { id: "s", name: "Dee", side: "static" as const, monthlyCost: 4000, startMonthIndex: 0 },
   ],
 };
