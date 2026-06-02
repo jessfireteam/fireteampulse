@@ -106,6 +106,7 @@ export interface ClientPricing {
 export interface CostConfig {
   partnerSalaryByMonth: number[];
   rentByMonth: number[];
+  overheadByMonth: number[];
   costPerDeliverableByMonth: number[];
 }
 
@@ -131,6 +132,7 @@ export function emptyCostConfig(horizon: number): CostConfig {
   return {
     partnerSalaryByMonth: new Array(horizon).fill(0),
     rentByMonth: new Array(horizon).fill(0),
+    overheadByMonth: new Array(horizon).fill(0),
     costPerDeliverableByMonth: new Array(horizon).fill(0),
   };
 }

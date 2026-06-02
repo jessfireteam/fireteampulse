@@ -22,7 +22,7 @@ export function runPnL(params: {
       return sum + computeFee(adSpend, pct, c.pricing);
     }, 0);
     const deliverables = deliverablesByMonth[m] ?? 0;
-    const fixedCost = (costConfig.partnerSalaryByMonth[m] ?? 0) + (costConfig.rentByMonth[m] ?? 0);
+    const fixedCost = (costConfig.partnerSalaryByMonth[m] ?? 0) + (costConfig.rentByMonth[m] ?? 0) + (costConfig.overheadByMonth?.[m] ?? 0);
     const variableCost = (costConfig.costPerDeliverableByMonth[m] ?? 0) * deliverables;
     const totalCost = fixedCost + variableCost;
     const netIncome = revenue - totalCost;
