@@ -64,14 +64,19 @@ export function PnlTab({ clients, costConfig, monthLabels, deliverablesByMonth, 
         ))}
       </div>
 
+      <div className="flex items-center justify-between gap-2">
+        <SectionHeader title="Revenue" />
+        {onAddClientWithPricing && (
+          <Button variant="outline" size="sm" onClick={() => setModalOpen(true)}>+ Add client / pricing</Button>
+        )}
+      </div>
+
       <div className="overflow-x-auto">
-        <div className="flex items-center justify-between gap-2">
-          <SectionHeader title="Revenue" />
-          {onAddClientWithPricing && (
-            <Button variant="outline" size="sm" onClick={() => setModalOpen(true)}>+ Add client / pricing</Button>
-          )}
-        </div>
-        <table className="text-sm">
+        <table className="w-full table-fixed text-sm">
+          <colgroup>
+            <col style={{ width: 220 }} />
+            {monthLabels.map((_, i) => <col key={i} />)}
+          </colgroup>
           <thead>
             <tr><th className="text-left p-1">Client</th>{monthLabels.map((l) => <th key={l} className="p-1 text-right font-mono text-xs text-muted-foreground">{l}</th>)}</tr>
           </thead>
@@ -90,21 +95,16 @@ export function PnlTab({ clients, costConfig, monthLabels, deliverablesByMonth, 
                     return <td key={i} className="p-1 text-right font-mono">{fmt(fee)}</td>;
                   }
                   if (view === "spend") {
-                    return <td key={i} className="p-1"><MoneyInput value={adSpend} onChange={(n) => setClientCell(c, "adSpendByMonth", i, n)} className="w-28" /></td>;
+                    return <td key={i} className="p-1"><MoneyInput value={adSpend} onChange={(n) => setClientCell(c, "adSpendByMonth", i, n)} className="w-full" /></td>;
                   }
-                  return <td key={i} className="p-1"><Input type="number" min="0" max="100" className="w-16 h-7 font-mono text-right" value={pct} onChange={(e) => setClientCell(c, "agencyPctByMonth", i, parseFloat(e.target.value) || 0)} /></td>;
+                  return <td key={i} className="p-1"><Input type="number" min="0" max="100" className="w-full h-7 font-mono text-right" value={pct} onChange={(e) => setClientCell(c, "agencyPctByMonth", i, parseFloat(e.target.value) || 0)} /></td>;
                 })}
               </tr>
             ))}
             <tr className="font-semibold border-t border-border"><td className="p-1">Revenue</td>{rows.map((r) => <td key={r.monthIndex} className="p-1 text-right font-mono">{fmt(r.revenue)}</td>)}</tr>
-          </tbody>
-        </table>
-      </div>
 
-      <div className="overflow-x-auto">
-        <SectionHeader title="Costs & profit" />
-        <table className="text-sm">
-          <tbody>
+            <tr><td colSpan={monthLabels.length + 1} className="pt-4 pb-1 text-xs uppercase tracking-wide text-muted-foreground">Costs &amp; profit</td></tr>
+
             <CostRow label="Partner salary" k="partnerSalaryByMonth" cfg={costConfig} labels={monthLabels} onCell={setCostCell} />
             <CostRow label="Rent / lease" k="rentByMonth" cfg={costConfig} labels={monthLabels} onCell={setCostCell} />
             <CostRow label="Variable cost / deliverable" k="costPerDeliverableByMonth" cfg={costConfig} labels={monthLabels} onCell={setCostCell} />
@@ -161,7 +161,7 @@ function CostRow({ label, k, cfg, labels, onCell }: { label: string; k: keyof Co
     <tr>
       <td className="p-1 whitespace-nowrap">{label}</td>
       {labels.map((_, i) => (
-        <td key={i} className="p-1"><MoneyInput value={cfg[k][i] ?? 0} onChange={(n) => onCell(k, i, n)} className="w-28" /></td>
+        <td key={i} className="p-1"><MoneyInput value={cfg[k][i] ?? 0} onChange={(n) => onCell(k, i, n)} className="w-full" /></td>
       ))}
     </tr>
   );
