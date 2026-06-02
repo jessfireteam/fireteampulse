@@ -112,10 +112,13 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
                   const adSpend = c.adSpendByMonth?.[i] ?? 0;
                   const pct = c.agencyPctByMonth?.[i] ?? 0;
                   if (view === "fee") {
+                    const fee = c.pricing ? computeFee(adSpend, pct, c.pricing) : 0;
+                    const feePrev = i > 0 && c.pricing ? computeFee(c.adSpendByMonth?.[i - 1] ?? 0, c.agencyPctByMonth?.[i - 1] ?? 0, c.pricing) : null;
+                    const feeCls = feePrev === null ? "" : fee > feePrev ? "text-emerald-500" : fee < feePrev ? "text-destructive" : "";
                     return (
                       <td key={i} className="p-1 align-top">
                         <div className="flex flex-col items-end leading-tight gap-0.5">
-                          <span className="font-mono">{fmt(c.pricing ? computeFee(c.adSpendByMonth?.[i] ?? 0, c.agencyPctByMonth?.[i] ?? 0, c.pricing) : 0)}</span>
+                          <span className={cn("font-mono", feeCls)}>{fmt(fee)}</span>
                           <Popover>
                             <PopoverTrigger asChild>
                               {(c.oneOffsByMonth?.[i] ?? 0) > 0
