@@ -3,7 +3,7 @@ import { runPnL } from "../pnl";
 import type { ClientPricing, CostConfig, ProductionPerson } from "../types";
 
 const pricing: ClientPricing = { minFee: 3000, tiers: [{ upTo: null, rate: 10 }] };
-function client(over: Partial<{ pricing: ClientPricing; adSpendByMonth: number[]; agencyPctByMonth: number[]; videosByMonth: number[]; staticsByMonth: number[]; enabled: boolean; oneOffsByMonth: number[] }>) {
+function client(over: Partial<{ pricing: ClientPricing; adSpendByMonth: number[]; agencyPctByMonth: number[]; videosByMonth: number[]; staticsByMonth: number[]; enabled: boolean; oneOffsByMonth: number[]; startMonthIndex: number; endMonthIndex: number | null }>) {
   return { pricing, adSpendByMonth: [], agencyPctByMonth: [], videosByMonth: [], staticsByMonth: [], enabled: true, ...over };
 }
 function person(over: Partial<ProductionPerson>): ProductionPerson {
@@ -134,6 +134,22 @@ describe("runPnL", () => {
     expect(rows[0].nonProdSalaryNet).toBe(0);
   });
 
+  it("offboarded client contributes nothing after its end month (no minimum fee, no deliverables)", () => {
+    const clients = [client({ endMonthIndex: 0, videosByMonth:[5,5], staticsByMonth:[0,0], adSpendByMonth:[0,0], agencyPctByMonth:[0,0] })]; // pricing min 3000
+    const rows = runPnL({ clients, costConfig: cost(), monthLabels: ["Jun","Jul"] });
+    expect(rows[0].revenue).toBeCloseTo(3000, 2); // active month: min fee
+    expect(rows[0].videos).toBe(5);
+    expect(rows[1].revenue).toBe(0);              // offboarded: no min fee
+    expect(rows[1].videos).toBe(0);               // no deliverables
+  });
+  it("client active from a later month contributes nothing before it", () => {
+    const clients = [client({ startMonthIndex: 1, videosByMonth:[9,9], staticsByMonth:[0,0] })];
+    const rows = runPnL({ clients, costConfig: cost(), monthLabels: ["Jun","Jul"] });
+    expect(rows[0].revenue).toBe(0);
+    expect(rows[0].videos).toBe(0);
+    expect(rows[1].revenue).toBeCloseTo(3000, 2);
+    expect(rows[1].videos).toBe(9);
+  });
   it("defaults missing employment to contractor (counts in production cost)", () => {
     const clients = [client({ videosByMonth:[5,5], staticsByMonth:[0,0] })];
     const team = [person({ id:"x", side:"video", monthlyCost:2000 })];

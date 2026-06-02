@@ -67,6 +67,10 @@ export interface ScenarioClient {
   agencyPctByMonth?: number[]; // percent 0-100
   oneOffsByMonth?: number[];      // one-off fee amount per month (0 where none)
   oneOffLabelsByMonth?: string[]; // optional label per month, parallel to oneOffsByMonth
+  /** First active month index (default 0 = active now / from the start of the horizon). */
+  startMonthIndex?: number;
+  /** Last active month index inclusive; null/undefined = ongoing (no end). */
+  endMonthIndex?: number | null;
 }
 
 export type RoleStatus = "ok" | "warning" | "critical" | "over";

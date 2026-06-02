@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { PricingModal } from "@/components/partners/PricingModal";
+import { isClientActive } from "@/lib/forecast/active";
 import { cn } from "@/lib/utils";
 
 // Stable, collision-free across reloads (roster ids persist in the DB; a reset
@@ -134,6 +135,13 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
                   const adSpend = c.adSpendByMonth?.[i] ?? 0;
                   const pct = c.agencyPctByMonth?.[i] ?? 0;
                   if (view === "fee") {
+                    if (!isClientActive(c, i)) {
+                      return (
+                        <td key={i} className="p-1 align-top text-right">
+                          <span className="font-mono text-muted-foreground/40">—</span>
+                        </td>
+                      );
+                    }
                     const fee = c.pricing ? computeFee(adSpend, pct, c.pricing) : 0;
                     const feePrev = i > 0 && c.pricing ? computeFee(c.adSpendByMonth?.[i - 1] ?? 0, c.agencyPctByMonth?.[i - 1] ?? 0, c.pricing) : null;
                     const feeCls = feePrev === null ? "" : fee > feePrev ? "text-emerald-500" : fee < feePrev ? "text-destructive" : "";
@@ -255,7 +263,9 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
         <PricingModal
           open={modalOpen}
           onOpenChange={setModalOpen}
+          monthLabels={monthLabels}
           onSave={(name, pricing) => {
+            // New clients default to active now / ongoing; window editable after creation.
             onAddClientWithPricing(name, pricing);
             setModalOpen(false);
           }}
@@ -266,8 +276,12 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
         <PricingModal
           open={!!editing}
           onOpenChange={(o) => { if (!o) setEditing(null); }}
-          initial={{ name: editing.name, pricing: editing.pricing }}
-          onSave={(name, pricing) => { onUpdate(editing.id, { name, pricing }); setEditing(null); }}
+          monthLabels={monthLabels}
+          initial={{ name: editing.name, pricing: editing.pricing, startMonthIndex: editing.startMonthIndex, endMonthIndex: editing.endMonthIndex }}
+          onSave={(name, pricing, window) => {
+            onUpdate(editing.id, { name, pricing, startMonthIndex: window.startMonthIndex, endMonthIndex: window.endMonthIndex });
+            setEditing(null);
+          }}
         />
       )}
     </div>
