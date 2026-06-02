@@ -5,6 +5,7 @@ interface PnlClient {
   pricing?: ClientPricing;
   adSpendByMonth?: number[];
   agencyPctByMonth?: number[];
+  oneOffsByMonth?: number[];
   videosByMonth?: number[];
   staticsByMonth?: number[];
   enabled?: boolean;
@@ -21,8 +22,10 @@ export function runPnL(params: {
 
   return monthLabels.map((label, m) => {
     const revenue = active.reduce((sum, c) => {
-      if (!c.pricing) return sum;
-      return sum + computeFee(c.adSpendByMonth?.[m] ?? 0, c.agencyPctByMonth?.[m] ?? 0, c.pricing);
+      let r = 0;
+      if (c.pricing) r += computeFee(c.adSpendByMonth?.[m] ?? 0, c.agencyPctByMonth?.[m] ?? 0, c.pricing);
+      r += c.oneOffsByMonth?.[m] ?? 0;
+      return sum + r;
     }, 0);
 
     const videos = active.reduce((s, c) => s + (c.videosByMonth?.[m] ?? 0), 0);

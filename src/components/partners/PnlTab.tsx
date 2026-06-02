@@ -5,6 +5,7 @@ import { BREAKEVEN_FLOOR, type ClientPricing, type CostConfig, type ProductionPe
 import { SectionHeader } from "@/components/dashboard/SectionHeader";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { PricingModal } from "@/components/partners/PricingModal";
 import { cn } from "@/lib/utils";
 
@@ -53,6 +54,12 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
     const arr = [...(c[key] ?? new Array(monthLabels.length).fill(0))];
     arr[i] = Number.isFinite(val) ? val : 0;
     onUpdate(c.id, { [key]: arr } as Partial<ScenarioClient>);
+  };
+  const setOneOff = (c: ScenarioClient, i: number, amount: number, label: string) => {
+    const amts = [...(c.oneOffsByMonth ?? new Array(monthLabels.length).fill(0))];
+    const labs = [...(c.oneOffLabelsByMonth ?? new Array(monthLabels.length).fill(""))];
+    amts[i] = amount; labs[i] = label;
+    onUpdate(c.id, { oneOffsByMonth: amts, oneOffLabelsByMonth: labs });
   };
 
   return (
@@ -105,13 +112,31 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
                   const adSpend = c.adSpendByMonth?.[i] ?? 0;
                   const pct = c.agencyPctByMonth?.[i] ?? 0;
                   if (view === "fee") {
-                    const fee = c.pricing ? computeFee(adSpend, pct, c.pricing) : 0;
-                    return <td key={i} className="p-1 text-right font-mono">{fmt(fee)}</td>;
+                    return (
+                      <td key={i} className="p-1 align-top">
+                        <div className="flex flex-col items-end leading-tight gap-0.5">
+                          <span className="font-mono">{fmt(c.pricing ? computeFee(c.adSpendByMonth?.[i] ?? 0, c.agencyPctByMonth?.[i] ?? 0, c.pricing) : 0)}</span>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              {(c.oneOffsByMonth?.[i] ?? 0) > 0
+                                ? <button className="text-emerald-500 font-mono text-[11px]" title={c.oneOffLabelsByMonth?.[i] || "One-off fee"}>+{fmt(c.oneOffsByMonth![i])}</button>
+                                : <button className="text-muted-foreground/40 hover:text-muted-foreground text-[11px] leading-none" aria-label="Add one-off fee">+ fee</button>}
+                            </PopoverTrigger>
+                            <PopoverContent className="w-56 space-y-2">
+                              <div className="text-xs text-muted-foreground">{c.name} · {monthLabels[i]}</div>
+                              <MoneyInput value={c.oneOffsByMonth?.[i] ?? 0} onChange={(n) => setOneOff(c, i, n, c.oneOffLabelsByMonth?.[i] ?? "")} className="w-full" />
+                              <Input placeholder="Label (e.g. Onboarding strategy)" value={c.oneOffLabelsByMonth?.[i] ?? ""} onChange={(e) => setOneOff(c, i, c.oneOffsByMonth?.[i] ?? 0, e.target.value)} className="h-7 text-xs" />
+                              <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setOneOff(c, i, 0, "")}>Remove</Button>
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                      </td>
+                    );
                   }
                   if (view === "spend") {
                     return <td key={i} className="p-1"><MoneyInput value={adSpend} onChange={(n) => setClientCell(c, "adSpendByMonth", i, n)} className="w-full" /></td>;
                   }
-                  return <td key={i} className="p-1"><Input type="number" min="0" max="100" className="w-full h-7 font-mono text-right" value={pct} onChange={(e) => setClientCell(c, "agencyPctByMonth", i, parseFloat(e.target.value) || 0)} /></td>;
+                  return <td key={i} className="p-1"><Input type="number" min="0" max="100" className="w-full h-7 font-mono text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" value={pct} onChange={(e) => setClientCell(c, "agencyPctByMonth", i, parseFloat(e.target.value) || 0)} /></td>;
                 })}
               </tr>
             ))}

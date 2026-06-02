@@ -3,7 +3,7 @@ import { runPnL } from "../pnl";
 import type { ClientPricing, CostConfig, ProductionPerson } from "../types";
 
 const pricing: ClientPricing = { minFee: 3000, tiers: [{ upTo: null, rate: 10 }] };
-function client(over: Partial<{ pricing: ClientPricing; adSpendByMonth: number[]; agencyPctByMonth: number[]; videosByMonth: number[]; staticsByMonth: number[]; enabled: boolean }>) {
+function client(over: Partial<{ pricing: ClientPricing; adSpendByMonth: number[]; agencyPctByMonth: number[]; videosByMonth: number[]; staticsByMonth: number[]; enabled: boolean; oneOffsByMonth: number[] }>) {
   return { pricing, adSpendByMonth: [], agencyPctByMonth: [], videosByMonth: [], staticsByMonth: [], enabled: true, ...over };
 }
 function person(over: Partial<ProductionPerson>): ProductionPerson {
@@ -61,6 +61,15 @@ describe("runPnL", () => {
     expect(rows[0].statics).toBe(4);
     expect(rows[0].costPerVideo).toBeNull();
     expect(rows[0].costPerStatic).toBeCloseTo(1000, 5);
+  });
+
+  it("adds one-off fees to revenue for that month", () => {
+    const clients = [client({ adSpendByMonth:[0,0], agencyPctByMonth:[0,0], oneOffsByMonth:[10000, 0] })]; // pricing min 3000
+    const rows = runPnL({ clients, costConfig: cost(), monthLabels: ["Jun","Jul"] });
+    // Jun: recurring fee floored to minFee 3000 + one-off 10000 = 13000
+    expect(rows[0].revenue).toBeCloseTo(13000, 2);
+    // Jul: just the 3000 minimum, no one-off
+    expect(rows[1].revenue).toBeCloseTo(3000, 2);
   });
 
   it("splits a 'both'-side person's cost across video and static by output mix", () => {
