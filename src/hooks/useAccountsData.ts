@@ -43,8 +43,8 @@ function processMonthlySpend(
     const monthStr = monthMatch ? monthMatch[1] : "";
     const clientName = cm.client?.name?.trim();
     if (!monthStr || !clientName) return;
-    // Exclude future months
-    if (monthStr > currentMonthStr) return;
+    // Exclude current and future months — only show completed months
+    if (monthStr >= currentMonthStr) return;
 
     const totalSpend = Number(cm.totalSpend) || 0;
     const ftSpend = Number(cm.fireTeamSpend) || 0;
