@@ -1,0 +1,146 @@
+import { useMemo, useState } from "react";
+import { runPnL } from "@/lib/forecast/pnl";
+import { computeFee } from "@/lib/forecast/fee";
+import { BREAKEVEN_FLOOR, type ClientPricing, type CostConfig, type ScenarioClient } from "@/lib/forecast/types";
+import { SectionHeader } from "@/components/dashboard/SectionHeader";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { PricingModal } from "@/components/partners/PricingModal";
+import { cn } from "@/lib/utils";
+
+interface Props {
+  clients: ScenarioClient[];
+  costConfig: CostConfig;
+  monthLabels: string[];
+  deliverablesByMonth: number[];
+  onUpdate: (id: string, patch: Partial<ScenarioClient>) => void;
+  onUpdateCost: (patch: Partial<CostConfig>) => void;
+  onAddClientWithPricing?: (name: string, pricing: ClientPricing) => void;
+}
+
+const fmt = (n: number) => `$${Math.round(n).toLocaleString()}`;
+const fmtu = (n: number | null) => (n === null ? "—" : `$${Math.round(n).toLocaleString()}`);
+
+export function PnlTab({ clients, costConfig, monthLabels, deliverablesByMonth, onUpdate, onUpdateCost, onAddClientWithPricing }: Props) {
+  const [view, setView] = useState<"fee" | "spend" | "pct">("fee");
+  const [modalOpen, setModalOpen] = useState(false);
+  const rows = useMemo(
+    () => runPnL({ clients, costConfig, deliverablesByMonth, monthLabels }),
+    [clients, costConfig, deliverablesByMonth, monthLabels],
+  );
+  const cur = rows[0];
+
+  const setCostCell = (key: keyof CostConfig, i: number, raw: string) => {
+    const next = [...costConfig[key]];
+    next[i] = parseFloat(raw) || 0;
+    onUpdateCost({ [key]: next } as Partial<CostConfig>);
+  };
+  const setClientCell = (c: ScenarioClient, key: "adSpendByMonth" | "agencyPctByMonth", i: number, raw: string) => {
+    const arr = [...(c[key] ?? new Array(monthLabels.length).fill(0))];
+    arr[i] = parseFloat(raw) || 0;
+    onUpdate(c.id, { [key]: arr } as Partial<ScenarioClient>);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap gap-6">
+        <Kpi label="Net income (this month)" value={cur ? fmt(cur.netIncome) : "—"} good={!!cur && cur.netIncome >= 0} />
+        <Kpi label="Margin" value={cur ? `${Math.round(cur.margin * 100)}%` : "—"} good={!!cur && cur.margin >= 0} />
+        <Kpi label="Fee / deliverable" value={cur ? fmtu(cur.feePerDeliverable) : "—"} />
+        <Kpi
+          label={`Cost / deliverable (floor ${fmt(BREAKEVEN_FLOOR)})`}
+          value={cur ? fmtu(cur.costPerDeliverable) : "—"}
+          good={!!cur && cur.costPerDeliverable !== null && cur.feePerDeliverable !== null && cur.feePerDeliverable >= cur.costPerDeliverable}
+        />
+      </div>
+
+      <div className="flex gap-2">
+        {(["fee", "spend", "pct"] as const).map((v) => (
+          <button key={v} onClick={() => setView(v)}
+            className={cn("text-xs rounded px-2 py-1", view === v ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
+            {v === "fee" ? "Fee" : v === "spend" ? "Ad Spend" : "Agency %"}
+          </button>
+        ))}
+      </div>
+
+      <div className="overflow-x-auto">
+        <div className="flex items-center justify-between gap-2">
+          <SectionHeader title="Revenue" />
+          {onAddClientWithPricing && (
+            <Button variant="outline" size="sm" onClick={() => setModalOpen(true)}>+ Add client / pricing</Button>
+          )}
+        </div>
+        <table className="text-sm">
+          <thead>
+            <tr><th className="text-left p-1">Client</th>{monthLabels.map((l) => <th key={l} className="p-1 text-right font-mono text-xs text-muted-foreground">{l}</th>)}</tr>
+          </thead>
+          <tbody>
+            {clients.filter((c) => c.enabled).map((c) => (
+              <tr key={c.id}>
+                <td className="p-1 whitespace-nowrap">{c.name}</td>
+                {monthLabels.map((_, i) => {
+                  const adSpend = c.adSpendByMonth?.[i] ?? 0;
+                  const pct = c.agencyPctByMonth?.[i] ?? 0;
+                  if (view === "fee") {
+                    const fee = c.pricing ? computeFee(adSpend, pct, c.pricing) : 0;
+                    return <td key={i} className="p-1 text-right font-mono">{fmt(fee)}</td>;
+                  }
+                  const key = view === "spend" ? "adSpendByMonth" : "agencyPctByMonth";
+                  const val = view === "spend" ? adSpend : pct;
+                  return <td key={i} className="p-1"><Input type="number" min="0" className="w-20 h-7 font-mono text-right" value={val} onChange={(e) => setClientCell(c, key, i, e.target.value)} /></td>;
+                })}
+              </tr>
+            ))}
+            <tr className="font-semibold border-t border-border"><td className="p-1">Revenue</td>{rows.map((r) => <td key={r.monthIndex} className="p-1 text-right font-mono">{fmt(r.revenue)}</td>)}</tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div className="overflow-x-auto">
+        <SectionHeader title="Costs & profit" />
+        <table className="text-sm">
+          <tbody>
+            <CostRow label="Partner salary" k="partnerSalaryByMonth" cfg={costConfig} labels={monthLabels} onCell={setCostCell} />
+            <CostRow label="Rent / lease" k="rentByMonth" cfg={costConfig} labels={monthLabels} onCell={setCostCell} />
+            <CostRow label="Cost / deliverable" k="costPerDeliverableByMonth" cfg={costConfig} labels={monthLabels} onCell={setCostCell} />
+            <tr><td className="p-1 text-muted-foreground">Deliverables</td>{rows.map((r) => <td key={r.monthIndex} className="p-1 text-right font-mono text-muted-foreground">{r.deliverables}</td>)}</tr>
+            <tr className="border-t border-border"><td className="p-1">Total cost</td>{rows.map((r) => <td key={r.monthIndex} className="p-1 text-right font-mono">{fmt(r.totalCost)}</td>)}</tr>
+            <tr className="font-semibold"><td className="p-1">Net income</td>{rows.map((r) => <td key={r.monthIndex} className={cn("p-1 text-right font-mono", r.netIncome >= 0 ? "text-emerald-500" : "text-destructive")}>{fmt(r.netIncome)}</td>)}</tr>
+            <tr><td className="p-1 text-muted-foreground">Margin</td>{rows.map((r) => <td key={r.monthIndex} className={cn("p-1 text-right font-mono", r.margin >= 0 ? "text-emerald-500" : "text-destructive")}>{Math.round(r.margin * 100)}%</td>)}</tr>
+          </tbody>
+        </table>
+      </div>
+
+      {onAddClientWithPricing && (
+        <PricingModal
+          open={modalOpen}
+          onOpenChange={setModalOpen}
+          onSave={(name, pricing) => {
+            onAddClientWithPricing(name, pricing);
+            setModalOpen(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function Kpi({ label, value, good }: { label: string; value: string; good?: boolean }) {
+  return (
+    <div className="space-y-1">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className={cn("text-xl font-mono", good === undefined ? "" : good ? "text-emerald-500" : "text-destructive")}>{value}</div>
+    </div>
+  );
+}
+
+function CostRow({ label, k, cfg, labels, onCell }: { label: string; k: keyof CostConfig; cfg: CostConfig; labels: string[]; onCell: (k: keyof CostConfig, i: number, raw: string) => void }) {
+  return (
+    <tr>
+      <td className="p-1 whitespace-nowrap">{label}</td>
+      {labels.map((_, i) => (
+        <td key={i} className="p-1"><Input type="number" min="0" className="w-20 h-7 font-mono text-right" value={cfg[k][i] ?? 0} onChange={(e) => onCell(k, i, e.target.value)} /></td>
+      ))}
+    </tr>
+  );
+}
