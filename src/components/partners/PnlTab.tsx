@@ -31,14 +31,14 @@ export function PnlTab({ clients, costConfig, monthLabels, deliverablesByMonth, 
   );
   const cur = rows[0];
 
-  const setCostCell = (key: keyof CostConfig, i: number, raw: string) => {
+  const setCostCell = (key: keyof CostConfig, i: number, val: number) => {
     const next = [...costConfig[key]];
-    next[i] = parseFloat(raw) || 0;
+    next[i] = Number.isFinite(val) ? val : 0;
     onUpdateCost({ [key]: next } as Partial<CostConfig>);
   };
-  const setClientCell = (c: ScenarioClient, key: "adSpendByMonth" | "agencyPctByMonth", i: number, raw: string) => {
+  const setClientCell = (c: ScenarioClient, key: "adSpendByMonth" | "agencyPctByMonth", i: number, val: number) => {
     const arr = [...(c[key] ?? new Array(monthLabels.length).fill(0))];
-    arr[i] = parseFloat(raw) || 0;
+    arr[i] = Number.isFinite(val) ? val : 0;
     onUpdate(c.id, { [key]: arr } as Partial<ScenarioClient>);
   };
 
@@ -49,7 +49,7 @@ export function PnlTab({ clients, costConfig, monthLabels, deliverablesByMonth, 
         <Kpi label="Margin" value={cur ? `${Math.round(cur.margin * 100)}%` : "—"} good={!!cur && cur.margin >= 0} />
         <Kpi label="Fee / deliverable" value={cur ? fmtu(cur.feePerDeliverable) : "—"} />
         <Kpi
-          label={`Cost / deliverable (floor ${fmt(BREAKEVEN_FLOOR)})`}
+          label={`All-in cost / deliverable (floor ${fmt(BREAKEVEN_FLOOR)})`}
           value={cur ? fmtu(cur.costPerDeliverable) : "—"}
           good={!!cur && cur.costPerDeliverable !== null && cur.feePerDeliverable !== null && cur.feePerDeliverable >= cur.costPerDeliverable}
         />
@@ -89,9 +89,10 @@ export function PnlTab({ clients, costConfig, monthLabels, deliverablesByMonth, 
                     const fee = c.pricing ? computeFee(adSpend, pct, c.pricing) : 0;
                     return <td key={i} className="p-1 text-right font-mono">{fmt(fee)}</td>;
                   }
-                  const key = view === "spend" ? "adSpendByMonth" : "agencyPctByMonth";
-                  const val = view === "spend" ? adSpend : pct;
-                  return <td key={i} className="p-1"><Input type="number" min="0" className="w-20 h-7 font-mono text-right" value={val} onChange={(e) => setClientCell(c, key, i, e.target.value)} /></td>;
+                  if (view === "spend") {
+                    return <td key={i} className="p-1"><MoneyInput value={adSpend} onChange={(n) => setClientCell(c, "adSpendByMonth", i, n)} className="w-28" /></td>;
+                  }
+                  return <td key={i} className="p-1"><Input type="number" min="0" max="100" className="w-16 h-7 font-mono text-right" value={pct} onChange={(e) => setClientCell(c, "agencyPctByMonth", i, parseFloat(e.target.value) || 0)} /></td>;
                 })}
               </tr>
             ))}
@@ -106,7 +107,7 @@ export function PnlTab({ clients, costConfig, monthLabels, deliverablesByMonth, 
           <tbody>
             <CostRow label="Partner salary" k="partnerSalaryByMonth" cfg={costConfig} labels={monthLabels} onCell={setCostCell} />
             <CostRow label="Rent / lease" k="rentByMonth" cfg={costConfig} labels={monthLabels} onCell={setCostCell} />
-            <CostRow label="Cost / deliverable" k="costPerDeliverableByMonth" cfg={costConfig} labels={monthLabels} onCell={setCostCell} />
+            <CostRow label="Variable cost / deliverable" k="costPerDeliverableByMonth" cfg={costConfig} labels={monthLabels} onCell={setCostCell} />
             <tr><td className="p-1 text-muted-foreground">Deliverables</td>{rows.map((r) => <td key={r.monthIndex} className="p-1 text-right font-mono text-muted-foreground">{r.deliverables}</td>)}</tr>
             <tr className="border-t border-border"><td className="p-1">Total cost</td>{rows.map((r) => <td key={r.monthIndex} className="p-1 text-right font-mono">{fmt(r.totalCost)}</td>)}</tr>
             <tr className="font-semibold"><td className="p-1">Net income</td>{rows.map((r) => <td key={r.monthIndex} className={cn("p-1 text-right font-mono", r.netIncome >= 0 ? "text-emerald-500" : "text-destructive")}>{fmt(r.netIncome)}</td>)}</tr>
@@ -155,13 +156,29 @@ function Kpi({ label, value, good }: { label: string; value: string; good?: bool
   );
 }
 
-function CostRow({ label, k, cfg, labels, onCell }: { label: string; k: keyof CostConfig; cfg: CostConfig; labels: string[]; onCell: (k: keyof CostConfig, i: number, raw: string) => void }) {
+function CostRow({ label, k, cfg, labels, onCell }: { label: string; k: keyof CostConfig; cfg: CostConfig; labels: string[]; onCell: (k: keyof CostConfig, i: number, val: number) => void }) {
   return (
     <tr>
       <td className="p-1 whitespace-nowrap">{label}</td>
       {labels.map((_, i) => (
-        <td key={i} className="p-1"><Input type="number" min="0" className="w-20 h-7 font-mono text-right" value={cfg[k][i] ?? 0} onChange={(e) => onCell(k, i, e.target.value)} /></td>
+        <td key={i} className="p-1"><MoneyInput value={cfg[k][i] ?? 0} onChange={(n) => onCell(k, i, n)} className="w-28" /></td>
       ))}
     </tr>
+  );
+}
+
+function MoneyInput({ value, onChange, className }: { value: number; onChange: (n: number) => void; className?: string }) {
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      className={cn("h-7 rounded-md border border-input bg-background px-2 font-mono text-right text-sm", className)}
+      value={value === 0 ? "" : value.toLocaleString("en-US")}
+      placeholder="0"
+      onChange={(e) => {
+        const n = parseInt(e.target.value.replace(/[^0-9]/g, ""), 10);
+        onChange(Number.isFinite(n) ? n : 0);
+      }}
+    />
   );
 }
