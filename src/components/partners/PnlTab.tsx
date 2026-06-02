@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { runPnL } from "@/lib/forecast/pnl";
 import { computeFee } from "@/lib/forecast/fee";
-import { BREAKEVEN_FLOOR, type ClientPricing, type CostConfig, type ProductionPerson, type ScenarioClient } from "@/lib/forecast/types";
+import { BREAKEVEN_FLOOR, type ClientPricing, type CostConfig, type OverheadLine, type ProductionPerson, type ScenarioClient } from "@/lib/forecast/types";
 import { SectionHeader } from "@/components/dashboard/SectionHeader";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,11 @@ const nextPid = () =>
   typeof crypto !== "undefined" && crypto.randomUUID
     ? `person-${crypto.randomUUID()}`
     : `person-${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+
+const nextOid = () =>
+  typeof crypto !== "undefined" && crypto.randomUUID
+    ? `oh-${crypto.randomUUID()}`
+    : `oh-${Date.now()}-${Math.round(Math.random() * 1e9)}`;
 
 interface Props {
   clients: ScenarioClient[];
@@ -50,6 +55,18 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
     onUpdateCost({ team: [...(costConfig.team ?? []), { id: nextPid(), name: "New hire", side: "video", monthlyCost: 0, startMonthIndex: 0 }] });
   const removePerson = (id: string) =>
     onUpdateCost({ team: (costConfig.team ?? []).filter((p) => p.id !== id) });
+
+  const updateOverhead = (id: string, patch: Partial<OverheadLine>) =>
+    onUpdateCost({ overheadLines: (costConfig.overheadLines ?? []).map((l) => (l.id === id ? { ...l, ...patch } : l)) });
+  const setOverheadCell = (line: OverheadLine, i: number, n: number) => {
+    const by = [...(line.byMonth ?? new Array(monthLabels.length).fill(0))];
+    by[i] = n;
+    updateOverhead(line.id, { byMonth: by });
+  };
+  const addOverhead = () =>
+    onUpdateCost({ overheadLines: [...(costConfig.overheadLines ?? []), { id: nextOid(), label: "New overhead", byMonth: new Array(monthLabels.length).fill(0) }] });
+  const removeOverhead = (id: string) =>
+    onUpdateCost({ overheadLines: (costConfig.overheadLines ?? []).filter((l) => l.id !== id) });
   const setClientCell = (c: ScenarioClient, key: "adSpendByMonth" | "agencyPctByMonth", i: number, val: number) => {
     const arr = [...(c[key] ?? new Array(monthLabels.length).fill(0))];
     arr[i] = Number.isFinite(val) ? val : 0;
@@ -149,8 +166,24 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
 
             <CostRow label="Partner salary" k="partnerSalaryByMonth" cfg={costConfig} labels={monthLabels} onCell={setCostCell} />
             <CostRow label="Rent / lease" k="rentByMonth" cfg={costConfig} labels={monthLabels} onCell={setCostCell} />
-            <CostRow label="Operating overhead" k="overheadByMonth" cfg={costConfig} labels={monthLabels} onCell={setCostCell} />
-            <tr><td className="p-1 whitespace-nowrap text-muted-foreground">Production team</td>{rows.map((r) => <td key={r.monthIndex} className="p-1 text-right font-mono text-muted-foreground">{fmt(r.productionCost)}</td>)}</tr>
+            {(costConfig.overheadLines ?? []).map((line) => (
+              <tr key={line.id}>
+                <td className="p-1">
+                  <div className="flex gap-1 items-center">
+                    <Input className="h-7 text-sm flex-1" value={line.label} onChange={(e) => updateOverhead(line.id, { label: e.target.value })} />
+                    <Button variant="ghost" size="sm" aria-label="Remove overhead line" className="px-2" onClick={() => removeOverhead(line.id)}>✕</Button>
+                  </div>
+                </td>
+                {monthLabels.map((_, i) => (
+                  <td key={i} className="p-1"><MoneyInput value={line.byMonth?.[i] ?? 0} onChange={(n) => setOverheadCell(line, i, n)} className="w-full" /></td>
+                ))}
+              </tr>
+            ))}
+            <tr>
+              <td className="p-1"><Button variant="outline" size="sm" onClick={addOverhead}>+ Add overhead line</Button></td>
+              {monthLabels.map((_, i) => <td key={i} />)}
+            </tr>
+            <tr><td className="p-1 whitespace-nowrap text-muted-foreground">Production team <span className="text-[10px]">(contractors; salaried in overhead)</span></td>{rows.map((r) => <td key={r.monthIndex} className="p-1 text-right font-mono text-muted-foreground">{fmt(r.productionCost)}</td>)}</tr>
             <tr><td className="p-1 text-muted-foreground">Deliverables</td>{rows.map((r) => <td key={r.monthIndex} className="p-1 text-right font-mono text-muted-foreground">{r.deliverables}</td>)}</tr>
             <tr className="border-t border-border"><td className="p-1">Total cost</td>{rows.map((r) => <td key={r.monthIndex} className="p-1 text-right font-mono">{fmt(r.totalCost)}</td>)}</tr>
             <tr className="font-semibold"><td className="p-1">Net income</td>{rows.map((r) => <td key={r.monthIndex} className={cn("p-1 text-right font-mono", r.netIncome >= 0 ? "text-emerald-500" : "text-destructive")}>{fmt(r.netIncome)}</td>)}</tr>
@@ -173,6 +206,15 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
               <option value="video">Video</option>
               <option value="static">Static</option>
               <option value="both">Both</option>
+            </select>
+            <select
+              aria-label="Employment"
+              className="bg-background border border-input rounded px-2 h-7 text-sm"
+              value={p.employment ?? "contractor"}
+              onChange={(e) => updatePerson(p.id, { employment: e.target.value as "contractor" | "salary" })}
+            >
+              <option value="contractor">Contractor</option>
+              <option value="salary">Salary</option>
             </select>
             <MoneyInput value={p.monthlyCost} onChange={(n) => updatePerson(p.id, { monthlyCost: n })} className="w-28" />
             <select

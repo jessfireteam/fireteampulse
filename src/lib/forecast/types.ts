@@ -110,13 +110,25 @@ export interface ProductionPerson {
   side: "video" | "static" | "both";
   monthlyCost: number;
   startMonthIndex: number; // 0 = active now; >0 = a hire beginning that month
+  /** "contractor" (default) cost hits the production-cost line; "salary" is counted via the Salary overhead line instead (still in per-unit cost). */
+  employment?: "contractor" | "salary";
+}
+
+/** A named operating-overhead line; byMonth length HORIZON_MONTHS (future months). */
+export interface OverheadLine {
+  id: string;
+  label: string;
+  byMonth: number[];
 }
 
 /** Agency-level cost config; arrays length HORIZON_MONTHS (future months). */
 export interface CostConfig {
   partnerSalaryByMonth: number[];
   rentByMonth: number[];
-  overheadByMonth: number[];
+  /** Named overhead lines (Salary, Software, Other, ...); summed into fixed cost. */
+  overheadLines?: OverheadLine[];
+  /** @deprecated legacy single overhead row; used only when overheadLines is absent/empty. */
+  overheadByMonth?: number[];
   costPerDeliverableByMonth?: number[]; // legacy, unused
   team: ProductionPerson[];
 }
@@ -147,6 +159,7 @@ export function emptyCostConfig(horizon: number): CostConfig {
   return {
     partnerSalaryByMonth: new Array(horizon).fill(0),
     rentByMonth: new Array(horizon).fill(0),
+    overheadLines: [],
     overheadByMonth: new Array(horizon).fill(0),
     costPerDeliverableByMonth: new Array(horizon).fill(0),
     team: [],

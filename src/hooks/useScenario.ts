@@ -50,7 +50,14 @@ export function useScenario(histories: ClientHistory[], userEmail?: string | nul
           const raw = data?.clients;
           setSavedClients(Array.isArray(raw) ? (raw as ScenarioClient[]) : []);
           const cc = data?.cost_config;
-          if (cc && Array.isArray(cc.partnerSalaryByMonth)) setCostConfig({ ...emptyCostConfig(HORIZON_MONTHS), ...(cc as Partial<CostConfig>) });
+          if (cc && Array.isArray(cc.partnerSalaryByMonth)) {
+            const cfg = { ...emptyCostConfig(HORIZON_MONTHS), ...(cc as Partial<CostConfig>) };
+            // Auto-migrate a legacy single overhead row into one editable named line (no data loss, no guessing).
+            if ((!cfg.overheadLines || cfg.overheadLines.length === 0) && (cfg.overheadByMonth ?? []).some((v) => v > 0)) {
+              cfg.overheadLines = [{ id: "overhead-legacy", label: "Operating overhead", byMonth: [...cfg.overheadByMonth!] }];
+            }
+            setCostConfig(cfg);
+          }
         }
       } catch {
         if (!cancelled) setSavedClients([]);

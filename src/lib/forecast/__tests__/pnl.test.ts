@@ -10,7 +10,7 @@ function person(over: Partial<ProductionPerson>): ProductionPerson {
   return { id: "p", name: "X", side: "video", monthlyCost: 0, startMonthIndex: 0, ...over };
 }
 function cost(over: Partial<CostConfig> = {}): CostConfig {
-  return { partnerSalaryByMonth: [0,0], rentByMonth: [0,0], overheadByMonth: [0,0], team: [], ...over };
+  return { partnerSalaryByMonth: [0,0], rentByMonth: [0,0], overheadLines: [], overheadByMonth: [0,0], team: [], ...over };
 }
 
 describe("runPnL", () => {
@@ -93,5 +93,38 @@ describe("runPnL", () => {
     expect(rows[0].costPerVideo).toBeCloseTo(200, 5);
     expect(rows[0].costPerStatic).toBeCloseTo(100, 5);
     expect(rows[0].productionCost).toBe(3000);
+  });
+
+  it("sums named overhead lines into fixed cost", () => {
+    const cc = cost({ overheadLines: [
+      { id:"sal", label:"Salary", byMonth:[25000,25000] },
+      { id:"sw", label:"Software", byMonth:[7000,7000] },
+    ], overheadByMonth:[999,999] /* legacy ignored when lines present */ });
+    const rows = runPnL({ clients: [], costConfig: cc, monthLabels: ["Jun","Jul"] });
+    expect(rows[0].fixedCost).toBe(32000); // partner 0 + rent 0 + (25000+7000); legacy 999 ignored
+  });
+
+  it("falls back to legacy overheadByMonth when no overheadLines", () => {
+    const cc = cost({ overheadByMonth:[5000,5000] }); // no overheadLines (empty)
+    const rows = runPnL({ clients: [], costConfig: cc, monthLabels: ["Jun","Jul"] });
+    expect(rows[0].fixedCost).toBe(5000);
+  });
+
+  it("excludes SALARY producers from production cost line but includes them in per-type cost", () => {
+    const clients = [client({ videosByMonth:[10,10], staticsByMonth:[0,0] })];
+    const team = [
+      person({ id:"c", side:"video", monthlyCost:1000, employment:"contractor" }),
+      person({ id:"s", side:"video", monthlyCost:6500, employment:"salary" }),
+    ];
+    const rows = runPnL({ clients, costConfig: cost({ team }), monthLabels: ["Jun","Jul"] });
+    expect(rows[0].productionCost).toBe(1000);          // contractor only
+    expect(rows[0].costPerVideo).toBeCloseTo(750, 5);   // (1000+6500)/10 — includes salaried
+  });
+
+  it("defaults missing employment to contractor (counts in production cost)", () => {
+    const clients = [client({ videosByMonth:[5,5], staticsByMonth:[0,0] })];
+    const team = [person({ id:"x", side:"video", monthlyCost:2000 })];
+    const rows = runPnL({ clients, costConfig: cost({ team }), monthLabels: ["Jun","Jul"] });
+    expect(rows[0].productionCost).toBe(2000);
   });
 });
