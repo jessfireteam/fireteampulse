@@ -27,6 +27,9 @@ export function mergeScenario(
       staticsByMonth: prior && goodLen(prior.staticsByMonth) ? prior.staticsByMonth : new Array(horizon).fill(h.seedStatics),
       enabled: prior ? prior.enabled : true,
       hypothetical: false,
+      pricing: prior?.pricing,
+      adSpendByMonth: goodLen(prior?.adSpendByMonth) ? prior!.adSpendByMonth : undefined,
+      agencyPctByMonth: goodLen(prior?.agencyPctByMonth) ? prior!.agencyPctByMonth : undefined,
     };
   });
 
@@ -40,6 +43,9 @@ export function mergeScenario(
       staticsByMonth: goodLen(c.staticsByMonth) ? c.staticsByMonth : new Array(horizon).fill(0),
       enabled: c.enabled,
       hypothetical: true,
+      pricing: c.pricing,
+      adSpendByMonth: goodLen(c.adSpendByMonth) ? c.adSpendByMonth : undefined,
+      agencyPctByMonth: goodLen(c.agencyPctByMonth) ? c.agencyPctByMonth : undefined,
     }));
 
   return [...seeded, ...hypotheticals];

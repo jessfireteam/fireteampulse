@@ -1,7 +1,7 @@
 // src/hooks/useScenario.ts
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { HORIZON_MONTHS, type ClientHistory, type ScenarioClient } from "@/lib/forecast/types";
+import { HORIZON_MONTHS, emptyCostConfig, type ClientHistory, type ScenarioClient, type CostConfig } from "@/lib/forecast/types";
 import { mergeScenario } from "@/lib/forecast/mergeScenario";
 
 let idCounter = 0;
@@ -23,6 +23,7 @@ export type SaveState = "idle" | "saving" | "saved" | "error";
 
 export function useScenario(histories: ClientHistory[], userEmail?: string | null) {
   const [clients, setClients] = useState<ScenarioClient[]>([]);
+  const [costConfig, setCostConfig] = useState<CostConfig>(() => emptyCostConfig(HORIZON_MONTHS));
   const [saveState, setSaveState] = useState<SaveState>("idle");
 
   // Saved row loaded from Supabase (or [] on error/missing).
@@ -39,7 +40,7 @@ export function useScenario(histories: ClientHistory[], userEmail?: string | nul
       try {
         const { data, error } = await db
           .from(TABLE)
-          .select("clients")
+          .select("clients, cost_config")
           .eq("id", ROW_ID)
           .maybeSingle();
         if (cancelled) return;
@@ -48,6 +49,8 @@ export function useScenario(histories: ClientHistory[], userEmail?: string | nul
         } else {
           const raw = data?.clients;
           setSavedClients(Array.isArray(raw) ? (raw as ScenarioClient[]) : []);
+          const cc = data?.cost_config;
+          if (cc && Array.isArray(cc.partnerSalaryByMonth)) setCostConfig(cc as CostConfig);
         }
       } catch {
         if (!cancelled) setSavedClients([]);
@@ -79,6 +82,7 @@ export function useScenario(histories: ClientHistory[], userEmail?: string | nul
           const { error } = await db.from(TABLE).upsert({
             id: ROW_ID,
             clients,
+            cost_config: costConfig,
             updated_at: new Date().toISOString(),
             updated_by: userEmail ?? null,
           });
@@ -89,7 +93,7 @@ export function useScenario(histories: ClientHistory[], userEmail?: string | nul
       })();
     }, AUTOSAVE_MS);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clients, userEmail]);
+  }, [clients, costConfig, userEmail]);
 
   // Clear pending timer on unmount.
   useEffect(() => {
@@ -116,5 +120,7 @@ export function useScenario(histories: ClientHistory[], userEmail?: string | nul
 
   const removeClient = (id: string) => setClients((cs) => cs.filter((c) => c.id !== id));
 
-  return { clients, update, addClient, removeClient, saveState };
+  const updateCost = (patch: Partial<CostConfig>) => setCostConfig((c) => ({ ...c, ...patch }));
+
+  return { clients, update, addClient, removeClient, costConfig, updateCost, saveState };
 }

@@ -62,6 +62,9 @@ export interface ScenarioClient {
   staticsByMonth: number[];
   enabled: boolean;
   hypothetical: boolean;
+  pricing?: ClientPricing;
+  adSpendByMonth?: number[];
+  agencyPctByMonth?: number[]; // percent 0-100
 }
 
 export type RoleStatus = "ok" | "warning" | "critical" | "over";
@@ -85,4 +88,49 @@ export interface ForecastResult {
   months: ForecastMonth[];
   /** role -> first monthIndex where demand exceeds peak, or null if never. */
   hireByRole: Record<ForecastRoleKey, number | null>;
+}
+
+/** A pricing tier; upTo is the upper bound of MANAGED spend for this bracket (null = "and above"). rate is a percent. */
+export interface PricingTier {
+  upTo: number | null;
+  rate: number;
+}
+
+export interface ClientPricing {
+  baseFee?: number; // additive base, added to tiered amount before the minFee floor; defaults to 0
+  minFee: number;
+  tiers: PricingTier[];
+}
+
+/** Agency-level cost config; arrays length HORIZON_MONTHS (future months). */
+export interface CostConfig {
+  partnerSalaryByMonth: number[];
+  rentByMonth: number[];
+  costPerDeliverableByMonth: number[];
+}
+
+/** Break-even / practical cost-per-deliverable reference floors (USD). */
+export const BREAKEVEN_FLOOR = 700;
+export const PRACTICAL_FLOOR = 1000;
+
+export interface PnlMonth {
+  monthIndex: number;
+  label: string;
+  revenue: number;
+  fixedCost: number;
+  variableCost: number;
+  totalCost: number;
+  netIncome: number;
+  margin: number; // netIncome / revenue, 0 when revenue is 0
+  deliverables: number;
+  feePerDeliverable: number | null; // null when deliverables === 0
+  costPerDeliverable: number | null;
+}
+
+export function emptyCostConfig(horizon: number): CostConfig {
+  return {
+    partnerSalaryByMonth: new Array(horizon).fill(0),
+    rentByMonth: new Array(horizon).fill(0),
+    costPerDeliverableByMonth: new Array(horizon).fill(0),
+  };
 }

@@ -32,4 +32,16 @@ describe("mergeScenario", () => {
     const r = mergeScenario([hist("Acme", 5)], [saved("Acme", { videosByMonth: [1,2,3] })], H, makeId);
     expect(r[0].videosByMonth).toEqual(new Array(H).fill(5));
   });
+  it("preserves saved revenue fields (pricing/adSpend/agencyPct) by client name", () => {
+    const pricing = { minFee: 3000, tiers: [{ upTo: null, rate: 5 }] };
+    const r = mergeScenario(
+      [hist("Acme", 5, 2)],
+      [saved("Acme", { pricing, adSpendByMonth: new Array(H).fill(100000), agencyPctByMonth: new Array(H).fill(40) })],
+      H,
+      makeId,
+    );
+    expect(r[0].pricing).toEqual(pricing);
+    expect(r[0].adSpendByMonth).toEqual(new Array(H).fill(100000));
+    expect(r[0].agencyPctByMonth).toEqual(new Array(H).fill(40));
+  });
 });
