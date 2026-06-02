@@ -5,7 +5,8 @@ import { useForecastData } from "@/hooks/useForecastData";
 import { useScenario } from "@/hooks/useScenario";
 import { useAuth } from "@/hooks/useAuth";
 import { runForecast } from "@/lib/forecast/engine";
-import { HORIZON_MONTHS, HISTORY_MONTHS, type ClientPricing } from "@/lib/forecast/types";
+import { HORIZON_MONTHS, HISTORY_MONTHS, FORECAST_ROLES, DEFAULT_ROLE_RATES, type ClientPricing } from "@/lib/forecast/types";
+import { Input } from "@/components/ui/input";
 import { ScenarioBuilder } from "@/components/partners/ScenarioBuilder";
 import { ForecastChart } from "@/components/partners/ForecastChart";
 import { HireTimeline } from "@/components/partners/HireTimeline";
@@ -48,8 +49,8 @@ function PartnersInner() {
   );
 
   const result = useMemo(
-    () => runForecast(clients, peaks, HORIZON_MONTHS, new Date()),
-    [clients, peaks],
+    () => runForecast(clients, peaks, HORIZON_MONTHS, new Date(), costConfig.roleRates),
+    [clients, peaks, costConfig.roleRates],
   );
 
   if (isLoading) return <Skeleton className="h-96 m-8" />;
@@ -80,6 +81,34 @@ function PartnersInner() {
             onAdd={addClient}
             onRemove={removeClient}
           />
+          <div className="rounded-lg border p-4 space-y-3">
+            <h3 className="text-sm font-semibold">Tasks per deliverable (by role)</h3>
+            <p className="text-xs text-muted-foreground">
+              How many of each role's tasks one deliverable generates - check monthly against the Pulse Role Capacity actuals.
+            </p>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
+              {FORECAST_ROLES.map((role) => (
+                <label key={role.key} className="flex flex-col gap-1 text-xs">
+                  <span className="text-muted-foreground">{role.display}</span>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    className="h-7 font-mono text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                    value={costConfig.roleRates?.[role.key] ?? DEFAULT_ROLE_RATES[role.key]}
+                    onChange={(e) =>
+                      updateCost({
+                        roleRates: {
+                          ...(costConfig.roleRates ?? {}),
+                          [role.key]: parseFloat(e.target.value) || 0,
+                        },
+                      })
+                    }
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
         </TabsContent>
         <TabsContent value="pnl">
           <PnlTab

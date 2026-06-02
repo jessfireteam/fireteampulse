@@ -30,6 +30,16 @@ export const HORIZON_MONTHS = 12;
 /** role -> peak role-tasks/week (supply ceiling). */
 export type RolePeaks = Record<ForecastRoleKey, number>;
 
+/** tasks-per-deliverable multiplier per role; reality isn't a flat 1 (copy ~0.5, creative review ~2). */
+export type RoleRates = Partial<Record<ForecastRoleKey, number>>;
+export const DEFAULT_ROLE_RATES: Record<ForecastRoleKey, number> = {
+  Account: 1,
+  "Creative Review": 2,
+  Copywriters: 0.5,
+  Design: 1,
+  Video: 1,
+};
+
 /** Months of read-only historical actuals shown left of the editable future. */
 export const HISTORY_MONTHS = 3;
 
@@ -133,6 +143,8 @@ export interface CostConfig {
   nonProdSalaryByMonth?: number[];
   /** Named overhead lines (Software, Other, ...); summed into fixed cost. */
   overheadLines?: OverheadLine[];
+  /** Per-role tasks-per-deliverable multipliers; falls back to DEFAULT_ROLE_RATES when unset. */
+  roleRates?: RoleRates;
   /** @deprecated legacy single overhead row; used only when overheadLines is absent/empty. */
   overheadByMonth?: number[];
   costPerDeliverableByMonth?: number[]; // legacy, unused
