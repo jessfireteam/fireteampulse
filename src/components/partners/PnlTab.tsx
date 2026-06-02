@@ -8,8 +8,12 @@ import { Button } from "@/components/ui/button";
 import { PricingModal } from "@/components/partners/PricingModal";
 import { cn } from "@/lib/utils";
 
-let pid = 0;
-const nextPid = () => `person-${++pid}`;
+// Stable, collision-free across reloads (roster ids persist in the DB; a reset
+// counter could regenerate an id that collides with a saved person's).
+const nextPid = () =>
+  typeof crypto !== "undefined" && crypto.randomUUID
+    ? `person-${crypto.randomUUID()}`
+    : `person-${Date.now()}-${Math.round(Math.random() * 1e9)}`;
 
 interface Props {
   clients: ScenarioClient[];
