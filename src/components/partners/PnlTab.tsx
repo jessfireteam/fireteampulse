@@ -24,6 +24,7 @@ const fmtu = (n: number | null) => (n === null ? "—" : `$${Math.round(n).toLoc
 export function PnlTab({ clients, costConfig, monthLabels, deliverablesByMonth, onUpdate, onUpdateCost, onAddClientWithPricing }: Props) {
   const [view, setView] = useState<"fee" | "spend" | "pct">("fee");
   const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState<ScenarioClient | null>(null);
   const rows = useMemo(
     () => runPnL({ clients, costConfig, deliverablesByMonth, monthLabels }),
     [clients, costConfig, deliverablesByMonth, monthLabels],
@@ -77,7 +78,10 @@ export function PnlTab({ clients, costConfig, monthLabels, deliverablesByMonth, 
           <tbody>
             {clients.filter((c) => c.enabled).map((c) => (
               <tr key={c.id}>
-                <td className="p-1 whitespace-nowrap">{c.name}</td>
+                <td className="p-1 whitespace-nowrap">
+                  <button className="text-left hover:underline" onClick={() => setEditing(c)}>{c.name}</button>
+                  <PricingSummary pricing={c.pricing} />
+                </td>
                 {monthLabels.map((_, i) => {
                   const adSpend = c.adSpendByMonth?.[i] ?? 0;
                   const pct = c.agencyPctByMonth?.[i] ?? 0;
@@ -121,8 +125,25 @@ export function PnlTab({ clients, costConfig, monthLabels, deliverablesByMonth, 
           }}
         />
       )}
+
+      {editing && (
+        <PricingModal
+          open={!!editing}
+          onOpenChange={(o) => { if (!o) setEditing(null); }}
+          initial={{ name: editing.name, pricing: editing.pricing }}
+          onSave={(name, pricing) => { onUpdate(editing.id, { name, pricing }); setEditing(null); }}
+        />
+      )}
     </div>
   );
+}
+
+function PricingSummary({ pricing }: { pricing?: ClientPricing }) {
+  if (!pricing) return <div className="text-[10px] text-amber-500">no pricing — click to set</div>;
+  const base = pricing.baseFee ? `$${(pricing.baseFee / 1000)}k base · ` : "";
+  const min = `$${(pricing.minFee / 1000)}k min`;
+  const rates = pricing.tiers.map((t) => `${t.rate}%`).join("/");
+  return <div className="text-[10px] text-muted-foreground font-mono">{base}{min} · {rates}</div>;
 }
 
 function Kpi({ label, value, good }: { label: string; value: string; good?: boolean }) {
