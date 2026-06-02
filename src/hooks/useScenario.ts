@@ -50,7 +50,7 @@ export function useScenario(histories: ClientHistory[], userEmail?: string | nul
           const raw = data?.clients;
           setSavedClients(Array.isArray(raw) ? (raw as ScenarioClient[]) : []);
           const cc = data?.cost_config;
-          if (cc && Array.isArray(cc.partnerSalaryByMonth)) setCostConfig(cc as CostConfig);
+          if (cc && Array.isArray(cc.partnerSalaryByMonth)) setCostConfig({ ...emptyCostConfig(HORIZON_MONTHS), ...(cc as Partial<CostConfig>) });
         }
       } catch {
         if (!cancelled) setSavedClients([]);

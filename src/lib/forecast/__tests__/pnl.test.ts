@@ -10,6 +10,7 @@ function cost(partner: number, rent: number, perDeliv: number, months: number): 
   return {
     partnerSalaryByMonth: new Array(months).fill(partner),
     rentByMonth: new Array(months).fill(rent),
+    overheadByMonth: new Array(months).fill(0),
     costPerDeliverableByMonth: new Array(months).fill(perDeliv),
   };
 }
@@ -41,5 +42,12 @@ describe("runPnL", () => {
     const rows = runPnL({ clients: [], costConfig: cost(35_000, 2_000, 700, 1), deliverablesByMonth: [5], monthLabels: ["Jun"] });
     expect(rows[0].revenue).toBe(0);
     expect(rows[0].margin).toBe(0);
+  });
+  it("includes operating overhead in fixed cost", () => {
+    const c = cost(35_000, 2_000, 700, 1);
+    c.overheadByMonth = [48_000];
+    const rows = runPnL({ clients: [], costConfig: c, deliverablesByMonth: [10], monthLabels: ["Jun"] });
+    expect(rows[0].fixedCost).toBe(85_000); // 35,000 + 2,000 + 48,000
+    expect(rows[0].totalCost).toBe(92_000); // fixed 85,000 + variable 700*10=7,000
   });
 });
