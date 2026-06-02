@@ -1,18 +1,24 @@
 import { useMemo, useState } from "react";
 import { runPnL } from "@/lib/forecast/pnl";
 import { computeFee } from "@/lib/forecast/fee";
-import { BREAKEVEN_FLOOR, type ClientPricing, type CostConfig, type ScenarioClient } from "@/lib/forecast/types";
+import { BREAKEVEN_FLOOR, type ClientPricing, type CostConfig, type ProductionPerson, type ScenarioClient } from "@/lib/forecast/types";
 import { SectionHeader } from "@/components/dashboard/SectionHeader";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { PricingModal } from "@/components/partners/PricingModal";
 import { cn } from "@/lib/utils";
 
+// Stable, collision-free across reloads (roster ids persist in the DB; a reset
+// counter could regenerate an id that collides with a saved person's).
+const nextPid = () =>
+  typeof crypto !== "undefined" && crypto.randomUUID
+    ? `person-${crypto.randomUUID()}`
+    : `person-${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+
 interface Props {
   clients: ScenarioClient[];
   costConfig: CostConfig;
   monthLabels: string[];
-  deliverablesByMonth: number[];
   onUpdate: (id: string, patch: Partial<ScenarioClient>) => void;
   onUpdateCost: (patch: Partial<CostConfig>) => void;
   onAddClientWithPricing?: (name: string, pricing: ClientPricing) => void;
@@ -21,21 +27,28 @@ interface Props {
 const fmt = (n: number) => `$${Math.round(n).toLocaleString()}`;
 const fmtu = (n: number | null) => (n === null ? "—" : `$${Math.round(n).toLocaleString()}`);
 
-export function PnlTab({ clients, costConfig, monthLabels, deliverablesByMonth, onUpdate, onUpdateCost, onAddClientWithPricing }: Props) {
+export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCost, onAddClientWithPricing }: Props) {
   const [view, setView] = useState<"fee" | "spend" | "pct">("fee");
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<ScenarioClient | null>(null);
   const rows = useMemo(
-    () => runPnL({ clients, costConfig, deliverablesByMonth, monthLabels }),
-    [clients, costConfig, deliverablesByMonth, monthLabels],
+    () => runPnL({ clients, costConfig, monthLabels }),
+    [clients, costConfig, monthLabels],
   );
   const cur = rows[0];
 
   const setCostCell = (key: keyof CostConfig, i: number, val: number) => {
-    const next = [...costConfig[key]];
+    const next = [...(costConfig[key] as number[])];
     next[i] = Number.isFinite(val) ? val : 0;
     onUpdateCost({ [key]: next } as Partial<CostConfig>);
   };
+
+  const updatePerson = (id: string, patch: Partial<ProductionPerson>) =>
+    onUpdateCost({ team: (costConfig.team ?? []).map((p) => (p.id === id ? { ...p, ...patch } : p)) });
+  const addPerson = () =>
+    onUpdateCost({ team: [...(costConfig.team ?? []), { id: nextPid(), name: "New hire", side: "video", monthlyCost: 0, startMonthIndex: 0 }] });
+  const removePerson = (id: string) =>
+    onUpdateCost({ team: (costConfig.team ?? []).filter((p) => p.id !== id) });
   const setClientCell = (c: ScenarioClient, key: "adSpendByMonth" | "agencyPctByMonth", i: number, val: number) => {
     const arr = [...(c[key] ?? new Array(monthLabels.length).fill(0))];
     arr[i] = Number.isFinite(val) ? val : 0;
@@ -48,10 +61,11 @@ export function PnlTab({ clients, costConfig, monthLabels, deliverablesByMonth, 
         <Kpi label="Net income (this month)" value={cur ? fmt(cur.netIncome) : "—"} good={!!cur && cur.netIncome >= 0} />
         <Kpi label="Margin" value={cur ? `${Math.round(cur.margin * 100)}%` : "—"} good={!!cur && cur.margin >= 0} />
         <Kpi label="Fee / deliverable" value={cur ? fmtu(cur.feePerDeliverable) : "—"} />
+        <Kpi label="Cost / video" value={cur ? fmtu(cur.costPerVideo) : "—"} />
+        <Kpi label="Cost / static" value={cur ? fmtu(cur.costPerStatic) : "—"} />
         <Kpi
           label={`All-in cost / deliverable (floor ${fmt(BREAKEVEN_FLOOR)})`}
           value={cur ? fmtu(cur.costPerDeliverable) : "—"}
-          good={!!cur && cur.costPerDeliverable !== null && cur.feePerDeliverable !== null && cur.feePerDeliverable >= cur.costPerDeliverable}
         />
       </div>
 
@@ -108,13 +122,45 @@ export function PnlTab({ clients, costConfig, monthLabels, deliverablesByMonth, 
             <CostRow label="Partner salary" k="partnerSalaryByMonth" cfg={costConfig} labels={monthLabels} onCell={setCostCell} />
             <CostRow label="Rent / lease" k="rentByMonth" cfg={costConfig} labels={monthLabels} onCell={setCostCell} />
             <CostRow label="Operating overhead" k="overheadByMonth" cfg={costConfig} labels={monthLabels} onCell={setCostCell} />
-            <CostRow label="Variable cost / deliverable" k="costPerDeliverableByMonth" cfg={costConfig} labels={monthLabels} onCell={setCostCell} />
+            <tr><td className="p-1 whitespace-nowrap text-muted-foreground">Production team</td>{rows.map((r) => <td key={r.monthIndex} className="p-1 text-right font-mono text-muted-foreground">{fmt(r.productionCost)}</td>)}</tr>
             <tr><td className="p-1 text-muted-foreground">Deliverables</td>{rows.map((r) => <td key={r.monthIndex} className="p-1 text-right font-mono text-muted-foreground">{r.deliverables}</td>)}</tr>
             <tr className="border-t border-border"><td className="p-1">Total cost</td>{rows.map((r) => <td key={r.monthIndex} className="p-1 text-right font-mono">{fmt(r.totalCost)}</td>)}</tr>
             <tr className="font-semibold"><td className="p-1">Net income</td>{rows.map((r) => <td key={r.monthIndex} className={cn("p-1 text-right font-mono", r.netIncome >= 0 ? "text-emerald-500" : "text-destructive")}>{fmt(r.netIncome)}</td>)}</tr>
             <tr><td className="p-1 text-muted-foreground">Margin</td>{rows.map((r) => <td key={r.monthIndex} className={cn("p-1 text-right font-mono", r.margin >= 0 ? "text-emerald-500" : "text-destructive")}>{Math.round(r.margin * 100)}%</td>)}</tr>
           </tbody>
         </table>
+      </div>
+
+      <div className="space-y-3">
+        <SectionHeader title="Production team" />
+        {(costConfig.team ?? []).map((p) => (
+          <div key={p.id} className="flex gap-2 items-center">
+            <Input className="flex-1" value={p.name} onChange={(e) => updatePerson(p.id, { name: e.target.value })} />
+            <select
+              aria-label="Side"
+              className="bg-background border border-input rounded px-2 h-7 text-sm"
+              value={p.side}
+              onChange={(e) => updatePerson(p.id, { side: e.target.value as "video" | "static" })}
+            >
+              <option value="video">Video</option>
+              <option value="static">Static</option>
+            </select>
+            <MoneyInput value={p.monthlyCost} onChange={(n) => updatePerson(p.id, { monthlyCost: n })} className="w-28" />
+            <select
+              aria-label="Start month"
+              className="bg-background border border-input rounded px-2 h-7 text-sm"
+              value={p.startMonthIndex}
+              onChange={(e) => updatePerson(p.id, { startMonthIndex: parseInt(e.target.value) })}
+            >
+              <option value={0}>Now</option>
+              {monthLabels.slice(1).map((l, idx) => (
+                <option key={idx + 1} value={idx + 1}>{l}</option>
+              ))}
+            </select>
+            <Button variant="ghost" size="sm" aria-label="Remove person" onClick={() => removePerson(p.id)}>✕</Button>
+          </div>
+        ))}
+        <Button variant="outline" size="sm" onClick={addPerson}>+ Add person / hire</Button>
       </div>
 
       {onAddClientWithPricing && (
@@ -162,7 +208,7 @@ function CostRow({ label, k, cfg, labels, onCell }: { label: string; k: keyof Co
     <tr>
       <td className="p-1 whitespace-nowrap">{label}</td>
       {labels.map((_, i) => (
-        <td key={i} className="p-1"><MoneyInput value={cfg[k][i] ?? 0} onChange={(n) => onCell(k, i, n)} className="w-full" /></td>
+        <td key={i} className="p-1"><MoneyInput value={(cfg[k] as number[])?.[i] ?? 0} onChange={(n) => onCell(k, i, n)} className="w-full" /></td>
       ))}
     </tr>
   );

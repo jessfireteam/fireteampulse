@@ -102,12 +102,21 @@ export interface ClientPricing {
   tiers: PricingTier[];
 }
 
+export interface ProductionPerson {
+  id: string;
+  name: string;
+  side: "video" | "static";
+  monthlyCost: number;
+  startMonthIndex: number; // 0 = active now; >0 = a hire beginning that month
+}
+
 /** Agency-level cost config; arrays length HORIZON_MONTHS (future months). */
 export interface CostConfig {
   partnerSalaryByMonth: number[];
   rentByMonth: number[];
   overheadByMonth: number[];
-  costPerDeliverableByMonth: number[];
+  costPerDeliverableByMonth?: number[]; // legacy, unused
+  team: ProductionPerson[];
 }
 
 /** Break-even / practical cost-per-deliverable reference floors (USD). */
@@ -119,13 +128,17 @@ export interface PnlMonth {
   label: string;
   revenue: number;
   fixedCost: number;
-  variableCost: number;
+  productionCost: number;
   totalCost: number;
   netIncome: number;
   margin: number; // netIncome / revenue, 0 when revenue is 0
   deliverables: number;
+  videos: number;
+  statics: number;
   feePerDeliverable: number | null; // null when deliverables === 0
   costPerDeliverable: number | null;
+  costPerVideo: number | null;
+  costPerStatic: number | null;
 }
 
 export function emptyCostConfig(horizon: number): CostConfig {
@@ -134,5 +147,6 @@ export function emptyCostConfig(horizon: number): CostConfig {
     rentByMonth: new Array(horizon).fill(0),
     overheadByMonth: new Array(horizon).fill(0),
     costPerDeliverableByMonth: new Array(horizon).fill(0),
+    team: [],
   };
 }
