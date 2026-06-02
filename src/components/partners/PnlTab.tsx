@@ -67,6 +67,11 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
     onUpdateCost({ overheadLines: [...(costConfig.overheadLines ?? []), { id: nextOid(), label: "New overhead", byMonth: new Array(monthLabels.length).fill(0) }] });
   const removeOverhead = (id: string) =>
     onUpdateCost({ overheadLines: (costConfig.overheadLines ?? []).filter((l) => l.id !== id) });
+  const setNonProdSalary = (i: number, n: number) => {
+    const arr = [...(costConfig.nonProdSalaryByMonth ?? new Array(monthLabels.length).fill(0))];
+    arr[i] = n;
+    onUpdateCost({ nonProdSalaryByMonth: arr });
+  };
   const setClientCell = (c: ScenarioClient, key: "adSpendByMonth" | "agencyPctByMonth", i: number, val: number) => {
     const arr = [...(c[key] ?? new Array(monthLabels.length).fill(0))];
     arr[i] = Number.isFinite(val) ? val : 0;
@@ -166,6 +171,18 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
 
             <CostRow label="Partner salary" k="partnerSalaryByMonth" cfg={costConfig} labels={monthLabels} onCell={setCostCell} />
             <CostRow label="Rent / lease" k="rentByMonth" cfg={costConfig} labels={monthLabels} onCell={setCostCell} />
+            <tr>
+              <td className="p-1 whitespace-nowrap">Non-production salary <span className="text-[10px] text-muted-foreground">(full payroll)</span></td>
+              {monthLabels.map((_, i) => (
+                <td key={i} className="p-1"><MoneyInput value={costConfig.nonProdSalaryByMonth?.[i] ?? 0} onChange={(n) => setNonProdSalary(i, n)} className="w-full" /></td>
+              ))}
+            </tr>
+            {(costConfig.team ?? []).some((p) => p.employment === "salary") && (
+              <tr className="text-muted-foreground">
+                <td className="p-1 whitespace-nowrap text-[11px] pl-3">→ net of salaried production</td>
+                {rows.map((r) => <td key={r.monthIndex} className="p-1 text-right font-mono text-[11px]">{fmt(r.nonProdSalaryNet)}</td>)}
+              </tr>
+            )}
             {(costConfig.overheadLines ?? []).map((line) => (
               <tr key={line.id}>
                 <td className="p-1">
@@ -183,7 +200,7 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
               <td className="p-1"><Button variant="outline" size="sm" onClick={addOverhead}>+ Add overhead line</Button></td>
               {monthLabels.map((_, i) => <td key={i} />)}
             </tr>
-            <tr><td className="p-1 whitespace-nowrap text-muted-foreground">Production team <span className="text-[10px]">(contractors; salaried in overhead)</span></td>{rows.map((r) => <td key={r.monthIndex} className="p-1 text-right font-mono text-muted-foreground">{fmt(r.productionCost)}</td>)}</tr>
+            <tr><td className="p-1 whitespace-nowrap text-muted-foreground">Production team</td>{rows.map((r) => <td key={r.monthIndex} className="p-1 text-right font-mono text-muted-foreground">{fmt(r.productionCost)}</td>)}</tr>
             <tr><td className="p-1 text-muted-foreground">Deliverables</td>{rows.map((r) => <td key={r.monthIndex} className="p-1 text-right font-mono text-muted-foreground">{r.deliverables}</td>)}</tr>
             <tr className="border-t border-border"><td className="p-1">Total cost</td>{rows.map((r) => <td key={r.monthIndex} className="p-1 text-right font-mono">{fmt(r.totalCost)}</td>)}</tr>
             <tr className="font-semibold"><td className="p-1">Net income</td>{rows.map((r) => <td key={r.monthIndex} className={cn("p-1 text-right font-mono", r.netIncome >= 0 ? "text-emerald-500" : "text-destructive")}>{fmt(r.netIncome)}</td>)}</tr>
@@ -194,12 +211,6 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
 
       <div className="space-y-3">
         <SectionHeader title="Production team" />
-        {(costConfig.team ?? []).some((p) => p.employment === "salary") &&
-          !(costConfig.overheadLines ?? []).some((l) => (l.byMonth ?? []).some((v) => v > 0)) && (
-            <div className="text-xs text-amber-500">
-              ⚠ You have salaried producers but no overhead line with a value — their salary isn't in total cost. Add a "Salary" overhead line with your full payroll so it's counted once.
-            </div>
-          )}
         {(costConfig.team ?? []).map((p) => (
           <div key={p.id} className="flex gap-2 items-center">
             <Input className="flex-1" value={p.name} onChange={(e) => updatePerson(p.id, { name: e.target.value })} />
