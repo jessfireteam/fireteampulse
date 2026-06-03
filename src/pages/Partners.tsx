@@ -23,9 +23,9 @@ function PartnersInner() {
   // return its id (the id is minted inside the hook's setState). We stash the
   // name+pricing and the set of known ids, then an effect patches whichever
   // client id is new. Keeps PnlTab focused on display/edit; Partners owns creation.
-  const pendingNew = useRef<{ name: string; pricing: ClientPricing; knownIds: Set<string> } | null>(null);
-  const handleAddClientWithPricing = (name: string, pricing: ClientPricing) => {
-    pendingNew.current = { name, pricing, knownIds: new Set(clients.map((c) => c.id)) };
+  const pendingNew = useRef<{ name: string; pricing: ClientPricing; newBusiness: boolean; knownIds: Set<string> } | null>(null);
+  const handleAddClientWithPricing = (name: string, pricing: ClientPricing, newBusiness = false) => {
+    pendingNew.current = { name, pricing, newBusiness, knownIds: new Set(clients.map((c) => c.id)) };
     addClient();
   };
   useEffect(() => {
@@ -34,7 +34,7 @@ function PartnersInner() {
     const created = clients.find((c) => !pending.knownIds.has(c.id));
     if (!created) return;
     pendingNew.current = null;
-    update(created.id, { name: pending.name, pricing: pending.pricing });
+    update(created.id, { name: pending.name, pricing: pending.pricing, newBusiness: pending.newBusiness });
   }, [clients, update]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -72,6 +72,8 @@ export interface ScenarioClient {
   staticsByMonth: number[];
   enabled: boolean;
   hypothetical: boolean;
+  /** Pipeline status: true = prospective new business, false/undefined = signed client. Display/sort only; does not affect math. */
+  newBusiness?: boolean;
   pricing?: ClientPricing;
   adSpendByMonth?: number[];
   agencyPctByMonth?: number[]; // percent 0-100

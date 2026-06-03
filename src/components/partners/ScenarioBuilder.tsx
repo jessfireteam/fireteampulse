@@ -49,6 +49,10 @@ export function ScenarioBuilder({
     onUpdate(c.id, { [kind]: c[kind].map(() => v) });
   };
 
+  // Display order only: signed clients first, prospective new business below.
+  // Stable sort preserves original order within each group; math is unaffected.
+  const ordered = [...clients].sort((a, b) => Number(!!a.newBusiness) - Number(!!b.newBusiness));
+
   return (
     <div className="space-y-3">
       <SectionHeader title="Scenario — videos & statics per month" />
@@ -82,7 +86,7 @@ export function ScenarioBuilder({
             </tr>
           </thead>
           <tbody>
-            {clients.map((c, ci) => {
+            {ordered.map((c, ci) => {
               const hist = histories.find((h) => h.client === c.name);
               const band = ci % 2 === 1 ? "bg-muted/40" : undefined;
               return (
@@ -100,6 +104,9 @@ export function ScenarioBuilder({
                           value={c.name}
                           onChange={(e) => onUpdate(c.id, { name: e.target.value })}
                         />
+                        {c.newBusiness && (
+                          <span className="text-[9px] uppercase tracking-wide px-1 py-0.5 rounded bg-amber-500/15 text-amber-500 whitespace-nowrap">new biz</span>
+                        )}
                         <Button
                           aria-label="Remove client"
                           variant="ghost"

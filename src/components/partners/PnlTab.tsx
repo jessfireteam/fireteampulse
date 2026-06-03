@@ -30,7 +30,7 @@ interface Props {
   monthLabels: string[];
   onUpdate: (id: string, patch: Partial<ScenarioClient>) => void;
   onUpdateCost: (patch: Partial<CostConfig>) => void;
-  onAddClientWithPricing?: (name: string, pricing: ClientPricing) => void;
+  onAddClientWithPricing?: (name: string, pricing: ClientPricing, newBusiness?: boolean) => void;
 }
 
 const checkboxClass =
@@ -48,6 +48,12 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
     [clients, costConfig, monthLabels],
   );
   const cur = rows[0];
+  // Display order only: signed clients first, prospective new business below.
+  // Stable, so original order is preserved within each group. Math is unaffected.
+  const orderedClients = useMemo(
+    () => [...clients].sort((a, b) => Number(!!a.newBusiness) - Number(!!b.newBusiness)),
+    [clients],
+  );
 
   const setCostCell = (key: keyof CostConfig, i: number, val: number) => {
     const next = [...(costConfig[key] as number[])];
@@ -136,7 +142,7 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
             <tr><th className="text-left p-1">Client</th>{monthLabels.map((l) => <th key={l} className="p-1 text-right font-mono text-xs text-muted-foreground">{l}</th>)}</tr>
           </thead>
           <tbody>
-            {clients.map((c) => (
+            {orderedClients.map((c) => (
               <tr key={c.id} className={cn(c.enabled === false && "opacity-40")}>
                 <td className="p-1 whitespace-nowrap">
                   <div className="flex items-center gap-2">
@@ -147,6 +153,9 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
                       aria-label={`Include ${c.name}`}
                     />
                     <button className="text-left hover:underline" onClick={() => setEditing(c)}>{c.name}</button>
+                    {c.newBusiness && (
+                      <span className="text-[9px] uppercase tracking-wide px-1 py-0.5 rounded bg-amber-500/15 text-amber-500 whitespace-nowrap">new biz</span>
+                    )}
                     {view !== "fee" && (
                       <button
                         type="button"
@@ -295,9 +304,9 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
           open={modalOpen}
           onOpenChange={setModalOpen}
           monthLabels={monthLabels}
-          onSave={(name, pricing) => {
+          onSave={(name, pricing, _window, newBusiness) => {
             // New clients default to active now / ongoing; window editable after creation.
-            onAddClientWithPricing(name, pricing);
+            onAddClientWithPricing(name, pricing, newBusiness);
             setModalOpen(false);
           }}
         />
@@ -308,9 +317,9 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
           open={!!editing}
           onOpenChange={(o) => { if (!o) setEditing(null); }}
           monthLabels={monthLabels}
-          initial={{ name: editing.name, pricing: editing.pricing, startMonthIndex: editing.startMonthIndex, endMonthIndex: editing.endMonthIndex }}
-          onSave={(name, pricing, window) => {
-            onUpdate(editing.id, { name, pricing, startMonthIndex: window.startMonthIndex, endMonthIndex: window.endMonthIndex });
+          initial={{ name: editing.name, pricing: editing.pricing, startMonthIndex: editing.startMonthIndex, endMonthIndex: editing.endMonthIndex, newBusiness: editing.newBusiness }}
+          onSave={(name, pricing, window, newBusiness) => {
+            onUpdate(editing.id, { name, pricing, startMonthIndex: window.startMonthIndex, endMonthIndex: window.endMonthIndex, newBusiness });
             setEditing(null);
           }}
         />
