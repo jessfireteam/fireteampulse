@@ -83,6 +83,12 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
     arr[i] = Number.isFinite(val) ? val : 0;
     onUpdate(c.id, { [key]: arr } as Partial<ScenarioClient>);
   };
+  // Copy a client's first-month value across all months for the active editable
+  // field. Explicit (button-only) so editing the first cell never re-propagates.
+  const fillClientAcross = (c: ScenarioClient, key: "adSpendByMonth" | "agencyPctByMonth") => {
+    const v = (c[key] ?? [])[0] ?? 0;
+    onUpdate(c.id, { [key]: monthLabels.map(() => v) });
+  };
   const setOneOff = (c: ScenarioClient, i: number, amount: number, label: string) => {
     const amts = [...(c.oneOffsByMonth ?? new Array(monthLabels.length).fill(0))];
     const labs = [...(c.oneOffLabelsByMonth ?? new Array(monthLabels.length).fill(""))];
@@ -141,6 +147,16 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
                       aria-label={`Include ${c.name}`}
                     />
                     <button className="text-left hover:underline" onClick={() => setEditing(c)}>{c.name}</button>
+                    {view !== "fee" && (
+                      <button
+                        type="button"
+                        onClick={() => fillClientAcross(c, view === "spend" ? "adSpendByMonth" : "agencyPctByMonth")}
+                        title={`Fill every month with ${monthLabels[0]}'s ${view === "spend" ? "ad spend" : "agency %"}`}
+                        className="text-[11px] leading-none text-muted-foreground/50 hover:text-foreground"
+                      >
+                        fill →
+                      </button>
+                    )}
                   </div>
                   <PricingSummary pricing={c.pricing} />
                 </td>
