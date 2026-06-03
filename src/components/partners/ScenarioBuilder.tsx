@@ -42,6 +42,13 @@ export function ScenarioBuilder({
     onUpdate(c.id, { [kind]: next });
   };
 
+  // Copy the first month's value across all months. Explicit (button-only) so
+  // editing the first cell later never re-propagates.
+  const fillAcross = (c: ScenarioClient, kind: "videosByMonth" | "staticsByMonth") => {
+    const v = c[kind][0] ?? 0;
+    onUpdate(c.id, { [kind]: c[kind].map(() => v) });
+  };
+
   return (
     <div className="space-y-3">
       <SectionHeader title="Scenario — videos & statics per month" />
@@ -103,7 +110,17 @@ export function ScenarioBuilder({
                         </Button>
                       </div>
                     </td>
-                    <td className="px-2 py-1 text-xs text-muted-foreground whitespace-nowrap">Videos</td>
+                    <td className="px-2 py-1 text-xs text-muted-foreground whitespace-nowrap">
+                      Videos
+                      <button
+                        type="button"
+                        onClick={() => fillAcross(c, "videosByMonth")}
+                        title={`Fill every month with ${monthLabels[0]}'s value`}
+                        className="ml-1.5 text-muted-foreground/50 hover:text-foreground"
+                      >
+                        fill →
+                      </button>
+                    </td>
                     {historyLabels.map((_, i) => (
                       <td key={`hv-${i}`} className="text-center text-xs text-muted-foreground">
                         {hist?.videosByMonth[i] ?? 0}
@@ -122,7 +139,17 @@ export function ScenarioBuilder({
                     ))}
                   </tr>
                   <tr className={cn(band, !c.enabled && "opacity-50")}>
-                    <td className="px-2 py-1 text-xs text-muted-foreground whitespace-nowrap">Statics</td>
+                    <td className="px-2 py-1 text-xs text-muted-foreground whitespace-nowrap">
+                      Statics
+                      <button
+                        type="button"
+                        onClick={() => fillAcross(c, "staticsByMonth")}
+                        title={`Fill every month with ${monthLabels[0]}'s value`}
+                        className="ml-1.5 text-muted-foreground/50 hover:text-foreground"
+                      >
+                        fill →
+                      </button>
+                    </td>
                     {historyLabels.map((_, i) => (
                       <td key={`hs-${i}`} className="text-center text-xs text-muted-foreground">
                         {hist?.staticsByMonth[i] ?? 0}
