@@ -102,6 +102,25 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
     onUpdate(c.id, { oneOffsByMonth: amts, oneOffLabelsByMonth: labs });
   };
 
+  // One-off fee popover for a given client/month. Available in every month,
+  // including months before the client's active start (e.g. a strategy fee the
+  // month before billing begins). One-offs bill regardless of the active window.
+  const oneOffControl = (c: ScenarioClient, i: number) => (
+    <Popover>
+      <PopoverTrigger asChild>
+        {(c.oneOffsByMonth?.[i] ?? 0) > 0
+          ? <button className="text-emerald-500 font-mono text-[11px]" title={c.oneOffLabelsByMonth?.[i] || "One-off fee"}>+{fmt(c.oneOffsByMonth![i])}</button>
+          : <button className="text-muted-foreground/40 hover:text-muted-foreground text-[11px] leading-none" aria-label="Add one-off fee">+ fee</button>}
+      </PopoverTrigger>
+      <PopoverContent className="w-56 space-y-2">
+        <div className="text-xs text-muted-foreground">{c.name} · {monthLabels[i]}</div>
+        <MoneyInput value={c.oneOffsByMonth?.[i] ?? 0} onChange={(n) => setOneOff(c, i, n, c.oneOffLabelsByMonth?.[i] ?? "")} className="w-full" />
+        <Input placeholder="Label (e.g. Onboarding strategy)" value={c.oneOffLabelsByMonth?.[i] ?? ""} onChange={(e) => setOneOff(c, i, c.oneOffsByMonth?.[i] ?? 0, e.target.value)} className="h-7 text-xs" />
+        <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setOneOff(c, i, 0, "")}>Remove</Button>
+      </PopoverContent>
+    </Popover>
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap gap-6">
@@ -175,8 +194,11 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
                   if (view === "fee") {
                     if (!isClientActive(c, i)) {
                       return (
-                        <td key={i} className="p-1 align-top text-right">
-                          <span className="font-mono text-muted-foreground/40">—</span>
+                        <td key={i} className="p-1 align-top">
+                          <div className="flex flex-col items-end leading-tight gap-0.5">
+                            <span className="font-mono text-muted-foreground/40">—</span>
+                            {oneOffControl(c, i)}
+                          </div>
                         </td>
                       );
                     }
@@ -187,19 +209,7 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
                       <td key={i} className="p-1 align-top">
                         <div className="flex flex-col items-end leading-tight gap-0.5">
                           <span className={cn("font-mono", feeCls)}>{fmt(fee)}</span>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              {(c.oneOffsByMonth?.[i] ?? 0) > 0
-                                ? <button className="text-emerald-500 font-mono text-[11px]" title={c.oneOffLabelsByMonth?.[i] || "One-off fee"}>+{fmt(c.oneOffsByMonth![i])}</button>
-                                : <button className="text-muted-foreground/40 hover:text-muted-foreground text-[11px] leading-none" aria-label="Add one-off fee">+ fee</button>}
-                            </PopoverTrigger>
-                            <PopoverContent className="w-56 space-y-2">
-                              <div className="text-xs text-muted-foreground">{c.name} · {monthLabels[i]}</div>
-                              <MoneyInput value={c.oneOffsByMonth?.[i] ?? 0} onChange={(n) => setOneOff(c, i, n, c.oneOffLabelsByMonth?.[i] ?? "")} className="w-full" />
-                              <Input placeholder="Label (e.g. Onboarding strategy)" value={c.oneOffLabelsByMonth?.[i] ?? ""} onChange={(e) => setOneOff(c, i, c.oneOffsByMonth?.[i] ?? 0, e.target.value)} className="h-7 text-xs" />
-                              <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setOneOff(c, i, 0, "")}>Remove</Button>
-                            </PopoverContent>
-                          </Popover>
+                          {oneOffControl(c, i)}
                         </div>
                       </td>
                     );
