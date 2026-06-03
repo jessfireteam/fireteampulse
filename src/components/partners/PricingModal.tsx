@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { ClientPricing, PricingTier } from "@/lib/forecast/types";
 
 export interface ActiveWindow {
@@ -19,8 +20,8 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   monthLabels: string[];
-  initial?: { name: string; pricing?: ClientPricing; startMonthIndex?: number; endMonthIndex?: number | null };
-  onSave: (name: string, pricing: ClientPricing, window: ActiveWindow) => void;
+  initial?: { name: string; pricing?: ClientPricing; startMonthIndex?: number; endMonthIndex?: number | null; newBusiness?: boolean };
+  onSave: (name: string, pricing: ClientPricing, window: ActiveWindow, newBusiness: boolean) => void;
 }
 
 // Sentinel select value for the "Ongoing" (no end) option; maps to null on save.
@@ -53,6 +54,7 @@ export function PricingModal({ open, onOpenChange, monthLabels, initial, onSave 
   const [tiers, setTiers] = useState<DraftTier[]>(DEFAULT_TIERS.map((t) => ({ ...t })));
   const [startMonth, setStartMonth] = useState("0");
   const [endMonth, setEndMonth] = useState(ONGOING);
+  const [newBusiness, setNewBusiness] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Reset form state whenever the modal opens (or its initial values change).
@@ -64,6 +66,7 @@ export function PricingModal({ open, onOpenChange, monthLabels, initial, onSave 
     setTiers(toDraftTiers(initial?.pricing?.tiers));
     setStartMonth(String(initial?.startMonthIndex ?? 0));
     setEndMonth(initial?.endMonthIndex == null ? ONGOING : String(initial.endMonthIndex));
+    setNewBusiness(initial?.newBusiness ?? false);
     setError(null);
   }, [open, initial]);
 
@@ -140,7 +143,7 @@ export function PricingModal({ open, onOpenChange, monthLabels, initial, onSave 
       return;
     }
 
-    onSave(trimmedName, { baseFee: baseFeeNum, minFee: minFeeNum, tiers: finalTiers }, { startMonthIndex, endMonthIndex });
+    onSave(trimmedName, { baseFee: baseFeeNum, minFee: minFeeNum, tiers: finalTiers }, { startMonthIndex, endMonthIndex }, newBusiness);
   };
 
   return (
@@ -155,6 +158,15 @@ export function PricingModal({ open, onOpenChange, monthLabels, initial, onSave 
             <label className="text-xs text-muted-foreground">Client Name</label>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Prospective client" />
           </div>
+
+          <label className="flex items-center gap-2 cursor-pointer">
+            <Checkbox
+              checked={newBusiness}
+              onCheckedChange={(v) => setNewBusiness(!!v)}
+              className="data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500"
+            />
+            <span className="text-sm">New business <span className="text-muted-foreground">(prospective — sorts below signed clients)</span></span>
+          </label>
 
           <div className="flex gap-3">
             <div className="space-y-1 flex-1">

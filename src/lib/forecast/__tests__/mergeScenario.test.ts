@@ -65,6 +65,19 @@ describe("mergeScenario", () => {
     expect(px.startMonthIndex).toBe(3);
     expect(px.endMonthIndex).toBeNull();
   });
+  it("preserves the newBusiness flag for both active and hypothetical clients", () => {
+    const r = mergeScenario(
+      [hist("Acme", 5, 2)],
+      [
+        saved("Acme", { newBusiness: true }),
+        saved("Prospect X", { hypothetical: true, newBusiness: true }),
+      ],
+      H,
+      makeId,
+    );
+    expect(r.find((c) => c.name === "Acme")!.newBusiness).toBe(true);
+    expect(r.find((c) => c.name === "Prospect X")!.newBusiness).toBe(true);
+  });
   it("preserves saved one-off fees for an active client", () => {
     const oneOffs = new Array(H).fill(0); oneOffs[0] = 10000;
     const r = mergeScenario(
