@@ -33,11 +33,12 @@ interface DraftTier {
 }
 
 const DEFAULT_TIERS: DraftTier[] = [
-  { upTo: "100000", rate: "7" },
-  { upTo: "250000", rate: "6" },
-  { upTo: "", rate: "5" },
+  { upTo: "100000", rate: "10" },
+  { upTo: "200000", rate: "8" },
+  { upTo: "300000", rate: "6" },
+  { upTo: "1000000", rate: "5" },
 ];
-const DEFAULT_MIN_FEE = "3000";
+const DEFAULT_MIN_FEE = "5000";
 const DEFAULT_BASE_FEE = "0";
 
 function toDraftTiers(tiers?: PricingTier[]): DraftTier[] {
