@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { PricingModal } from "@/components/partners/PricingModal";
+import { momColor } from "@/components/partners/momColor";
 import { isClientActive } from "@/lib/forecast/active";
 import { cn } from "@/lib/utils";
 
@@ -326,16 +327,6 @@ function CostRow({ label, k, cfg, labels, onCell }: { label: string; k: keyof Co
       ))}
     </tr>
   );
-}
-
-// Month-over-month color: white if flat/first month, green if up vs prior month, red if down.
-function momColor(arr: number[] | undefined, i: number): string {
-  if (!arr || i === 0) return "";
-  const cur = arr[i] ?? 0;
-  const prev = arr[i - 1] ?? 0;
-  if (cur > prev) return "text-emerald-500";
-  if (cur < prev) return "text-destructive";
-  return "";
 }
 
 function MoneyInput({ value, onChange, className }: { value: number; onChange: (n: number) => void; className?: string }) {

@@ -6,6 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { SectionHeader } from "@/components/dashboard/SectionHeader";
 import type { ScenarioClient, ClientHistory } from "@/lib/forecast/types";
 import { isClientActive } from "@/lib/forecast/active";
+import { momColor } from "@/components/partners/momColor";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -74,11 +75,12 @@ export function ScenarioBuilder({
             </tr>
           </thead>
           <tbody>
-            {clients.map((c) => {
+            {clients.map((c, ci) => {
               const hist = histories.find((h) => h.client === c.name);
+              const band = ci % 2 === 1 ? "bg-muted/40" : undefined;
               return (
                 <Fragment key={c.id}>
-                  <tr className={cn("border-t border-border/50", !c.enabled && "opacity-50")}>
+                  <tr className={cn("border-t-2 border-border", band, !c.enabled && "opacity-50")}>
                     <td rowSpan={2} className="px-2 py-1 align-top whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         <Checkbox
@@ -112,14 +114,14 @@ export function ScenarioBuilder({
                         <Input
                           type="number"
                           min="0"
-                          className={cn("w-14 font-mono text-right", !isClientActive(c, i) && "opacity-40")}
+                          className={cn("w-14 font-mono text-right", momColor(c.videosByMonth, i), !isClientActive(c, i) && "opacity-40")}
                           value={c.videosByMonth[i]}
                           onChange={(e) => onCell(c, "videosByMonth", i, e.target.value)}
                         />
                       </td>
                     ))}
                   </tr>
-                  <tr className={cn(!c.enabled && "opacity-50")}>
+                  <tr className={cn(band, !c.enabled && "opacity-50")}>
                     <td className="px-2 py-1 text-xs text-muted-foreground whitespace-nowrap">Statics</td>
                     {historyLabels.map((_, i) => (
                       <td key={`hs-${i}`} className="text-center text-xs text-muted-foreground">
@@ -131,7 +133,7 @@ export function ScenarioBuilder({
                         <Input
                           type="number"
                           min="0"
-                          className={cn("w-14 font-mono text-right", !isClientActive(c, i) && "opacity-40")}
+                          className={cn("w-14 font-mono text-right", momColor(c.staticsByMonth, i), !isClientActive(c, i) && "opacity-40")}
                           value={c.staticsByMonth[i]}
                           onChange={(e) => onCell(c, "staticsByMonth", i, e.target.value)}
                         />
