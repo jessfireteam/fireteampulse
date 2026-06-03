@@ -69,7 +69,7 @@ export function runForecast(
 
     months.push({
       monthIndex: m,
-      label: format(addMonths(referenceDate, m), "MMM yy"),
+      label: format(addMonths(referenceDate, m), "MMM ''yy"),
       assets,
       roles,
     });

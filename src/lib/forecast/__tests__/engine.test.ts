@@ -76,6 +76,6 @@ describe("runForecast", () => {
 
   it("labels months forward from the reference month", () => {
     const result = runForecast([], peaks, 3, ref);
-    expect(result.months.map((m) => m.label)).toEqual(["Jun 26", "Jul 26", "Aug 26"]);
+    expect(result.months.map((m) => m.label)).toEqual(["Jun '26", "Jul '26", "Aug '26"]);
   });
 });
