@@ -37,7 +37,7 @@ const checkboxClass =
   "data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600 data-[state=checked]:text-white";
 
 const fmt = (n: number) => `$${Math.round(n).toLocaleString()}`;
-const fmtu = (n: number | null) => (n === null ? "—" : `$${Math.round(n).toLocaleString()}`);
+const fmtu = (n: number | null) => (n === null ? "-" : `$${Math.round(n).toLocaleString()}`);
 
 export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCost, onAddClientWithPricing }: Props) {
   const [view, setView] = useState<"fee" | "spend" | "pct">("fee");
@@ -226,6 +226,8 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
             <tr className="border-t border-border"><td className="p-1">Total cost</td>{rows.map((r) => <td key={r.monthIndex} className="p-1 text-right font-mono">{fmt(r.totalCost)}</td>)}</tr>
             <tr className="font-semibold"><td className="p-1">Net income</td>{rows.map((r) => <td key={r.monthIndex} className={cn("p-1 text-right font-mono", r.netIncome >= 0 ? "text-emerald-500" : "text-destructive")}>{fmt(r.netIncome)}</td>)}</tr>
             <tr><td className="p-1 text-muted-foreground">Margin</td>{rows.map((r) => <td key={r.monthIndex} className={cn("p-1 text-right font-mono", r.margin >= 0 ? "text-emerald-500" : "text-destructive")}>{Math.round(r.margin * 100)}%</td>)}</tr>
+            <tr className="border-t border-border/50"><td className="p-1 text-muted-foreground">Fee / deliverable</td>{rows.map((r) => <td key={r.monthIndex} className="p-1 text-right font-mono text-muted-foreground">{fmtu(r.feePerDeliverable)}</td>)}</tr>
+            <tr><td className="p-1 text-muted-foreground">Cost / deliverable</td>{rows.map((r) => <td key={r.monthIndex} className="p-1 text-right font-mono text-muted-foreground">{fmtu(r.costPerDeliverable)}</td>)}</tr>
           </tbody>
         </table>
       </div>
