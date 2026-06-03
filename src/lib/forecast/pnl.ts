@@ -24,9 +24,13 @@ export function runPnL(params: {
 
   return monthLabels.map((label, m) => {
     const revenue = clients.reduce((sum, c) => {
-      if (!isClientActive(c, m)) return sum;
       let r = 0;
-      if (c.pricing) r += computeFee(c.adSpendByMonth?.[m] ?? 0, c.agencyPctByMonth?.[m] ?? 0, c.pricing);
+      // Recurring fee (minimum + tiered) only bills inside the active window.
+      if (isClientActive(c, m) && c.pricing) {
+        r += computeFee(c.adSpendByMonth?.[m] ?? 0, c.agencyPctByMonth?.[m] ?? 0, c.pricing);
+      }
+      // One-off fees bill in whatever month they're entered, including months
+      // before the active start (e.g. a strategy fee the month before billing).
       r += c.oneOffsByMonth?.[m] ?? 0;
       return sum + r;
     }, 0);

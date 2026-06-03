@@ -72,6 +72,16 @@ describe("runPnL", () => {
     expect(rows[1].revenue).toBeCloseTo(3000, 2);
   });
 
+  it("bills a one-off in a pre-start (inactive) month without charging the recurring minimum", () => {
+    // Client starts billing in Jul (index 1); a $10k strategy fee lands in Jun (index 0).
+    const clients = [client({ adSpendByMonth:[0,0], agencyPctByMonth:[0,0], oneOffsByMonth:[10000, 0], startMonthIndex: 1 })];
+    const rows = runPnL({ clients, costConfig: cost(), monthLabels: ["Jun","Jul"] });
+    // Jun: not active yet, so NO recurring minimum — only the one-off strategy fee.
+    expect(rows[0].revenue).toBeCloseTo(10000, 2);
+    // Jul: active, recurring minimum 3000 kicks in, no one-off.
+    expect(rows[1].revenue).toBeCloseTo(3000, 2);
+  });
+
   it("splits a 'both'-side person's cost across video and static by output mix", () => {
     const clients = [client({ videosByMonth: [30,30], staticsByMonth: [10,10] })]; // 75% video
     const team = [person({ id:"cw", side:"both", monthlyCost: 9000 })];
