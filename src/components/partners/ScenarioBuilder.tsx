@@ -114,7 +114,7 @@ export function ScenarioBuilder({
                         <Input
                           type="number"
                           min="0"
-                          className={cn("w-14 font-mono text-right", momColor(c.videosByMonth, i), !isClientActive(c, i) && "opacity-40")}
+                          className={cn("w-16 font-mono text-right", momColor(c.videosByMonth, i), !isClientActive(c, i) && "opacity-40")}
                           value={c.videosByMonth[i]}
                           onChange={(e) => onCell(c, "videosByMonth", i, e.target.value)}
                         />
@@ -133,7 +133,7 @@ export function ScenarioBuilder({
                         <Input
                           type="number"
                           min="0"
-                          className={cn("w-14 font-mono text-right", momColor(c.staticsByMonth, i), !isClientActive(c, i) && "opacity-40")}
+                          className={cn("w-16 font-mono text-right", momColor(c.staticsByMonth, i), !isClientActive(c, i) && "opacity-40")}
                           value={c.staticsByMonth[i]}
                           onChange={(e) => onCell(c, "staticsByMonth", i, e.target.value)}
                         />
