@@ -474,9 +474,17 @@ export function normalizeCreatorName(name: string): string {
   return normalizeName(name).toLowerCase().trim().replace(/\s+/g, " ");
 }
 
+// Which contractor roles count toward creator stats. "content-creators"
+// restricts to the Content Creator (CC) role — production roles like Video
+// Editor (Alex) and Graphic Designer (Prince) have their own contributor
+// views, and their per-project Windex measures something different (win rate
+// of projects they edited/designed, not on-camera contribution).
+export type CreatorRoleFilter = "all" | "content-creators";
+
 function processCreatorWinnerStats(
   projects: WinnersProject[],
-  retiredClients: Set<string>
+  retiredClients: Set<string>,
+  roleFilter: CreatorRoleFilter
 ): Map<string, CreatorWinnerStats> {
   // Only projects since winner tracking began, and skip retired clients so
   // creator stats line up with the active-only contributor view.
@@ -543,6 +551,10 @@ function processCreatorWinnerStats(
     const seenOnProject = new Set<string>();
     project.projectContractorsExternal?.forEach((pc) => {
       if (!pc.contractor?.name) return;
+      if (
+        roleFilter === "content-creators" &&
+        !pc.role?.name?.toLowerCase().includes("content creator")
+      ) return;
       const rawName = pc.contractor.name;
       const key = normalizeCreatorName(rawName);
       if (seenOnProject.has(key)) return;
@@ -595,7 +607,7 @@ function processCreatorWinnerStats(
   return creatorMap;
 }
 
-export function useCreatorWinnerStats() {
+export function useCreatorWinnerStats(roleFilter: CreatorRoleFilter = "all") {
   const winnersQuery = useQuery({
     queryKey: ["fibery", "winners"],
     queryFn: () => queryFibery<WinnersResponse>("winners"),
@@ -615,7 +627,7 @@ export function useCreatorWinnerStats() {
   );
 
   const stats = winnersQuery.data
-    ? processCreatorWinnerStats(winnersQuery.data.findProjects, retiredClients)
+    ? processCreatorWinnerStats(winnersQuery.data.findProjects, retiredClients, roleFilter)
     : null;
 
   return {
