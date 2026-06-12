@@ -22,7 +22,7 @@ const Winners = () => {
   const [dateFilter, setDateFilter] = useState("all");
   const { data, isLoading, error } = useWinnersData(dateFilter);
   const { data: clientsData } = useClientsData();
-  const { stats: creatorStats } = useCreatorWinnerStats();
+  const { stats: creatorStats } = useCreatorWinnerStats("content-creators");
   const creatorList = useMemo(
     () => (creatorStats ? Array.from(creatorStats.values()) : []),
     [creatorStats]
@@ -92,7 +92,7 @@ const Winners = () => {
             <section>
               <h2 className="text-xl font-semibold text-foreground mb-1">Creators</h2>
               <p className="text-sm text-muted-foreground mb-4">
-                External contractors across all roles (incl. Content Creators), based on Fibery contractor relations on each project.
+                Content Creators (CC role) from the Fibery contractor relation on each project. Editors and designers are tracked in Contributor Performance above.
               </p>
               <CreatorsTable creators={creatorList} />
             </section>
