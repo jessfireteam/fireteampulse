@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { PricingModal } from "@/components/partners/PricingModal";
 import { momColor } from "@/components/partners/momColor";
+import { useQbActuals } from "@/hooks/useQbActuals";
 import { isClientActive } from "@/lib/forecast/active";
 import { cn } from "@/lib/utils";
 
@@ -48,6 +49,7 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
     [clients, costConfig, monthLabels],
   );
   const cur = rows[0];
+  const qb = useQbActuals(); // current-month QB billed-fee actuals (revenue side)
   // Display order only: signed clients first, prospective new business below.
   // Stable, so original order is preserved within each group. Math is unaffected.
   const orderedClients = useMemo(
@@ -150,15 +152,29 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
           <Button variant="outline" size="sm" onClick={() => setModalOpen(true)}>+ Add client / pricing</Button>
         )}
       </div>
+      <p className="text-[11px] text-muted-foreground -mt-2">
+        <span className="text-emerald-500">Actual</span> = QuickBooks billed this month
+        {qb.syncedAt ? `, synced ${new Date(qb.syncedAt).toLocaleDateString()}` : " (snapshot)"}.
+      </p>
 
       <div className="overflow-x-auto">
         <table className="w-full table-fixed text-sm">
           <colgroup>
             <col style={{ width: 220 }} />
+            <col style={{ width: 104 }} />
             {monthLabels.map((_, i) => <col key={i} />)}
           </colgroup>
           <thead>
-            <tr><th className="text-left p-1">Client</th>{monthLabels.map((l) => <th key={l} className="p-1 text-right font-mono text-xs text-muted-foreground">{l}</th>)}</tr>
+            <tr>
+              <th className="text-left p-1">Client</th>
+              <th
+                className="p-1 text-right font-mono text-xs text-emerald-500 border-r border-border"
+                title={qb.syncedAt ? `QuickBooks billed, synced ${new Date(qb.syncedAt).toLocaleString()}` : "QuickBooks billed (snapshot)"}
+              >
+                Actual {monthLabels[0]}
+              </th>
+              {monthLabels.map((l) => <th key={l} className="p-1 text-right font-mono text-xs text-muted-foreground">{l}</th>)}
+            </tr>
           </thead>
           <tbody>
             {orderedClients.map((c) => (
@@ -187,6 +203,11 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
                     )}
                   </div>
                   <PricingSummary pricing={c.pricing} />
+                </td>
+                <td className="p-1 text-right font-mono align-top border-r border-border">
+                  {qb.byClient.has(c.name.trim().toLowerCase())
+                    ? <span className="text-emerald-500">{fmt(qb.byClient.get(c.name.trim().toLowerCase())!)}</span>
+                    : <span className="text-muted-foreground/40">-</span>}
                 </td>
                 {monthLabels.map((_, i) => {
                   const adSpend = c.adSpendByMonth?.[i] ?? 0;
@@ -221,14 +242,15 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
                 })}
               </tr>
             ))}
-            <tr className="font-semibold border-t border-border"><td className="p-1">Revenue</td>{rows.map((r) => <td key={r.monthIndex} className="p-1 text-right font-mono">{fmt(r.revenue)}</td>)}</tr>
+            <tr className="font-semibold border-t border-border"><td className="p-1">Revenue</td><td className="p-1 text-right font-mono text-emerald-500 border-r border-border">{fmt(qb.total)}</td>{rows.map((r) => <td key={r.monthIndex} className="p-1 text-right font-mono">{fmt(r.revenue)}</td>)}</tr>
 
-            <tr><td colSpan={monthLabels.length + 1} className="pt-4 pb-1 text-xs uppercase tracking-wide text-muted-foreground">Costs &amp; profit</td></tr>
+            <tr><td colSpan={monthLabels.length + 2} className="pt-4 pb-1 text-xs uppercase tracking-wide text-muted-foreground">Costs &amp; profit</td></tr>
 
             <CostRow label="Partner salary" k="partnerSalaryByMonth" cfg={costConfig} labels={monthLabels} onCell={setCostCell} />
             <CostRow label="Rent / lease" k="rentByMonth" cfg={costConfig} labels={monthLabels} onCell={setCostCell} />
             <tr>
               <td className="p-1 whitespace-nowrap">P&amp;L salary <span className="text-[10px] text-muted-foreground">(full payroll)</span></td>
+              <td className="border-r border-border" />
               {monthLabels.map((_, i) => (
                 <td key={i} className="p-1"><MoneyInput value={costConfig.nonProdSalaryByMonth?.[i] ?? 0} onChange={(n) => setNonProdSalary(i, n)} className="w-full" /></td>
               ))}
@@ -236,6 +258,7 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
             {(costConfig.team ?? []).some((p) => p.employment === "salary") && (
               <tr className="text-muted-foreground">
                 <td className="p-1 whitespace-nowrap text-[11px] pl-3">→ non-production salary</td>
+                <td className="border-r border-border" />
                 {rows.map((r) => <td key={r.monthIndex} className="p-1 text-right font-mono text-[11px]">{fmt(r.nonProdSalaryNet)}</td>)}
               </tr>
             )}
@@ -247,6 +270,7 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
                     <Button variant="ghost" size="sm" aria-label="Remove overhead line" className="px-2" onClick={() => removeOverhead(line.id)}>✕</Button>
                   </div>
                 </td>
+                <td className="border-r border-border" />
                 {monthLabels.map((_, i) => (
                   <td key={i} className="p-1"><MoneyInput value={line.byMonth?.[i] ?? 0} onChange={(n) => setOverheadCell(line, i, n)} className="w-full" /></td>
                 ))}
@@ -254,15 +278,16 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
             ))}
             <tr>
               <td className="p-1"><Button variant="outline" size="sm" onClick={addOverhead}>+ Add overhead line</Button></td>
+              <td className="border-r border-border" />
               {monthLabels.map((_, i) => <td key={i} />)}
             </tr>
-            <tr><td className="p-1 whitespace-nowrap text-muted-foreground">Production team</td>{rows.map((r) => <td key={r.monthIndex} className="p-1 text-right font-mono text-muted-foreground">{fmt(r.productionCost)}</td>)}</tr>
-            <tr><td className="p-1 text-muted-foreground">Deliverables</td>{rows.map((r) => <td key={r.monthIndex} className="p-1 text-right font-mono text-muted-foreground">{r.deliverables}</td>)}</tr>
-            <tr className="border-t border-border"><td className="p-1">Total cost</td>{rows.map((r) => <td key={r.monthIndex} className="p-1 text-right font-mono">{fmt(r.totalCost)}</td>)}</tr>
-            <tr className="font-semibold"><td className="p-1">Net income</td>{rows.map((r) => <td key={r.monthIndex} className={cn("p-1 text-right font-mono", r.netIncome >= 0 ? "text-emerald-500" : "text-destructive")}>{fmt(r.netIncome)}</td>)}</tr>
-            <tr><td className="p-1 text-muted-foreground">Margin</td>{rows.map((r) => <td key={r.monthIndex} className={cn("p-1 text-right font-mono", r.margin >= 0 ? "text-emerald-500" : "text-destructive")}>{Math.round(r.margin * 100)}%</td>)}</tr>
-            <tr className="border-t border-border/50"><td className="p-1 text-muted-foreground">Fee / deliverable</td>{rows.map((r) => <td key={r.monthIndex} className="p-1 text-right font-mono text-muted-foreground">{fmtu(r.feePerDeliverable)}</td>)}</tr>
-            <tr><td className="p-1 text-muted-foreground">Cost / deliverable</td>{rows.map((r) => <td key={r.monthIndex} className="p-1 text-right font-mono text-muted-foreground">{fmtu(r.costPerDeliverable)}</td>)}</tr>
+            <tr><td className="p-1 whitespace-nowrap text-muted-foreground">Production team</td><td className="border-r border-border" />{rows.map((r) => <td key={r.monthIndex} className="p-1 text-right font-mono text-muted-foreground">{fmt(r.productionCost)}</td>)}</tr>
+            <tr><td className="p-1 text-muted-foreground">Deliverables</td><td className="border-r border-border" />{rows.map((r) => <td key={r.monthIndex} className="p-1 text-right font-mono text-muted-foreground">{r.deliverables}</td>)}</tr>
+            <tr className="border-t border-border"><td className="p-1">Total cost</td><td className="border-r border-border" />{rows.map((r) => <td key={r.monthIndex} className="p-1 text-right font-mono">{fmt(r.totalCost)}</td>)}</tr>
+            <tr className="font-semibold"><td className="p-1">Net income</td><td className="border-r border-border" />{rows.map((r) => <td key={r.monthIndex} className={cn("p-1 text-right font-mono", r.netIncome >= 0 ? "text-emerald-500" : "text-destructive")}>{fmt(r.netIncome)}</td>)}</tr>
+            <tr><td className="p-1 text-muted-foreground">Margin</td><td className="border-r border-border" />{rows.map((r) => <td key={r.monthIndex} className={cn("p-1 text-right font-mono", r.margin >= 0 ? "text-emerald-500" : "text-destructive")}>{Math.round(r.margin * 100)}%</td>)}</tr>
+            <tr className="border-t border-border/50"><td className="p-1 text-muted-foreground">Fee / deliverable</td><td className="border-r border-border" />{rows.map((r) => <td key={r.monthIndex} className="p-1 text-right font-mono text-muted-foreground">{fmtu(r.feePerDeliverable)}</td>)}</tr>
+            <tr><td className="p-1 text-muted-foreground">Cost / deliverable</td><td className="border-r border-border" />{rows.map((r) => <td key={r.monthIndex} className="p-1 text-right font-mono text-muted-foreground">{fmtu(r.costPerDeliverable)}</td>)}</tr>
           </tbody>
         </table>
       </div>
@@ -359,6 +384,7 @@ function CostRow({ label, k, cfg, labels, onCell }: { label: string; k: keyof Co
   return (
     <tr>
       <td className="p-1 whitespace-nowrap">{label}</td>
+      <td className="border-r border-border" />
       {labels.map((_, i) => (
         <td key={i} className="p-1"><MoneyInput value={(cfg[k] as number[])?.[i] ?? 0} onChange={(n) => onCell(k, i, n)} className="w-full" /></td>
       ))}
