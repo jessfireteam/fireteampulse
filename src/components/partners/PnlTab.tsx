@@ -41,7 +41,7 @@ const fmt = (n: number) => `$${Math.round(n).toLocaleString()}`;
 const fmtu = (n: number | null) => (n === null ? "-" : `$${Math.round(n).toLocaleString()}`);
 
 export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCost, onAddClientWithPricing }: Props) {
-  const [view, setView] = useState<"fee" | "spend" | "pct">("fee");
+  const [view, setView] = useState<"fee" | "spend" | "pct" | "profit">("fee");
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<ScenarioClient | null>(null);
   const rows = useMemo(
@@ -138,10 +138,10 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
       </div>
 
       <div className="flex gap-2">
-        {(["fee", "spend", "pct"] as const).map((v) => (
+        {(["fee", "spend", "pct", "profit"] as const).map((v) => (
           <button key={v} onClick={() => setView(v)}
             className={cn("text-xs rounded px-2 py-1", view === v ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
-            {v === "fee" ? "Fee" : v === "spend" ? "Ad Spend" : "Agency %"}
+            {v === "fee" ? "Fee" : v === "spend" ? "Ad Spend" : v === "pct" ? "Agency %" : "Profit"}
           </button>
         ))}
       </div>
@@ -191,7 +191,7 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
                     {c.newBusiness && (
                       <span className="text-[9px] uppercase tracking-wide px-1 py-0.5 rounded bg-amber-500/15 text-amber-500 whitespace-nowrap">new biz</span>
                     )}
-                    {view !== "fee" && (
+                    {(view === "spend" || view === "pct") && (
                       <button
                         type="button"
                         onClick={() => fillClientAcross(c, view === "spend" ? "adSpendByMonth" : "agencyPctByMonth")}
@@ -232,6 +232,23 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
                           <span className={cn("font-mono", feeCls)}>{fmt(fee)}</span>
                           {oneOffControl(c, i)}
                         </div>
+                      </td>
+                    );
+                  }
+                  if (view === "profit") {
+                    if (!isClientActive(c, i)) {
+                      return <td key={i} className="p-1 text-right font-mono text-muted-foreground/40">—</td>;
+                    }
+                    // Allocate the month's all-in cost/deliverable to this client by its
+                    // deliverable count; profit = client fee (+ one-offs) minus that.
+                    const fee = c.pricing ? computeFee(adSpend, pct, c.pricing) : 0;
+                    const revenue = fee + (c.oneOffsByMonth?.[i] ?? 0);
+                    const deliverables = (c.videosByMonth?.[i] ?? 0) + (c.staticsByMonth?.[i] ?? 0);
+                    const cost = (rows[i]?.costPerDeliverable ?? 0) * deliverables;
+                    const profit = revenue - cost;
+                    return (
+                      <td key={i} className="p-1 text-right align-top">
+                        <span className={cn("font-mono", profit >= 0 ? "text-emerald-500" : "text-destructive")}>{fmt(profit)}</span>
                       </td>
                     );
                   }
