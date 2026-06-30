@@ -13,29 +13,55 @@ import {
   Legend,
 } from "recharts";
 import { useProjectsData, processProjectsForHeartbeat } from "@/hooks/useFiberyData";
+import { useClientsData, getActiveClientNames } from "@/hooks/useClientsData";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
-// Color palette for clients
+// Color palette reserved for ACTIVE clients only. Inactive/retired clients
+// all render in a single muted gray (GRAY_INACTIVE) so the active roster stays
+// visually distinct and the palette isn't burned on churned clients.
 const COLORS = [
   "hsl(18, 100%, 60%)",   // Fire orange
   "hsl(32, 95%, 55%)",    // Amber
-  "hsl(45, 93%, 47%)",    // Yellow
+  "hsl(45, 93%, 50%)",    // Yellow
+  "hsl(75, 65%, 50%)",    // Lime
+  "hsl(160, 70%, 45%)",   // Teal
+  "hsl(175, 75%, 55%)",   // Aqua
   "hsl(195, 90%, 55%)",   // Cyan
-  "hsl(280, 80%, 60%)",   // Purple
+  "hsl(220, 75%, 60%)",   // Blue
+  "hsl(250, 70%, 65%)",   // Indigo
+  "hsl(280, 75%, 62%)",   // Purple
+  "hsl(310, 70%, 60%)",   // Magenta
   "hsl(340, 82%, 60%)",   // Pink
-  "hsl(160, 70%, 50%)",   // Teal
-  "hsl(220, 70%, 60%)",   // Blue
+  "hsl(0, 75%, 60%)",     // Red
+  "hsl(125, 55%, 50%)",   // Green
 ];
+
+// Uniform color for every inactive/retired client.
+const GRAY_INACTIVE = "hsl(220, 10%, 42%)";
 
 export function AgencyHeartbeat() {
   const [viewMode, setViewMode] = useState<'weekly' | 'monthly'>('weekly');
   const { data, isLoading, error } = useProjectsData();
+  const { data: clientsData } = useClientsData();
 
   const { chartData, clients } = useMemo(() => {
     const projects = data?.findProjects || [];
     return processProjectsForHeartbeat(projects, viewMode);
   }, [data, viewMode]);
+
+  // Order clients so active ones come first (and get the color palette), with
+  // inactive/retired clients grouped at the top of the stack in a single gray.
+  // Each active client keeps a stable palette color; inactives all share gray.
+  const { orderedClients, colorFor } = useMemo(() => {
+    const activeSet = getActiveClientNames(clientsData);
+    const active = clients.filter((c) => activeSet.has(c.trim().toLowerCase()));
+    const inactive = clients.filter((c) => !activeSet.has(c.trim().toLowerCase()));
+    const colors: Record<string, string> = {};
+    active.forEach((c, i) => { colors[c] = COLORS[i % COLORS.length]; });
+    inactive.forEach((c) => { colors[c] = GRAY_INACTIVE; });
+    return { orderedClients: [...active, ...inactive], colorFor: colors };
+  }, [clients, clientsData]);
 
   if (isLoading) {
     return (
@@ -130,13 +156,13 @@ export function AgencyHeartbeat() {
                   wrapperStyle={{ paddingTop: "20px" }}
                   iconType="circle"
                 />
-                {clients.map((client, index) => (
+                {orderedClients.map((client, index) => (
                   <Bar
                     key={client}
                     dataKey={client}
                     stackId="a"
-                    fill={COLORS[index % COLORS.length]}
-                    radius={index === clients.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                    fill={colorFor[client]}
+                    radius={index === orderedClients.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
                   />
                 ))}
               </BarChart>
