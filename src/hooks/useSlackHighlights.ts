@@ -18,6 +18,7 @@ const CLIENT_CHANNEL_MAP: Record<string, string> = {
   "Popsmith":      "C0AFYPSHNGN",
   "Radiancy":      "C0A9NKKFUNB",
   "Rejuvia":       "C04HXJTCZHU",
+  "SpaceLift":     "C0B9N69HSJJ",
 };
 
 export function useSlackHighlights(clientName: string) {

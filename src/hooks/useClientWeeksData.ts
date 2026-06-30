@@ -126,14 +126,6 @@ export function useProcessedClientWeeks(): {
       }
     });
 
-    // Debug: log processed data for active clients
-    const activeClients = ["Rejuvia", "FabFitFun", "Bambu Earth", "Adapt Naturals"];
-    activeClients.forEach(name => {
-      if (grouped[name]) {
-        console.log(`[ClientWeeks] ${name}:`, grouped[name]);
-      }
-    });
-
     return grouped;
   }, [rawData]);
 
