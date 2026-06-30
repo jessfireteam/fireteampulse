@@ -45,6 +45,7 @@ const QUERIES: Record<QueryType, string> = {
     findProjects(
       limit: 1000
       status: { name: { is: "Completed" } }
+      orderBy: { doneDate: DESC }
     ) {
       id
       name
