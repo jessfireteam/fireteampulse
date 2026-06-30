@@ -212,6 +212,7 @@ const ROLE_ASSIGNMENTS: Record<string, { role: RoleType; primaryTaskType: string
   'Jess Bachman': [{ role: 'Copywriters', primaryTaskType: 'Brief Work' }, { role: 'Creative Review', primaryTaskType: 'Creative Review' }],
   'riteesh@fireteam.is': [{ role: 'Copywriters', primaryTaskType: 'Brief Work' }],
   'Shreya': [{ role: 'Copywriters', primaryTaskType: 'Brief Work' }],
+  'Hira': [{ role: 'Copywriters', primaryTaskType: 'Brief Work' }],
   // Design (internal + Prince as external GD contractor)
   'Erik Furtado': [{ role: 'Design', primaryTaskType: 'Design' }],
   'Reynelle Reid': [{ role: 'Design', primaryTaskType: 'Design' }],
