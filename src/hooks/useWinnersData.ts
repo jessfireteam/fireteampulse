@@ -47,6 +47,7 @@ export interface ClientBreakdown {
   winners: number;
   expectedWinners: number;
   clientRate: number;
+  measurable: boolean;
 }
 
 export interface Contributor {
@@ -59,6 +60,15 @@ export interface Contributor {
   expectedWinners: number;
   rawWinRate: number;
   performanceIndex: number | null;
+  // Empirical-Bayes shrunk index — pulls small samples toward 100 so a
+  // lucky 2/3 doesn't outrank a proven 20/160. This is the number to trust.
+  shrunkIndex: number | null;
+  // True when the raw index's ~90% confidence interval excludes 100 (i.e.
+  // the over/under-performance is unlikely to be noise).
+  significant: boolean;
+  // False when the person covers ~all of their clients' projects, so there's
+  // no independent baseline to measure them against (CDs, most AMs).
+  measurable: boolean;
   // Last-90-day rolling figures (based on project doneDate)
   recentProjects: number;
   recentActualWinners: number;
@@ -114,15 +124,72 @@ function normalizeName(name: string): string {
   return NAME_OVERRIDES[name.toLowerCase()] ?? name;
 }
 
-// Classify project type as video or static
-function classifyAdType(project: WinnersProject): "video" | "static" {
-  const t = project.type?.name?.toLowerCase() ?? "";
-  if (t.includes("video") || t.includes("ugc") || t.includes("lofi") || t.includes("lo-fi") || t.includes("edit")) return "video";
-  return "static";
+// Contributors excluded from all winner/Windex math. Kenny Fisher was a
+// production lead who added himself as an external contractor on top of the
+// editors/designers who actually did the work (55+ duplicate-role rows), so
+// his "performance" is a phantom that both double-counts projects and drags
+// down whoever he was layered onto. He has left the org. Matched on
+// normalized full name (see normalizeCreatorName).
+const EXCLUDED_CONTRIBUTORS = new Set<string>(["kenny fisher"]);
+
+function isExcluded(name: string): boolean {
+  return EXCLUDED_CONTRIBUTORS.has(name.toLowerCase().trim().replace(/\s+/g, " "));
+}
+
+// ---------------------------------------------------------------------------
+// Winner-tag maturity curve
+// ---------------------------------------------------------------------------
+// Winners are tagged well after a project is marked Done — empirically a median
+// of ~2-3 weeks, but only ~56% are tagged by day 22 and it takes ~85 days to
+// see ~all of them (winner tagging happens in a monthly batch, so the tail is
+// long). A project done yesterday is not a "loser" — it just hasn't had its
+// chance yet. So instead of a hard cutoff, every completed project contributes
+// to expected-winners in proportion to how many of its eventual winners we'd
+// expect to have SEEN by now. maturityWeight(daysSinceDone) returns that
+// fraction. Recompute the breakpoints quarterly from the done->winnerDate lag
+// distribution (see winners-windex-review in the fireteam repo).
+const MATURITY_CURVE: Array<[number, number]> = [
+  [0, 0.0],
+  [14, 0.25],
+  [22, 0.56],
+  [52, 0.8],
+  [67, 0.9],
+  [85, 1.0],
+];
+// Floor so a project that wins within days of completion doesn't divide by ~0.
+const MATURITY_FLOOR = 0.05;
+
+function maturityWeight(daysSinceDone: number): number {
+  if (daysSinceDone >= 85) return 1.0;
+  if (daysSinceDone <= 0) return MATURITY_FLOOR;
+  for (let i = 1; i < MATURITY_CURVE.length; i++) {
+    const [x1, y1] = MATURITY_CURVE[i];
+    if (daysSinceDone <= x1) {
+      const [x0, y0] = MATURITY_CURVE[i - 1];
+      const t = (daysSinceDone - x0) / (x1 - x0);
+      return Math.max(MATURITY_FLOOR, y0 + t * (y1 - y0));
+    }
+  }
+  return 1.0;
 }
 
 // Winners tracking started September 2025 — exclude all projects before this
 const WINNERS_TRACKING_START = "2025-09-01";
+
+// EB shrinkage strength: number of baseline-projects' worth of prior pull
+// toward index 100. Higher = more conservative on small samples.
+const SHRINK_STRENGTH = 20;
+// z for a ~90% two-sided confidence interval.
+const SIGNIFICANCE_Z = 1.64;
+// Minimum fraction of a person's projects that must be independently
+// baseline-able (leave-one-out) for their index to be shown. Production /
+// creative roles (VE, GD, CW) almost always share a client with a peer, so
+// ~all their work is measurable. Account Managers and the Creative Director
+// are ~1-per-client, so LOO can only cover the rare shared-client sliver —
+// an index built on 1-28% of someone's book is misleading, so we show n/a
+// instead. (AM influence belongs in an origination-attribution metric, not
+// here — see the winners-windex review.)
+const MEASURABLE_COVERAGE_MIN = 0.8;
 
 function getWinnerDate(project: WinnersProject): string | null {
   for (const version of project.internalVersions ?? []) {
@@ -134,11 +201,41 @@ function getWinnerDate(project: WinnersProject): string | null {
   return null;
 }
 
-function processWinnersData(
+// Classify project type as video or static
+function classifyAdType(project: WinnersProject): "video" | "static" {
+  const t = project.type?.name?.toLowerCase() ?? "";
+  if (t.includes("video") || t.includes("ugc") || t.includes("lofi") || t.includes("lo-fi") || t.includes("edit")) return "video";
+  return "static";
+}
+
+const isProjectComplete = (p: WinnersProject) =>
+  !!p.doneDate || p.status?.name === "Completed";
+
+// Days since a project was completed (falls back to creation date when a
+// project is marked Completed but has no doneDate).
+function daysSinceDone(p: WinnersProject, nowMs: number): number {
+  const ref = p.doneDate ?? p.creationDate;
+  if (!ref) return 85; // treat unknown as fully mature
+  const ms = nowMs - new Date(ref.slice(0, 10) + "T00:00:00Z").getTime();
+  return ms / 86400000;
+}
+
+// A running (winner, maturity-weight) accumulator for one client bucket.
+interface WeightedAgg {
+  weightSum: number; // Σ maturityWeight — the "matured project count"
+  winners: number; // winners tagged so far
+}
+function newAgg(): WeightedAgg {
+  return { weightSum: 0, winners: 0 };
+}
+
+export function processWinnersData(
   projects: WinnersProject[],
   dateFilter: string,
   retiredClients: Set<string>
 ): WinnersData {
+  const nowMs = Date.now();
+
   // Always exclude projects before winner tracking began. Also exclude any
   // project whose client is in Retired status — the dashboard only shows
   // active clients, so the rates and contributor stats should match.
@@ -179,14 +276,15 @@ function processWinnersData(
     }
   });
 
-  // Step 2: Build client stats (overall + by ad type)
+  // Step 2: Build client stats (overall + by ad type), maturity-weighted.
+  // Displayed client win rate stays the simple winners/total (what people
+  // expect to see), but the *baselines* used for Windex are maturity-weighted
+  // so recent, not-yet-tagged projects don't deflate the expected rate.
   const clientStatsMap: Record<string, ClientStat> = {};
-  // client_id -> ad_type -> { total, winners }
-  const clientTypeStatsMap: Record<string, Record<string, { total: number; winners: number }>> = {};
+  // client_id -> { overall, video, static } weighted aggregates
+  const clientAgg: Record<string, { overall: WeightedAgg; video: WeightedAgg; static: WeightedAgg }> = {};
 
-  // Cutoff for "last 90 days" — used for both contributors and clients.
-  // Clients use winnerDate (or creationDate fallback) for recency.
-  const ninetyDaysAgoStr = new Date(Date.now() - 90 * 86400000)
+  const ninetyDaysAgoStr = new Date(nowMs - 90 * 86400000)
     .toISOString()
     .split("T")[0];
 
@@ -194,12 +292,12 @@ function processWinnersData(
     if (!project.client) return;
     // Only completed projects contribute to client baselines. Otherwise
     // "Concept" / brief / abandoned projects pad the denominator with zero
-    // winners and pull every Windex above 100. Same filter applied to the
-    // contributor tally below for consistency.
-    if (!project.doneDate && project.status?.name !== "Completed") return;
+    // winners and pull every Windex above 100.
+    if (!isProjectComplete(project)) return;
     const cid = project.client.id;
     const adType = classifyAdType(project);
     const isWin = winningProjectIds.has(project.id);
+    const weight = maturityWeight(daysSinceDone(project, nowMs));
     const winDate = winnerDateMap.get(project.id) ?? project.creationDate;
     const isRecentClient = !!winDate && winDate >= ninetyDaysAgoStr;
 
@@ -213,6 +311,7 @@ function processWinnersData(
         recentWinners: 0,
         recentWinRate: null,
       };
+      clientAgg[cid] = { overall: newAgg(), video: newAgg(), static: newAgg() };
     }
     clientStatsMap[cid].total++;
     if (isWin) clientStatsMap[cid].winners++;
@@ -221,134 +320,231 @@ function processWinnersData(
       if (isWin) clientStatsMap[cid].recentWinners++;
     }
 
-    if (!clientTypeStatsMap[cid]) clientTypeStatsMap[cid] = {};
-    if (!clientTypeStatsMap[cid][adType]) clientTypeStatsMap[cid][adType] = { total: 0, winners: 0 };
-    clientTypeStatsMap[cid][adType].total++;
-    if (isWin) clientTypeStatsMap[cid][adType].winners++;
+    const agg = clientAgg[cid];
+    agg.overall.weightSum += weight;
+    agg[adType].weightSum += weight;
+    if (isWin) {
+      agg.overall.winners += 1;
+      agg[adType].winners += 1;
+    }
   });
   Object.values(clientStatsMap).forEach((c) => {
     c.winRate = c.total > 0 ? c.winners / c.total : 0;
     c.recentWinRate = c.recentTotal > 0 ? c.recentWinners / c.recentTotal : null;
   });
 
-  // Helper: get the appropriate win rate for a role on a client
-  function getBaselineRate(clientId: string, rolePublicId: string, adType: "video" | "static"): number {
-    // VE → video baseline, GD → static baseline, others → overall client baseline
-    if (VIDEO_ROLE_IDS.has(rolePublicId) || STATIC_ROLE_IDS.has(rolePublicId)) {
-      const typeKey = VIDEO_ROLE_IDS.has(rolePublicId) ? "video" : "static";
-      const typeStats = clientTypeStatsMap[clientId]?.[typeKey];
-      if (typeStats && typeStats.total > 0) return typeStats.winners / typeStats.total;
-      // Fall back to overall if no projects of that type
-      return clientStatsMap[clientId]?.winRate ?? 0;
-    }
-    return clientStatsMap[clientId]?.winRate ?? 0;
+  // Pick the bucket a role is baselined against: VE -> video, GD -> static,
+  // everyone else -> the client overall.
+  function bucketForRole(rolePublicId: string): "overall" | "video" | "static" {
+    if (VIDEO_ROLE_IDS.has(rolePublicId)) return "video";
+    if (STATIC_ROLE_IDS.has(rolePublicId)) return "static";
+    return "overall";
   }
 
-  // Step 3: Build contributor stats
-  // Only include projects that are completed (have doneDate or status "Completed")
-  // so that briefs/in-flight work don't drag down PI before they've had a chance to win.
-  const isProjectComplete = (p: WinnersProject) =>
-    !!p.doneDate || p.status?.name === "Completed";
+  // Step 3: Per-contributor own aggregates, per client, in their bucket.
+  // We need the person's OWN weighted winners/weight per client so we can
+  // subtract them from the client baseline (leave-one-out): a person can't be
+  // measured against a baseline they themselves define.
+  interface ContribAccum {
+    name: string;
+    role: string;
+    rolePublicId: string;
+    type: "internal" | "external";
+    bucket: "overall" | "video" | "static";
+    // client_id -> own weighted agg + client name + all-project counts
+    perClient: Record<string, { clientName: string; own: WeightedAgg; total: number; winners: number }>;
+    // recent (last-90d by doneDate) descriptive counts
+    recentProjects: number;
+    recentWinners: number;
+    recentWeight: number;
+  }
+  const contributorsMap: Record<string, ContribAccum> = {};
 
-  const contributorsMap: Record<string, Contributor> = {};
+  const makeAccum = (
+    name: string,
+    role: string,
+    roleId: string,
+    type: "internal" | "external",
+  ): ContribAccum => ({
+    name,
+    role,
+    rolePublicId: roleId,
+    type,
+    bucket: bucketForRole(roleId),
+    perClient: {},
+    recentProjects: 0,
+    recentWinners: 0,
+    recentWeight: 0,
+  });
 
-  // Reuse ninetyDaysAgoStr from above for contributor recency
+  const accumulate = (
+    c: ContribAccum,
+    project: WinnersProject,
+    weight: number,
+    isWin: boolean,
+    isRecent: boolean,
+  ) => {
+    const cid = project.client?.id ?? "unknown";
+    const cn = project.client?.name ?? "Unknown";
+    if (!c.perClient[cid]) c.perClient[cid] = { clientName: cn, own: newAgg(), total: 0, winners: 0 };
+    const pc = c.perClient[cid];
+    pc.own.weightSum += weight;
+    pc.total += 1;
+    if (isWin) {
+      pc.own.winners += 1;
+      pc.winners += 1;
+    }
+    if (isRecent) {
+      c.recentProjects += 1;
+      c.recentWeight += weight;
+      if (isWin) c.recentWinners += 1;
+    }
+  };
 
   filtered.forEach((project) => {
     if (!isProjectComplete(project)) return;
-    const clientId = project.client?.id;
     const adType = classifyAdType(project);
     const isWinner = winningProjectIds.has(project.id);
     const isRecent = !!project.doneDate && project.doneDate >= ninetyDaysAgoStr;
+    const weight = maturityWeight(daysSinceDone(project, nowMs));
 
-    const accumulate = (c: Contributor, baseline: number) => {
-      c.totalProjects++;
-      if (isWinner) c.actualWinners++;
-      c.expectedWinners += baseline;
-      if (isRecent) {
-        c.recentProjects++;
-        if (isWinner) c.recentActualWinners++;
-        c.recentExpectedWinners += baseline;
+    const handle = (
+      person: { id: string; name: string },
+      role: { publicId: string; name: string },
+      type: "internal" | "external",
+    ) => {
+      const roleId = String(role.publicId);
+      if (!TRACKED_ROLE_IDS.has(roleId)) return;
+      const name = normalizeName(person.name);
+      if (isExcluded(name)) return; // phantom contributor (Kenny)
+      // Role vs project-type coherence: a Video Editor credited on a static,
+      // or a Graphic Designer on a video, is almost always a bad template /
+      // mis-assignment. Since VE is baselined on video and GD on static,
+      // counting these would score them against the wrong baseline. Drop them.
+      if (VIDEO_ROLE_IDS.has(roleId) && adType === "static") return;
+      if (STATIC_ROLE_IDS.has(roleId) && adType === "video") return;
+
+      const key = `${type}_${person.id}_${roleId}`;
+      if (!contributorsMap[key]) {
+        contributorsMap[key] = makeAccum(name, role.name, roleId, type);
       }
-      const cn = project.client?.name ?? "Unknown";
-      if (!c.clientBreakdown[cn]) {
-        c.clientBreakdown[cn] = { total: 0, winners: 0, expectedWinners: 0, clientRate: baseline };
-      }
-      c.clientBreakdown[cn].total++;
-      if (isWinner) c.clientBreakdown[cn].winners++;
-      c.clientBreakdown[cn].expectedWinners += baseline;
+      accumulate(contributorsMap[key], project, weight, isWinner, isRecent);
     };
 
-    const makeContributor = (
-      name: string,
-      role: string,
-      roleId: string,
-      type: "internal" | "external",
-    ): Contributor => ({
-      name,
-      role,
-      rolePublicId: roleId,
-      type,
-      totalProjects: 0,
-      actualWinners: 0,
-      expectedWinners: 0,
-      rawWinRate: 0,
-      performanceIndex: null,
-      recentProjects: 0,
-      recentActualWinners: 0,
-      recentExpectedWinners: 0,
-      recentPerformanceIndex: null,
-      clientBreakdown: {},
-    });
-
-    // Internal roles
     project.projectRolesInternal?.forEach((pr) => {
-      if (!pr.assignee || !pr.role) return;
-      if (!TRACKED_ROLE_IDS.has(String(pr.role.publicId))) return;
-      const roleId = String(pr.role.publicId);
-      const baseline = clientId ? getBaselineRate(clientId, roleId, adType) : 0;
-      const key = `internal_${pr.assignee.id}_${roleId}`;
-      if (!contributorsMap[key]) {
-        contributorsMap[key] = makeContributor(
-          normalizeName(pr.assignee.name),
-          pr.role.name,
-          roleId,
-          "internal",
-        );
-      }
-      accumulate(contributorsMap[key], baseline);
+      if (pr.assignee && pr.role) handle(pr.assignee, pr.role, "internal");
     });
-
-    // External contractors
     project.projectContractorsExternal?.forEach((pc) => {
-      if (!pc.contractor || !pc.role) return;
-      if (!TRACKED_ROLE_IDS.has(String(pc.role.publicId))) return;
-      const roleId = String(pc.role.publicId);
-      const baseline = clientId ? getBaselineRate(clientId, roleId, adType) : 0;
-      const key = `external_${pc.contractor.id}_${roleId}`;
-      if (!contributorsMap[key]) {
-        contributorsMap[key] = makeContributor(
-          normalizeName(pc.contractor.name),
-          pc.role.name,
-          roleId,
-          "external",
-        );
-      }
-      accumulate(contributorsMap[key], baseline);
+      if (pc.contractor && pc.role) handle(pc.contractor, pc.role, "external");
     });
   });
 
-  // Step 4: Calculate Performance Index (all-time + last 90 days)
-  Object.values(contributorsMap).forEach((c) => {
-    c.rawWinRate = c.totalProjects > 0 ? c.actualWinners / c.totalProjects : 0;
-    c.performanceIndex =
-      c.expectedWinners > 0
-        ? Math.round((c.actualWinners / c.expectedWinners) * 100)
-        : null;
-    c.recentPerformanceIndex =
-      c.recentExpectedWinners > 0
-        ? Math.round((c.recentActualWinners / c.recentExpectedWinners) * 100)
-        : null;
+  // Step 4: Finalize each contributor with leave-one-out baselines, EB
+  // shrinkage, and a significance flag.
+  const contributors: Contributor[] = Object.values(contributorsMap).map((c) => {
+    let expected = 0; // Σ looBaseline × maturity-weight (measurable clients)
+    let measurableActual = 0; // winners on measurable clients (matches index)
+    let varSum = 0; // Σ b(1-b)·weight — variance of expected under H0
+    let measurableWeight = 0; // Σ weight on measurable clients
+    let measurableProjects = 0; // project count on measurable clients
+    let totalProjects = 0;
+    let totalWinners = 0;
+
+    const clientBreakdown: Record<string, ClientBreakdown> = {};
+
+    Object.entries(c.perClient).forEach(([cid, pc]) => {
+      totalProjects += pc.total;
+      totalWinners += pc.winners;
+
+      const agg = clientAgg[cid];
+      // Choose the bucket; fall back to overall if the type bucket is empty.
+      let bucketAgg = agg ? agg[c.bucket] : undefined;
+      if (!bucketAgg || bucketAgg.weightSum <= pc.own.weightSum) {
+        bucketAgg = agg?.overall;
+      }
+
+      let expectedC = 0;
+      let measurable = false;
+      let baseline = 0;
+      if (bucketAgg) {
+        // Leave-one-out: remove this person's own contribution from the
+        // client baseline before scoring them against it.
+        const looWeight = bucketAgg.weightSum - pc.own.weightSum;
+        const looWinners = bucketAgg.winners - pc.own.winners;
+        if (looWeight > 0.5) {
+          baseline = Math.max(0, looWinners / looWeight);
+          expectedC = baseline * pc.own.weightSum;
+          measurable = true;
+          expected += expectedC;
+          measurableActual += pc.winners;
+          measurableWeight += pc.own.weightSum;
+          measurableProjects += pc.total;
+          varSum += baseline * (1 - baseline) * pc.own.weightSum;
+        }
+      }
+
+      clientBreakdown[pc.clientName] = {
+        total: pc.total,
+        winners: pc.winners,
+        expectedWinners: expectedC,
+        clientRate: baseline,
+        measurable,
+      };
+    });
+
+    // Too little of this person's book is independently baseline-able (they
+    // define most of their own baseline) — don't publish a misleading index.
+    const coverage = totalProjects > 0 ? measurableProjects / totalProjects : 0;
+    const hasCoverage = expected > 1e-6 && coverage >= MEASURABLE_COVERAGE_MIN;
+
+    const performanceIndex = hasCoverage
+      ? Math.round((measurableActual / expected) * 100)
+      : null;
+
+    // EB shrinkage toward index 100 with SHRINK_STRENGTH baseline-projects.
+    let shrunkIndex: number | null = null;
+    if (hasCoverage && measurableWeight > 1e-6) {
+      const avgBaseline = expected / measurableWeight;
+      const priorExp = SHRINK_STRENGTH * avgBaseline;
+      shrunkIndex = Math.round(
+        ((measurableActual + priorExp) / (expected + priorExp)) * 100
+      );
+    }
+
+    // Significance: does the ~90% CI on the raw index exclude 100?
+    let significant = false;
+    if (hasCoverage && varSum > 0) {
+      const z = (measurableActual - expected) / Math.sqrt(varSum);
+      significant = Math.abs(z) >= SIGNIFICANCE_Z;
+    }
+
+    // Recent (90d) index — kept for continuity; baselined the same way but at
+    // the portfolio-average rate (recent samples are too thin per client for
+    // per-client LOO). Deprecated in the UI in favor of the shrunk index.
+    const avgBaselineAll = measurableWeight > 1e-6 ? expected / measurableWeight : 0;
+    const recentExpected = c.recentWeight * avgBaselineAll;
+    const recentPerformanceIndex =
+      recentExpected > 1e-6 ? Math.round((c.recentWinners / recentExpected) * 100) : null;
+
+    return {
+      name: c.name,
+      role: c.role,
+      rolePublicId: c.rolePublicId,
+      type: c.type,
+      totalProjects,
+      actualWinners: totalWinners,
+      expectedWinners: expected,
+      rawWinRate: totalProjects > 0 ? totalWinners / totalProjects : 0,
+      performanceIndex,
+      shrunkIndex,
+      significant,
+      measurable: performanceIndex !== null,
+      recentProjects: c.recentProjects,
+      recentActualWinners: c.recentWinners,
+      recentExpectedWinners: recentExpected,
+      recentPerformanceIndex,
+      clientBreakdown,
+    };
   });
 
   // Step 5: Build monthly winners
@@ -390,7 +586,7 @@ function processWinnersData(
     });
 
   // Step 6: Last-90-day rolling overall win rate (bucketed by winnerDate / creationDate)
-  const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString().split("T")[0];
+  const ninetyDaysAgo = new Date(nowMs - 90 * 86400000).toISOString().split("T")[0];
   let recentWinners = 0;
   let recentProjects = 0;
   projects.forEach((p) => {
@@ -404,7 +600,7 @@ function processWinnersData(
 
   return {
     clientStats: Object.values(clientStatsMap).sort((a, b) => b.winRate - a.winRate),
-    contributors: Object.values(contributorsMap),
+    contributors,
     totalWinners: winningProjectIds.size,
     totalProjects: filtered.length,
     monthlyWinners,
@@ -463,6 +659,8 @@ export interface CreatorWinnerStats {
   expectedWinners: number;
   rawWinRate: number;
   windex: number | null; // Performance index: (actualWinners / expectedWinners) * 100
+  shrunkWindex: number | null;
+  significant: boolean;
   recentTotalProjects: number;
   recentWinningProjects: number;
   recentExpectedWinners: number;
@@ -481,11 +679,13 @@ export function normalizeCreatorName(name: string): string {
 // of projects they edited/designed, not on-camera contribution).
 export type CreatorRoleFilter = "all" | "content-creators";
 
-function processCreatorWinnerStats(
+export function processCreatorWinnerStats(
   projects: WinnersProject[],
   retiredClients: Set<string>,
   roleFilter: CreatorRoleFilter
 ): Map<string, CreatorWinnerStats> {
+  const nowMs = Date.now();
+
   // Only projects since winner tracking began, and skip retired clients so
   // creator stats line up with the active-only contributor view.
   const filtered = projects.filter(
@@ -495,8 +695,9 @@ function processCreatorWinnerStats(
       !(p.client?.name && retiredClients.has(p.client.name))
   );
 
-  // Build client baselines — same logic as processWinnersData, minus date filter
-  const clientStatsMap: Record<string, { total: number; winners: number; byType: Record<string, { total: number; winners: number }> }> = {};
+  // Build maturity-weighted client baselines (overall + by type), completed
+  // projects only — same construction as the contributor path.
+  const clientAgg: Record<string, { overall: WeightedAgg; video: WeightedAgg; static: WeightedAgg }> = {};
   const winningProjectIds = new Set<string>();
   const winnerDateMap = new Map<string, string>();
 
@@ -507,47 +708,48 @@ function processCreatorWinnerStats(
       winnerDateMap.set(p.id, winDate);
     }
     if (!p.client) return;
-    // Baselines only include completed projects so non-shipped briefs don't
-    // dilute the rate (matches the contributor-tally filter below).
-    if (!p.doneDate && p.status?.name !== "Completed") return;
+    if (!isProjectComplete(p)) return;
     const cid = p.client.id;
     const adType = classifyAdType(p);
-    if (!clientStatsMap[cid]) clientStatsMap[cid] = { total: 0, winners: 0, byType: {} };
-    if (!clientStatsMap[cid].byType[adType]) clientStatsMap[cid].byType[adType] = { total: 0, winners: 0 };
-    clientStatsMap[cid].total++;
-    clientStatsMap[cid].byType[adType].total++;
+    const weight = maturityWeight(daysSinceDone(p, nowMs));
+    if (!clientAgg[cid]) clientAgg[cid] = { overall: newAgg(), video: newAgg(), static: newAgg() };
+    const agg = clientAgg[cid];
+    agg.overall.weightSum += weight;
+    agg[adType].weightSum += weight;
     if (winDate) {
-      clientStatsMap[cid].winners++;
-      clientStatsMap[cid].byType[adType].winners++;
+      agg.overall.winners += 1;
+      agg[adType].winners += 1;
     }
   });
 
-  const getBaseline = (clientId: string, adType: "video" | "static"): number => {
-    const c = clientStatsMap[clientId];
-    if (!c) return 0;
-    const typeStats = c.byType[adType];
-    if (typeStats && typeStats.total >= 5) return typeStats.winners / typeStats.total;
-    return c.total > 0 ? c.winners / c.total : 0;
-  };
-
-  // Aggregate per creator (external contractors only, all roles)
-  const ninetyDaysAgoStr = new Date(Date.now() - 90 * 86400000).toISOString().split("T")[0];
-  const creatorMap = new Map<string, CreatorWinnerStats>();
+  // Per-creator own aggregates, per client + bucket, for leave-one-out.
+  interface CreatorAccum {
+    displayName: string;
+    // cid -> { adType-aware own aggregates }
+    perClient: Record<string, {
+      overall: WeightedAgg; video: WeightedAgg; static: WeightedAgg;
+      total: number; winners: number;
+      // remember which bucket to use per project count (video if that type
+      // bucket has >=5 client projects, else overall) — decided at read time
+    }>;
+    recentWeight: number;
+    recentProjects: number;
+    recentWinners: number;
+    winnerProjectNames: Array<{ name: string; client: string; winnerDate: string | null }>;
+  }
+  const ninetyDaysAgoStr = new Date(nowMs - 90 * 86400000).toISOString().split("T")[0];
+  const creatorMap = new Map<string, CreatorAccum>();
 
   filtered.forEach((project) => {
-    // Only count completed projects — briefs/in-flight shouldn't penalize Windex
-    const isComplete = !!project.doneDate || project.status?.name === "Completed";
-    if (!isComplete) return;
-
+    if (!isProjectComplete(project)) return;
     const clientId = project.client?.id;
     if (!clientId) return;
     const adType = classifyAdType(project);
-    const baseline = getBaseline(clientId, adType);
+    const weight = maturityWeight(daysSinceDone(project, nowMs));
     const isWinner = winningProjectIds.has(project.id);
     const isRecent = !!project.doneDate && project.doneDate >= ninetyDaysAgoStr;
     const winDate = winnerDateMap.get(project.id) ?? null;
 
-    // Dedupe contractors within a single project (same person in multiple roles)
     const seenOnProject = new Set<string>();
     project.projectContractorsExternal?.forEach((pc) => {
       if (!pc.contractor?.name) return;
@@ -557,29 +759,32 @@ function processCreatorWinnerStats(
       ) return;
       const rawName = pc.contractor.name;
       const key = normalizeCreatorName(rawName);
+      if (isExcluded(rawName)) return;
       if (seenOnProject.has(key)) return;
       seenOnProject.add(key);
 
       if (!creatorMap.has(key)) {
         creatorMap.set(key, {
           displayName: normalizeName(rawName),
-          totalProjects: 0,
-          winningProjects: 0,
-          expectedWinners: 0,
-          rawWinRate: 0,
-          windex: null,
-          recentTotalProjects: 0,
-          recentWinningProjects: 0,
-          recentExpectedWinners: 0,
-          recentWindex: null,
+          perClient: {},
+          recentWeight: 0,
+          recentProjects: 0,
+          recentWinners: 0,
           winnerProjectNames: [],
         });
       }
       const c = creatorMap.get(key)!;
-      c.totalProjects++;
-      c.expectedWinners += baseline;
+      if (!c.perClient[clientId]) {
+        c.perClient[clientId] = { overall: newAgg(), video: newAgg(), static: newAgg(), total: 0, winners: 0 };
+      }
+      const pc2 = c.perClient[clientId];
+      pc2.overall.weightSum += weight;
+      pc2[adType].weightSum += weight;
+      pc2.total += 1;
       if (isWinner) {
-        c.winningProjects++;
+        pc2.overall.winners += 1;
+        pc2[adType].winners += 1;
+        pc2.winners += 1;
         c.winnerProjectNames.push({
           name: project.name,
           client: project.client?.name ?? "Unknown",
@@ -587,24 +792,95 @@ function processCreatorWinnerStats(
         });
       }
       if (isRecent) {
-        c.recentTotalProjects++;
-        c.recentExpectedWinners += baseline;
-        if (isWinner) c.recentWinningProjects++;
+        c.recentProjects += 1;
+        c.recentWeight += weight;
+        if (isWinner) c.recentWinners += 1;
       }
     });
   });
 
   // Finalize
-  creatorMap.forEach((c) => {
-    c.rawWinRate = c.totalProjects > 0 ? c.winningProjects / c.totalProjects : 0;
-    c.windex = c.expectedWinners > 0 ? Math.round((c.winningProjects / c.expectedWinners) * 100) : null;
-    c.recentWindex = c.recentExpectedWinners > 0
-      ? Math.round((c.recentWinningProjects / c.recentExpectedWinners) * 100)
-      : null;
+  const out = new Map<string, CreatorWinnerStats>();
+  creatorMap.forEach((c, key) => {
+    let expected = 0;
+    let measurableActual = 0;
+    let measurableWeight = 0;
+    let varSum = 0;
+    let totalProjects = 0;
+    let totalWinners = 0;
+
+    Object.entries(c.perClient).forEach(([cid, pc]) => {
+      totalProjects += pc.total;
+      totalWinners += pc.winners;
+      const agg = clientAgg[cid];
+      if (!agg) return;
+      // Use the type bucket if the client has >=5 (weighted) projects of it,
+      // else overall — mirrors the previous getBaseline behavior.
+      const useVideo = agg.video.weightSum >= 5 && pc.video.weightSum > 0;
+      const useStatic = agg.static.weightSum >= 5 && pc.static.weightSum > 0;
+      // A creator can span types; account per bucket separately.
+      const buckets: Array<["overall" | "video" | "static", WeightedAgg]> = [];
+      if (useVideo) buckets.push(["video", pc.video]);
+      if (useStatic) buckets.push(["static", pc.static]);
+      // Remaining projects not covered by a used type bucket -> overall
+      const coveredWeight = (useVideo ? pc.video.weightSum : 0) + (useStatic ? pc.static.weightSum : 0);
+      const coveredWinners = (useVideo ? pc.video.winners : 0) + (useStatic ? pc.static.winners : 0);
+      const overallOwn: WeightedAgg = {
+        weightSum: pc.overall.weightSum - coveredWeight,
+        winners: pc.overall.winners - coveredWinners,
+      };
+      if (overallOwn.weightSum > 1e-6) buckets.push(["overall", overallOwn]);
+
+      buckets.forEach(([bucketName, own]) => {
+        const bAgg = agg[bucketName];
+        const looWeight = bAgg.weightSum - own.weightSum;
+        const looWinners = bAgg.winners - own.winners;
+        if (looWeight > 0.5) {
+          const baseline = Math.max(0, looWinners / looWeight);
+          expected += baseline * own.weightSum;
+          measurableActual += own.winners;
+          measurableWeight += own.weightSum;
+          varSum += baseline * (1 - baseline) * own.weightSum;
+        }
+      });
+    });
+
+    const windex = expected > 1e-6 ? Math.round((measurableActual / expected) * 100) : null;
+    let shrunkWindex: number | null = null;
+    if (measurableWeight > 1e-6 && expected > 1e-6) {
+      const avgBaseline = expected / measurableWeight;
+      const priorExp = SHRINK_STRENGTH * avgBaseline;
+      shrunkWindex = Math.round(((measurableActual + priorExp) / (expected + priorExp)) * 100);
+    }
+    let significant = false;
+    if (varSum > 0 && expected > 1e-6) {
+      const z = (measurableActual - expected) / Math.sqrt(varSum);
+      significant = Math.abs(z) >= SIGNIFICANCE_Z;
+    }
+    const avgBaselineAll = measurableWeight > 1e-6 ? expected / measurableWeight : 0;
+    const recentExpected = c.recentWeight * avgBaselineAll;
+    const recentWindex = recentExpected > 1e-6 ? Math.round((c.recentWinners / recentExpected) * 100) : null;
+
     c.winnerProjectNames.sort((a, b) => (b.winnerDate ?? "").localeCompare(a.winnerDate ?? ""));
+
+    out.set(key, {
+      displayName: c.displayName,
+      totalProjects,
+      winningProjects: totalWinners,
+      expectedWinners: expected,
+      rawWinRate: totalProjects > 0 ? totalWinners / totalProjects : 0,
+      windex,
+      shrunkWindex,
+      significant,
+      recentTotalProjects: c.recentProjects,
+      recentWinningProjects: c.recentWinners,
+      recentExpectedWinners: recentExpected,
+      recentWindex,
+      winnerProjectNames: c.winnerProjectNames,
+    });
   });
 
-  return creatorMap;
+  return out;
 }
 
 export function useCreatorWinnerStats(roleFilter: CreatorRoleFilter = "all") {

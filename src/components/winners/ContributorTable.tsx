@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, Fragment } from "react";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -62,11 +62,13 @@ function sortContributors(list: Contributor[], sortKey: "pi" | "winners" | "proj
   const copy = [...list];
   copy.sort((a, b) => {
     if (sortKey === "pi") {
-      const aIneligible = a.totalProjects < 5 || a.performanceIndex === null;
-      const bIneligible = b.totalProjects < 5 || b.performanceIndex === null;
+      // Rank by the shrunk index so a lucky small sample doesn't top a proven
+      // large one. Unmeasurable / thin rows fall to the bottom.
+      const aIneligible = a.totalProjects < 5 || !a.measurable;
+      const bIneligible = b.totalProjects < 5 || !b.measurable;
       if (aIneligible && !bIneligible) return 1;
       if (!aIneligible && bIneligible) return -1;
-      return (b.performanceIndex ?? 0) - (a.performanceIndex ?? 0);
+      return (b.shrunkIndex ?? 0) - (a.shrunkIndex ?? 0);
     }
     if (sortKey === "winners") return b.actualWinners - a.actualWinners;
     return b.totalProjects - a.totalProjects;
@@ -101,7 +103,7 @@ function RoleTable({ roleId, contributors }: { roleId: string; contributors: Con
                 Winners{sortKey === "winners" ? " ↓" : ""}
               </TableHead>
               <TableHead>Expected</TableHead>
-              <TableHead className="cursor-pointer hover:text-foreground" onClick={() => setSortKey("pi")}>
+              <TableHead className="cursor-pointer hover:text-foreground" onClick={() => setSortKey("pi")} title="Raw W Index (actual ÷ expected winners), with the shrunk, noise-adjusted value below. ★ = difference from 100 is unlikely to be noise (~90% confidence).">
                 W Index{sortKey === "pi" ? " ↓" : ""}
               </TableHead>
               <TableHead>Win %</TableHead>
@@ -114,9 +116,8 @@ function RoleTable({ roleId, contributors }: { roleId: string; contributors: Con
               const insufficientData = c.totalProjects < 5;
 
               return (
-                <>
+                <Fragment key={key}>
                   <TableRow
-                    key={key}
                     className="cursor-pointer"
                     onClick={() => setExpandedRow(isExpanded ? null : key)}
                   >
@@ -153,35 +154,35 @@ function RoleTable({ roleId, contributors }: { roleId: string; contributors: Con
                       {c.expectedWinners > 0 ? c.expectedWinners.toFixed(1) : "—"}
                     </TableCell>
                     <TableCell>
-                      <div className="flex flex-col gap-0.5">
-                        <span className={`inline-flex items-center rounded px-2 py-0.5 text-sm font-semibold w-fit ${indexColor(insufficientData ? null : c.performanceIndex)}`}>
-                          {insufficientData ? "—" : c.performanceIndex !== null ? c.performanceIndex : "—"}
+                      {!c.measurable ? (
+                        <span
+                          className="inline-flex items-center rounded px-2 py-0.5 text-xs w-fit bg-muted text-muted-foreground"
+                          title="Not measurable — this person covers ~all of their clients' projects, so there is no independent baseline to compare against."
+                        >
+                          n/a
                         </span>
-                        {c.recentProjects >= 10 && c.recentPerformanceIndex !== null && c.performanceIndex !== null ? (
-                          <span
-                            className={`inline-flex items-center rounded px-1.5 py-0 text-[10px] font-medium w-fit ${
-                              c.recentPerformanceIndex > c.performanceIndex
-                                ? "bg-emerald-500/15 text-emerald-400"
-                                : c.recentPerformanceIndex < c.performanceIndex
-                                ? "bg-yellow-500/15 text-yellow-400"
-                                : "bg-muted text-muted-foreground"
-                            }`}
-                          >
-                            90d: {c.recentPerformanceIndex}
+                      ) : (
+                        <div className="flex flex-col gap-0.5">
+                          <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-sm font-semibold w-fit ${indexColor(insufficientData ? null : c.shrunkIndex)}`}>
+                            {insufficientData ? "—" : c.performanceIndex}
+                            {c.significant && !insufficientData && (
+                              <span title="Difference from 100 is unlikely to be noise (~90% confidence)">★</span>
+                            )}
                           </span>
-                        ) : (
-                          <span className="text-[10px] text-muted-foreground/60 px-1.5">
-                            90d: —
-                          </span>
-                        )}
-                      </div>
+                          {!insufficientData && c.shrunkIndex !== null && (
+                            <span className="text-[10px] text-muted-foreground/70 px-1.5" title="Noise-adjusted (shrunk toward 100 for small samples)">
+                              adj: {c.shrunkIndex}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
                       {(c.rawWinRate * 100).toFixed(1)}%
                     </TableCell>
                   </TableRow>
                   {isExpanded && (
-                    <TableRow key={`${key}-detail`}>
+                    <TableRow>
                       <TableCell colSpan={8} className="bg-muted/20 px-8 py-3">
                         <table className="w-full text-xs">
                           <thead>
@@ -203,10 +204,14 @@ function RoleTable({ roleId, contributors }: { roleId: string; contributors: Con
                                     <td className="py-1 pr-4 font-medium">{clientName}</td>
                                     <td className="py-1 pr-4">{bd.total}</td>
                                     <td className="py-1 pr-4">{bd.winners}</td>
-                                    <td className="py-1 pr-4">{bd.expectedWinners.toFixed(1)}</td>
-                                    <td className={`py-1 ${delta > 0 ? "text-emerald-400" : delta < 0 ? "text-red-400" : "text-muted-foreground"}`}>
-                                      {delta > 0 ? "+" : ""}{delta.toFixed(1)}
-                                    </td>
+                                    <td className="py-1 pr-4">{bd.measurable ? bd.expectedWinners.toFixed(1) : "n/a"}</td>
+                                    {bd.measurable ? (
+                                      <td className={`py-1 ${delta > 0 ? "text-emerald-400" : delta < 0 ? "text-red-400" : "text-muted-foreground"}`}>
+                                        {delta > 0 ? "+" : ""}{delta.toFixed(1)}
+                                      </td>
+                                    ) : (
+                                      <td className="py-1 text-muted-foreground/60" title="Sole contributor for this client — no independent baseline.">—</td>
+                                    )}
                                   </tr>
                                 );
                               })}
@@ -215,7 +220,7 @@ function RoleTable({ roleId, contributors }: { roleId: string; contributors: Con
                       </TableCell>
                     </TableRow>
                   )}
-                </>
+                </Fragment>
               );
             })}
           </TableBody>
