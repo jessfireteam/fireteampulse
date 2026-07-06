@@ -4,6 +4,7 @@ import { processWinnersData } from "@/hooks/useWinnersData";
 import { buildFixtureProjects } from "@/hooks/useWinnersData.fixture";
 import { ContributorTable } from "./ContributorTable";
 import { WinnersSummary } from "./WinnersSummary";
+import type { Contributor } from "@/hooks/useWinnersData";
 
 // Mount-test the winners UI so a JSX/shape mistake surfaces here rather than as
 // a white screen in prod (the build won't catch it).
@@ -23,6 +24,41 @@ describe("Winners UI renders", () => {
     const star = screen.getAllByText(/Star Writer/i)[0];
     fireEvent.click(star.closest("tr")!);
     expect(screen.getAllByText("Delta").length).toBeGreaterThan(0);
+  });
+
+  it("renders the AM Book Trend cell and caption instead of n/a", () => {
+    const am: Contributor = {
+      name: "Book Manager",
+      role: "Account Manager (AM)",
+      rolePublicId: "8",
+      type: "internal",
+      totalProjects: 40,
+      actualWinners: 8,
+      expectedWinners: 0,
+      rawWinRate: 0.2,
+      performanceIndex: null,
+      shrunkIndex: null,
+      significant: false,
+      measurable: false,
+      recentProjects: 0,
+      recentActualWinners: 0,
+      recentExpectedWinners: 0,
+      recentPerformanceIndex: null,
+      clientBreakdown: { Cli: { total: 40, winners: 8, expectedWinners: 0, clientRate: 0, measurable: false } },
+      amTrend: {
+        index: 145,
+        actual: 8,
+        projects: 40,
+        expected: 5.5,
+        significant: false,
+        scoreLabel: "Jan '26–Mar '26",
+        baselineLabel: "Sep '25–Dec '25",
+      },
+    };
+    render(<ContributorTable contributors={[am]} clientStats={data.clientStats} />);
+    expect(screen.getByText("145")).toBeTruthy();
+    expect(screen.getAllByText(/Book Trend/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/trend/)).toBeTruthy();
   });
 
   it("WinnersSummary mounts and names a top performer with an adjusted index", () => {

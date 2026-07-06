@@ -22,6 +22,31 @@ function indexColor(pi: number | null): string {
   return "bg-red-500/15 text-red-400";
 }
 
+function AmTrendCell({ trend }: { trend: NonNullable<Contributor["amTrend"]> }) {
+  if (trend.index === null) {
+    return (
+      <span className="inline-flex items-center rounded px-2 py-0.5 text-xs w-fit bg-muted text-muted-foreground" title="Not enough recent projects to compute a book trend.">
+        n/a
+      </span>
+    );
+  }
+  const smallSample = trend.projects < 20;
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span
+        className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-sm font-semibold w-fit ${indexColor(trend.index)}`}
+        title={`Book Trend: ${trend.scoreLabel} book scored against its own ${trend.baselineLabel} baseline (client difficulty cancels; agency-drift adjusted). ${trend.actual} winners on ${trend.projects} projects. ★ = unlikely to be noise.`}
+      >
+        {trend.index}
+        {trend.significant && <span>★</span>}
+      </span>
+      <span className="text-[10px] text-muted-foreground/70 px-1.5">
+        trend{smallSample ? " · thin" : ""}
+      </span>
+    </div>
+  );
+}
+
 function clientRateColor(rate: number): string {
   if (rate > 0.04) return "bg-emerald-500";
   if (rate > 0.025) return "bg-yellow-500";
@@ -62,13 +87,18 @@ function sortContributors(list: Contributor[], sortKey: "pi" | "winners" | "proj
   const copy = [...list];
   copy.sort((a, b) => {
     if (sortKey === "pi") {
-      // Rank by the shrunk index so a lucky small sample doesn't top a proven
-      // large one. Unmeasurable / thin rows fall to the bottom.
-      const aIneligible = a.totalProjects < 5 || !a.measurable;
-      const bIneligible = b.totalProjects < 5 || !b.measurable;
+      // AMs rank by their Book Trend index; everyone else by the shrunk index
+      // (so a lucky small sample doesn't top a proven large one). Unmeasurable
+      // / thin rows fall to the bottom.
+      const val = (c: Contributor) =>
+        c.rolePublicId === "8" ? c.amTrend?.index ?? null : (c.measurable ? c.shrunkIndex : null);
+      const av = val(a);
+      const bv = val(b);
+      const aIneligible = a.totalProjects < 5 || av === null;
+      const bIneligible = b.totalProjects < 5 || bv === null;
       if (aIneligible && !bIneligible) return 1;
       if (!aIneligible && bIneligible) return -1;
-      return (b.shrunkIndex ?? 0) - (a.shrunkIndex ?? 0);
+      return (bv ?? 0) - (av ?? 0);
     }
     if (sortKey === "winners") return b.actualWinners - a.actualWinners;
     return b.totalProjects - a.totalProjects;
@@ -89,6 +119,11 @@ function RoleTable({ roleId, contributors }: { roleId: string; contributors: Con
         {ROLE_FULL_NAMES[roleId] ?? roleId}
         <span className="ml-2 text-xs font-normal text-muted-foreground">({contributors.length})</span>
       </h3>
+      {roleId === "8" && (
+        <p className="text-xs text-muted-foreground px-1 -mt-1">
+          W Index here is a <span className="font-medium">Book Trend</span> (not client-adjusted): each AM's recent book scored against its own prior-period baseline, so it reflects whether the book is winning more than before. Noisy quarter-to-quarter — read the direction, not the point.
+        </p>
+      )}
       <div className="rounded-lg border border-border/50 bg-card/50 backdrop-blur-sm overflow-hidden">
         <Table>
           <TableHeader>
@@ -154,7 +189,9 @@ function RoleTable({ roleId, contributors }: { roleId: string; contributors: Con
                       {c.expectedWinners > 0 ? c.expectedWinners.toFixed(1) : "—"}
                     </TableCell>
                     <TableCell>
-                      {!c.measurable ? (
+                      {c.rolePublicId === "8" && c.amTrend ? (
+                        <AmTrendCell trend={c.amTrend} />
+                      ) : !c.measurable ? (
                         <span
                           className="inline-flex items-center rounded px-2 py-0.5 text-xs w-fit bg-muted text-muted-foreground"
                           title="Not measurable — this person covers ~all of their clients' projects, so there is no independent baseline to compare against."
