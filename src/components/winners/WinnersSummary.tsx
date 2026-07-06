@@ -20,9 +20,13 @@ export function WinnersSummary({ data, contributors }: Props) {
     `${data.recentWinners} winners · last 90d ${arrow} ` +
     `all-time ${allTimeRatePct.toFixed(2)}%`;
 
-  const eligible = contributors.filter((c) => c.totalProjects >= 5 && c.performanceIndex !== null);
+  // Rank on the shrunk (noise-adjusted) index and require enough volume +
+  // measurability, so the headline "top performer" isn't a lucky 2/3.
+  const eligible = contributors.filter(
+    (c) => c.totalProjects >= 10 && c.measurable && c.shrunkIndex !== null
+  );
   const topPerformer = eligible.length > 0
-    ? eligible.sort((a, b) => (b.performanceIndex ?? 0) - (a.performanceIndex ?? 0))[0]
+    ? eligible.sort((a, b) => (b.shrunkIndex ?? 0) - (a.shrunkIndex ?? 0))[0]
     : null;
 
   const topClient = data.clientStats.length > 0 ? data.clientStats[0] : null;
@@ -44,7 +48,11 @@ export function WinnersSummary({ data, contributors }: Props) {
       <KPICard
         title="Top Performer"
         value={topPerformer ? topPerformer.name : "—"}
-        subtitle={topPerformer ? `W Index: ${topPerformer.performanceIndex}` : "Min 5 projects needed"}
+        subtitle={
+          topPerformer
+            ? `W Index ${topPerformer.performanceIndex} (adj ${topPerformer.shrunkIndex})${topPerformer.significant ? " ★" : ""}`
+            : "Min 10 projects needed"
+        }
         icon={Crown}
       />
       <KPICard
