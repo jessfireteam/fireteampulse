@@ -50,6 +50,25 @@ export interface ClientBreakdown {
   measurable: boolean;
 }
 
+// Account-Manager "Book Trend" index. AMs are ~1-per-client, so a
+// client-normalized Windex cancels them out (they define their own baseline)
+// and a raw book index just measures who was handed the easy clients. The
+// trend index sidesteps both: it freezes each client's baseline from a prior
+// window and scores the AM's recent book against it (so client difficulty
+// cancels — Rejuvia is compared to Rejuvia's own past), while the AM's recent
+// performance is NOT in the baseline (so it doesn't self-cancel). It measures
+// whether the book got better/worse than it was, adjusted for agency-wide
+// drift. Single-quarter values are noisy (small-n badge); trust the trend.
+export interface AmTrend {
+  index: number | null;
+  actual: number; // winners in the score window
+  projects: number; // projects in the score window
+  expected: number;
+  significant: boolean;
+  scoreLabel: string; // e.g. "Jan '26–Mar '26"
+  baselineLabel: string; // e.g. "Sep '25–Dec '25"
+}
+
 export interface Contributor {
   name: string;
   role: string;
@@ -75,6 +94,8 @@ export interface Contributor {
   recentExpectedWinners: number;
   recentPerformanceIndex: number | null;
   clientBreakdown: Record<string, ClientBreakdown>;
+  // Populated only for Account Managers (rolePublicId "8"); see AmTrend.
+  amTrend?: AmTrend;
 }
 
 export interface MonthlyWinners {
@@ -191,6 +212,17 @@ const SIGNIFICANCE_Z = 1.64;
 // here — see the winners-windex review.)
 const MEASURABLE_COVERAGE_MIN = 0.8;
 
+// AM Book-Trend windows (in calendar months, relative to now). The score
+// window ends LAG months before now so winners in it have had time to be
+// tagged (see maturity curve). Baseline is the window immediately before it.
+const AM_TREND_LAG_MONTHS = 4;
+const AM_TREND_SCORE_MONTHS = 3;
+const AM_TREND_BASELINE_MONTHS = 4;
+// Pseudo-projects of pull toward the agency base rate when a client's trailing
+// baseline is thin (or missing — new clients fall back to the agency rate).
+const AM_TREND_SHRINK = 15;
+const AM_ROLE_ID = "8";
+
 function getWinnerDate(project: WinnersProject): string | null {
   for (const version of project.internalVersions ?? []) {
     const isWinner = version.tags?.some((t) => t.name?.startsWith("Winner - "));
@@ -227,6 +259,108 @@ interface WeightedAgg {
 }
 function newAgg(): WeightedAgg {
   return { weightSum: 0, winners: 0 };
+}
+
+// Calendar-month index (year*12 + monthIndex0) from an ISO date, and back to a
+// "Mon 'YY" label. Used for the AM trailing-window trend.
+const MONTH_ABBR = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function monthIndexOfISO(iso: string): number {
+  const d = new Date(iso.slice(0, 10) + "T00:00:00Z");
+  return d.getUTCFullYear() * 12 + d.getUTCMonth();
+}
+function monthIndexNow(nowMs: number): number {
+  const d = new Date(nowMs);
+  return d.getUTCFullYear() * 12 + d.getUTCMonth();
+}
+function labelForMonthIndex(idx: number): string {
+  const y = Math.floor(idx / 12);
+  const m = idx % 12;
+  return `${MONTH_ABBR[m]} '${String(y).slice(2)}`;
+}
+
+// AM Book-Trend index — see AmTrend. Computed over fixed rolling windows,
+// independent of the dashboard's date filter. Keyed by AM person id.
+export function computeAmTrend(
+  projects: WinnersProject[],
+  retiredClients: Set<string>,
+  nowMs: number
+): Map<string, AmTrend> {
+  const trackingStartIdx = monthIndexOfISO(WINNERS_TRACKING_START);
+  const scoreEnd = monthIndexNow(nowMs) - AM_TREND_LAG_MONTHS;
+  const scoreStart = scoreEnd - (AM_TREND_SCORE_MONTHS - 1);
+  const baseEnd = scoreStart - 1;
+  const baseStart = Math.max(trackingStartIdx, baseEnd - (AM_TREND_BASELINE_MONTHS - 1));
+  const scoreLabel = `${labelForMonthIndex(scoreStart)}–${labelForMonthIndex(scoreEnd)}`;
+  const baselineLabel = `${labelForMonthIndex(baseStart)}–${labelForMonthIndex(baseEnd)}`;
+
+  const completed = projects.filter(
+    (p) =>
+      p.creationDate &&
+      p.creationDate >= WINNERS_TRACKING_START &&
+      !(p.client?.name && retiredClients.has(p.client.name)) &&
+      isProjectComplete(p)
+  );
+
+  const amOf = (p: WinnersProject): { id: string; name: string } | null => {
+    for (const pr of p.projectRolesInternal ?? []) {
+      if (pr.assignee && pr.role && String(pr.role.publicId) === AM_ROLE_ID) return pr.assignee;
+    }
+    for (const pc of p.projectContractorsExternal ?? []) {
+      if (pc.contractor && pc.role && String(pc.role.publicId) === AM_ROLE_ID) return pc.contractor;
+    }
+    return null;
+  };
+
+  // client trailing baseline [n, w]; agency base & score rates; per-AM score.
+  const clientBase: Record<string, [number, number]> = {};
+  let agBaseN = 0, agBaseW = 0, agScoreN = 0, agScoreW = 0;
+  const amScore: Record<string, { name: string; perClient: Record<string, [number, number]> }> = {};
+
+  completed.forEach((p) => {
+    const idx = monthIndexOfISO(p.creationDate!);
+    const cid = p.client?.id;
+    const win = getWinnerDate(p) ? 1 : 0;
+    if (idx >= baseStart && idx <= baseEnd) {
+      agBaseN++; agBaseW += win;
+      if (cid) {
+        if (!clientBase[cid]) clientBase[cid] = [0, 0];
+        clientBase[cid][0]++; clientBase[cid][1] += win;
+      }
+    } else if (idx >= scoreStart && idx <= scoreEnd) {
+      agScoreN++; agScoreW += win;
+      const am = amOf(p);
+      if (am && cid) {
+        if (!amScore[am.id]) amScore[am.id] = { name: normalizeName(am.name), perClient: {} };
+        const pc = amScore[am.id].perClient;
+        if (!pc[cid]) pc[cid] = [0, 0];
+        pc[cid][0]++; pc[cid][1] += win;
+      }
+    }
+  });
+
+  const agRate = agBaseN > 0 ? agBaseW / agBaseN : 0;
+  // Agency-wide drift base->score, so an AM isn't penalized for a shop-wide dip.
+  const drift =
+    agBaseN > 0 && agScoreN > 0 && agBaseW > 0
+      ? (agScoreW / agScoreN) / (agBaseW / agBaseN)
+      : 1;
+
+  const out = new Map<string, AmTrend>();
+  Object.entries(amScore).forEach(([amId, data]) => {
+    let expected = 0, actual = 0, projectsN = 0;
+    Object.entries(data.perClient).forEach(([cid, [cn, cw]]) => {
+      const [bn, bw] = clientBase[cid] ?? [0, 0];
+      // Trailing client baseline, shrunk toward the agency rate for stability.
+      const shrunkBase = (bw + AM_TREND_SHRINK * agRate) / (bn + AM_TREND_SHRINK);
+      expected += cn * shrunkBase * drift;
+      actual += cw;
+      projectsN += cn;
+    });
+    const index = expected > 1e-6 ? Math.round((actual / expected) * 100) : null;
+    const significant = expected > 1e-6 && Math.abs((actual - expected) / Math.sqrt(expected)) >= SIGNIFICANCE_Z;
+    out.set(amId, { index, actual, projects: projectsN, expected, significant, scoreLabel, baselineLabel });
+  });
+  return out;
 }
 
 export function processWinnersData(
@@ -347,6 +481,7 @@ export function processWinnersData(
   // measured against a baseline they themselves define.
   interface ContribAccum {
     name: string;
+    personId: string;
     role: string;
     rolePublicId: string;
     type: "internal" | "external";
@@ -362,11 +497,13 @@ export function processWinnersData(
 
   const makeAccum = (
     name: string,
+    personId: string,
     role: string,
     roleId: string,
     type: "internal" | "external",
   ): ContribAccum => ({
     name,
+    personId,
     role,
     rolePublicId: roleId,
     type,
@@ -426,7 +563,7 @@ export function processWinnersData(
 
       const key = `${type}_${person.id}_${roleId}`;
       if (!contributorsMap[key]) {
-        contributorsMap[key] = makeAccum(name, role.name, roleId, type);
+        contributorsMap[key] = makeAccum(name, person.id, role.name, roleId, type);
       }
       accumulate(contributorsMap[key], project, weight, isWinner, isRecent);
     };
@@ -438,6 +575,9 @@ export function processWinnersData(
       if (pc.contractor && pc.role) handle(pc.contractor, pc.role, "external");
     });
   });
+
+  // AM Book-Trend index (fixed rolling windows, independent of dateFilter).
+  const amTrendMap = computeAmTrend(projects, retiredClients, nowMs);
 
   // Step 4: Finalize each contributor with leave-one-out baselines, EB
   // shrinkage, and a significance flag.
@@ -544,6 +684,7 @@ export function processWinnersData(
       recentExpectedWinners: recentExpected,
       recentPerformanceIndex,
       clientBreakdown,
+      amTrend: c.rolePublicId === AM_ROLE_ID ? amTrendMap.get(c.personId) : undefined,
     };
   });
 
