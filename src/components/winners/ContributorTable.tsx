@@ -121,7 +121,11 @@ function RoleTable({ roleId, contributors }: { roleId: string; contributors: Con
       </h3>
       {roleId === "8" && (
         <p className="text-xs text-muted-foreground px-1 -mt-1">
-          W Index here is a <span className="font-medium">Book Trend</span> (not client-adjusted): each AM's recent book scored against its own prior-period baseline, so it reflects whether the book is winning more than before. Noisy quarter-to-quarter — read the direction, not the point.
+          W Index here is a <span className="font-medium">Book Trend</span> (not client-adjusted): each AM's recent book scored against its own prior-period baseline, so it reflects whether the book is winning more than before.
+          {sorted[0]?.amTrend && (
+            <> Ads / Winners / Expected below are for the scored window (<span className="font-medium">{sorted[0].amTrend.scoreLabel}</span> vs {sorted[0].amTrend.baselineLabel} baseline), not all-time.</>
+          )}
+          {" "}Noisy quarter-to-quarter — read the direction, not the point.
         </p>
       )}
       <div className="rounded-lg border border-border/50 bg-card/50 backdrop-blur-sm overflow-hidden">
@@ -149,6 +153,19 @@ function RoleTable({ roleId, contributors }: { roleId: string; contributors: Con
               const key = `${c.type}_${c.name}_${c.rolePublicId}`;
               const isExpanded = expandedRow === key;
               const insufficientData = c.totalProjects < 5;
+
+              // AMs are scored on the Book Trend, which is computed over a
+              // recent window — not all-time and not the (collapsed) LOO
+              // expectation. Show that window's figures so the row reconciles
+              // (winners ÷ expected ≈ the trend index) instead of pairing
+              // all-time winners with a meaningless 0.1 expected.
+              const amWindow = c.rolePublicId === "8" ? c.amTrend : undefined;
+              const adsDisplay = amWindow ? amWindow.projects : c.totalProjects;
+              const winnersDisplay = amWindow ? amWindow.actual : c.actualWinners;
+              const expectedDisplay = amWindow ? amWindow.expected : c.expectedWinners;
+              const winRateDisplay = amWindow
+                ? (amWindow.projects > 0 ? amWindow.actual / amWindow.projects : 0)
+                : c.rawWinRate;
 
               return (
                 <Fragment key={key}>
@@ -183,10 +200,10 @@ function RoleTable({ roleId, contributors }: { roleId: string; contributors: Con
                     <TableCell>
                       <ClientMixBar breakdown={c.clientBreakdown} total={c.totalProjects} />
                     </TableCell>
-                    <TableCell>{c.totalProjects}</TableCell>
-                    <TableCell>{c.actualWinners}</TableCell>
+                    <TableCell>{adsDisplay}</TableCell>
+                    <TableCell>{winnersDisplay}</TableCell>
                     <TableCell>
-                      {c.expectedWinners > 0 ? c.expectedWinners.toFixed(1) : "—"}
+                      {expectedDisplay > 0 ? expectedDisplay.toFixed(1) : "—"}
                     </TableCell>
                     <TableCell>
                       {c.rolePublicId === "8" && c.amTrend ? (
@@ -215,7 +232,7 @@ function RoleTable({ roleId, contributors }: { roleId: string; contributors: Con
                       )}
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
-                      {(c.rawWinRate * 100).toFixed(1)}%
+                      {(winRateDisplay * 100).toFixed(1)}%
                     </TableCell>
                   </TableRow>
                   {isExpanded && (

@@ -59,6 +59,11 @@ describe("Winners UI renders", () => {
     expect(screen.getByText("145")).toBeTruthy();
     expect(screen.getAllByText(/Book Trend/).length).toBeGreaterThan(0);
     expect(screen.getByText(/trend/)).toBeTruthy();
+    // Ads / Winners / Expected reflect the trend window (40 / 8 / 5.5), not
+    // all-time or the collapsed LOO expected.
+    expect(screen.getByText("40")).toBeTruthy();
+    expect(screen.getByText("5.5")).toBeTruthy();
+    expect(screen.getByText(/scored window/i)).toBeTruthy();
   });
 
   it("WinnersSummary mounts and names a top performer with an adjusted index", () => {
