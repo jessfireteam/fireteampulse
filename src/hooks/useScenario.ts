@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { HORIZON_MONTHS, emptyCostConfig, type ClientHistory, type ScenarioClient, type CostConfig } from "@/lib/forecast/types";
 import { mergeScenario } from "@/lib/forecast/mergeScenario";
+import { reconcileScenario, reconcileCost, scenarioSignature } from "@/lib/forecast/reconcileScenario";
 
 let idCounter = 0;
 const nextId = () => `client-${++idCounter}`;
@@ -19,6 +20,9 @@ const db = supabase as unknown as {
   from: (table: string) => any;
 };
 
+const sameToken = (a?: string | null, b?: string | null) =>
+  !!a && !!b && new Date(a).getTime() === new Date(b).getTime();
+
 export type SaveState = "idle" | "saving" | "saved" | "error";
 
 export function useScenario(histories: ClientHistory[], userEmail?: string | null) {
@@ -33,6 +37,16 @@ export function useScenario(histories: ClientHistory[], userEmail?: string | nul
   const seededRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Optimistic-concurrency + merge state:
+  //  - token: the row's updated_at our local state is branched from
+  //  - baseline*: the remote scenario our unsaved edits diverge from (3-way merge base)
+  //  - lastSavedSig: signature of what is currently persisted remotely, so we
+  //    never fire a no-op save that would clobber a newer write with stale data
+  const tokenRef = useRef<string | null>(null);
+  const baselineClientsRef = useRef<ScenarioClient[]>([]);
+  const baselineCostRef = useRef<CostConfig>(emptyCostConfig(HORIZON_MONTHS));
+  const lastSavedSigRef = useRef<string | null>(null);
+
   // 1) Load the saved row once, gracefully.
   useEffect(() => {
     let cancelled = false;
@@ -40,13 +54,14 @@ export function useScenario(histories: ClientHistory[], userEmail?: string | nul
       try {
         const { data, error } = await db
           .from(TABLE)
-          .select("clients, cost_config")
+          .select("clients, cost_config, updated_at")
           .eq("id", ROW_ID)
           .maybeSingle();
         if (cancelled) return;
         if (error) {
           setSavedClients([]);
         } else {
+          tokenRef.current = data?.updated_at ?? null;
           const raw = data?.clients;
           setSavedClients(Array.isArray(raw) ? (raw as ScenarioClient[]) : []);
           const cc = data?.cost_config;
@@ -82,33 +97,149 @@ export function useScenario(histories: ClientHistory[], userEmail?: string | nul
   useEffect(() => {
     if (seededRef.current) return;
     if (!loaded || histories.length === 0) return;
-    setClients(mergeScenario(histories, savedClients ?? [], HORIZON_MONTHS, nextId));
+    const seeded = mergeScenario(histories, savedClients ?? [], HORIZON_MONTHS, nextId);
+    setClients(seeded);
+    // Baseline for the 3-way merge is the raw remote row (what edits diverge from).
+    baselineClientsRef.current = savedClients ?? [];
+    baselineCostRef.current = costConfig;
+    // Treat the seed as already-persisted so merely loading the page never
+    // triggers an autosave (the load-time clobber vector). Real user edits
+    // change the signature and do save.
+    lastSavedSigRef.current = scenarioSignature(seeded, costConfig);
     seededRef.current = true;
-  }, [loaded, histories, savedClients]);
+  }, [loaded, histories, savedClients, costConfig]);
 
-  // 3) Debounced autosave, only after seeding completes.
+  // 3) Debounced, concurrency-guarded autosave. Only writes when local state
+  //    actually diverges from what is persisted, and never blindly overwrites
+  //    a newer remote write.
   useEffect(() => {
     if (!seededRef.current) return;
+
+    const sig = scenarioSignature(clients, costConfig);
+    if (sig === lastSavedSigRef.current) {
+      setSaveState((s) => (s === "saving" ? "saved" : s));
+      return;
+    }
     setSaveState("saving");
     if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => {
-      (async () => {
-        try {
-          const { error } = await db.from(TABLE).upsert({
-            id: ROW_ID,
-            clients,
-            cost_config: costConfig,
-            updated_at: new Date().toISOString(),
-            updated_by: userEmail ?? null,
-          });
-          setSaveState(error ? "error" : "saved");
-        } catch {
-          setSaveState("error");
+
+    const persist = async () => {
+      const payload = {
+        clients,
+        cost_config: costConfig,
+        updated_at: new Date().toISOString(),
+        updated_by: userEmail ?? null,
+      };
+      try {
+        const token = tokenRef.current;
+        // Guarded update: only succeeds if the row is still at our token.
+        if (token != null) {
+          const { data, error } = await db
+            .from(TABLE)
+            .update(payload)
+            .eq("id", ROW_ID)
+            .eq("updated_at", token)
+            .select("updated_at")
+            .maybeSingle();
+          if (error) throw error;
+          if (data) {
+            tokenRef.current = data.updated_at;
+            baselineClientsRef.current = clients;
+            baselineCostRef.current = costConfig;
+            lastSavedSigRef.current = sig;
+            setSaveState("saved");
+            return;
+          }
+          // data == null -> someone else wrote since our token; fall through to reconcile.
         }
-      })();
+
+        // Token unknown or stale: refetch the current row and reconcile.
+        const { data: fresh, error: fErr } = await db
+          .from(TABLE)
+          .select("clients, cost_config, updated_at")
+          .eq("id", ROW_ID)
+          .maybeSingle();
+        if (fErr) throw fErr;
+
+        if (!fresh) {
+          // Row doesn't exist yet -> create it.
+          const { data: ins, error: iErr } = await db
+            .from(TABLE)
+            .insert({ id: ROW_ID, ...payload })
+            .select("updated_at")
+            .maybeSingle();
+          if (iErr) throw iErr;
+          tokenRef.current = ins?.updated_at ?? null;
+          baselineClientsRef.current = clients;
+          baselineCostRef.current = costConfig;
+          lastSavedSigRef.current = sig;
+          setSaveState("saved");
+          return;
+        }
+
+        // Conflict: 3-way merge local edits onto the fresh remote, adopt the
+        // remote token, and let the effect re-run to persist the merged result
+        // (which now matches the adopted token).
+        const theirClients: ScenarioClient[] = Array.isArray(fresh.clients) ? fresh.clients : [];
+        const theirCost: CostConfig = fresh.cost_config ?? emptyCostConfig(HORIZON_MONTHS);
+        const mergedClients = reconcileScenario(baselineClientsRef.current, clients, theirClients);
+        const mergedCost = reconcileCost(baselineCostRef.current, costConfig, theirCost);
+
+        tokenRef.current = fresh.updated_at;
+        baselineClientsRef.current = theirClients;
+        baselineCostRef.current = theirCost;
+        lastSavedSigRef.current = scenarioSignature(theirClients, theirCost);
+        setClients(mergedClients);
+        setCostConfig(mergedCost);
+      } catch {
+        setSaveState("error");
+      }
+    };
+
+    timerRef.current = setTimeout(() => {
+      void persist();
     }, AUTOSAVE_MS);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clients, costConfig, userEmail]);
+
+  // 4) Realtime: when another tab/partner writes the row, merge it into local
+  //    state (local edits preserved) so an open tab never shows or saves stale data.
+  useEffect(() => {
+    const channel = supabase
+      .channel(`pfs-${ROW_ID}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: TABLE, filter: `id=eq.${ROW_ID}` },
+        (payload: any) => {
+          const row = payload?.new;
+          if (!row || !seededRef.current) return;
+          if (sameToken(row.updated_at, tokenRef.current)) return; // our own write echoing back
+
+          const theirClients: ScenarioClient[] = Array.isArray(row.clients) ? row.clients : [];
+          const theirCost: CostConfig = row.cost_config ?? emptyCostConfig(HORIZON_MONTHS);
+          const baseClients = baselineClientsRef.current;
+          const baseCost = baselineCostRef.current;
+
+          // Adopt remote as the new baseline / token / persisted signature.
+          tokenRef.current = row.updated_at;
+          baselineClientsRef.current = theirClients;
+          baselineCostRef.current = theirCost;
+          lastSavedSigRef.current = scenarioSignature(theirClients, theirCost);
+
+          setClients((cur) => {
+            const merged = reconcileScenario(baseClients, cur, theirClients);
+            // Avoid a needless re-render (and save) when nothing changed for us.
+            return scenarioSignature(merged, baseCost) === scenarioSignature(cur, baseCost) ? cur : merged;
+          });
+          setCostConfig((cur) => reconcileCost(baseCost, cur, theirCost));
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, []);
 
   // Clear pending timer on unmount.
   useEffect(() => {
