@@ -23,19 +23,24 @@ vi.mock("@/hooks/useMovementData", () => ({
 
 import Movement from "./Movement";
 
-const ACCOUNTS = new Map([["acct-gn", "Ground News"]]);
+const ACCOUNTS = new Map([["act-718314128916749", "Ground News"]]);
 const row = (
   ad_name: string,
   report_date: string,
   spend: number,
-  campaign_name: string | null = "Prospecting"
-): SpendRow => ({ account_id: "acct-gn", ad_name, report_date, spend, campaign_name });
+  campaign_name: string | null = "Prospecting",
+  ad_id: string | null = "120000000000001"
+): SpendRow => ({
+  account_id: "act-718314128916749", ad_name, report_date, spend, campaign_name, ad_id,
+});
 
 // A breakout ad, a rise, a fall, a stop, and a duplication, on one account.
 const ROWS: SpendRow[] = [
-  row("Video - News&Yapper - Fireteam", "2026-07-14", 13),
-  row("Video - News&Yapper - Fireteam", "2026-07-20", 9_000, "Testing"),
-  row("Video - News&Yapper - Fireteam", "2026-07-21", 1, "Scaling"),
+  // Duplicating into a second campaign creates a second ad id under the same
+  // name, which is the case the link has to select both halves of.
+  row("Video - News&Yapper - Fireteam", "2026-07-14", 13, "Testing", "id-orig"),
+  row("Video - News&Yapper - Fireteam", "2026-07-20", 9_000, "Testing", "id-orig"),
+  row("Video - News&Yapper - Fireteam", "2026-07-21", 1, "Scaling", "id-copy"),
   row("Video - Founder TedX - Mercedes", "2026-07-14", 8_050),
   row("Video - Founder TedX - Mercedes", "2026-07-20", 21_870),
   row("Video - News Template - Fireteam", "2026-07-14", 36_774),
@@ -160,5 +165,34 @@ describe("Movement page renders", () => {
     mount();
     const card = screen.getByText("Flewd").closest("section")!;
     expect(within(card).getByText(/Nothing moved more than/)).toBeTruthy();
+  });
+});
+
+describe("Ads Manager links", () => {
+  it("links each ad name into its own ad account", () => {
+    mount();
+    const link = screen.getByText("Video - Founder TedX - Mercedes").closest("a")!;
+    expect(link.getAttribute("href")).toContain("act=act-718314128916749");
+    expect(link.getAttribute("href")).toContain("adsmanager.facebook.com");
+    // Opens away from the dashboard, and without handing the opener over.
+    expect(link.getAttribute("target")).toBe("_blank");
+    expect(link.getAttribute("rel")).toContain("noopener");
+  });
+
+  it("says how many ads a multi-id link will select", () => {
+    mount();
+    const link = screen.getByText("Video - News&Yapper - Fireteam").closest("a")!;
+    expect(link.getAttribute("title")).toMatch(/Open all 2 ads/);
+  });
+
+  it("renders a plain name when there is no id to link to", () => {
+    const noIds = aggregate(
+      [row("Unlinkable Ad", "2026-07-14", 20, "Testing", null),
+       row("Unlinkable Ad", "2026-07-20", 9_000, "Testing", null)],
+      ACCOUNTS, "2026-07-20", "2026-07-26", "2026-07-13", "2026-07-19"
+    );
+    state.current = { value: { ...loaded, data: { ...loaded.data, accounts: noIds } } };
+    mount();
+    expect(screen.getByText("Unlinkable Ad").closest("a")).toBeNull();
   });
 });

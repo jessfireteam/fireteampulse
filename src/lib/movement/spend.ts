@@ -22,11 +22,12 @@ const KEY = import.meta.env.VITE_SPEND_SUPABASE_KEY;
 
 const PAGE = 1000; // PostgREST max-rows; larger pages are silently clipped
 const IN_FLIGHT = 8;
-const COLUMNS = "report_date,account_id,ad_name,campaign_name,spend";
+const COLUMNS = "report_date,account_id,ad_id,ad_name,campaign_name,spend";
 
 export interface SpendRow {
   report_date: string;
   account_id: string;
+  ad_id: string | null;
   ad_name: string;
   campaign_name: string | null;
   spend: number | null;
