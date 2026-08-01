@@ -44,6 +44,13 @@ export function DashboardHeader() {
           Pipeline
         </NavLink>
         <NavLink
+          to="/movement"
+          className="px-3 py-1.5 rounded-md text-sm text-muted-foreground transition-colors hover:text-foreground"
+          activeClassName="bg-primary/20 text-primary font-medium"
+        >
+          Movement
+        </NavLink>
+        <NavLink
           to="/winners"
           className="px-3 py-1.5 rounded-md text-sm text-muted-foreground transition-colors hover:text-foreground"
           activeClassName="bg-primary/20 text-primary font-medium"
