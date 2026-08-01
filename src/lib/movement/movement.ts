@@ -39,6 +39,18 @@ export interface AdWeek {
   prior: number;
   current: number;
   duplicated: boolean;
+  /** The Meta ad account this ad ran in, for deep-linking. */
+  accountId: string;
+  /**
+   * Every Meta ad id that carried this name in the current period.
+   *
+   * Usually one, but 14% of names map to several and one Ground News ad name
+   * spans 23 — the same creative duplicated across ad sets and campaigns, which
+   * is the mechanic the `duplicated` flag tracks. The link selects all of them
+   * rather than picking one arbitrarily and sending the reader to a fragment of
+   * the spend they just read.
+   */
+  adIds: string[];
 }
 
 export interface Move extends AdWeek {
@@ -84,6 +96,28 @@ const AGENCY = /(?:firetea|fite|(?<![A-Za-z])(?:ft|fire)(?![A-Za-z]))/i;
 
 export function isAgency(adName: string): boolean {
   return AGENCY.test(adName || "");
+}
+
+/**
+ * A deep link that opens this ad, selected, in Meta Ads Manager.
+ *
+ * The ad name on its own is only a search term — it tells you what to go and
+ * hunt for. `fb_ad_spend` already carries `ad_id` and `account_id`, so the link
+ * costs nothing extra: no Motion lookup, no Adnova call, no id mapping that can
+ * drift. Ads Manager takes a comma-separated `selected_ad_ids`, so a creative
+ * running under one name across several ad sets arrives with all of its
+ * instances selected.
+ *
+ * Returns null when there is no id to link to, so the caller renders plain text
+ * rather than a link that goes somewhere useless.
+ */
+export function adsManagerUrl(accountId: string, adIds: string[]): string | null {
+  if (!accountId || adIds.length === 0) return null;
+  const ids = [...adIds].sort().join(",");
+  return (
+    "https://adsmanager.facebook.com/adsmanager/manage/ads" +
+    `?act=${encodeURIComponent(accountId)}&selected_ad_ids=${encodeURIComponent(ids)}`
+  );
 }
 
 /**

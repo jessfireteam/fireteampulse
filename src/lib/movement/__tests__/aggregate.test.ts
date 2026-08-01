@@ -12,8 +12,9 @@ const row = (
   ad_name: string,
   report_date: string,
   spend: number,
-  campaign_name: string | null = "Prospecting"
-): SpendRow => ({ account_id, ad_name, report_date, spend, campaign_name });
+  campaign_name: string | null = "Prospecting",
+  ad_id: string | null = "120000000000001"
+): SpendRow => ({ account_id, ad_name, report_date, spend, campaign_name, ad_id });
 
 // Current week 2026-07-20..26, prior week 2026-07-13..19.
 const CUR: [string, string] = ["2026-07-20", "2026-07-26"];
@@ -117,5 +118,40 @@ describe("aggregate", () => {
       row("acct-hl", "Ad B", "2026-07-20", 90_000),
     ]);
     expect(out.map((a) => a.client)).toEqual(["Honeylove", "Ground News"]);
+  });
+});
+
+describe("ad ids for deep-linking", () => {
+  it("collects every id that spent under a name this period", () => {
+    const [account] = run([
+      row("acct-gn", "Ad A", "2026-07-14", 20, "Testing", "id-old"),
+      row("acct-gn", "Ad A", "2026-07-20", 5_000, "Testing", "id-a"),
+      row("acct-gn", "Ad A", "2026-07-21", 5_000, "Scaling", "id-b"),
+    ]);
+    expect([...account.movement.breakout[0].adIds].sort()).toEqual(["id-a", "id-b"]);
+    expect(account.movement.breakout[0].accountId).toBe("acct-gn");
+  });
+
+  it("falls back to prior ids for a stopped ad, which is the row worth opening", () => {
+    const [account] = run([
+      row("acct-gn", "Ad A", "2026-07-14", 25_000, "Scaling", "id-gone"),
+    ]);
+    expect(account.movement.established[0].current).toBe(0);
+    expect(account.movement.established[0].adIds).toEqual(["id-gone"]);
+  });
+
+  it("ignores ids from rows that did not spend", () => {
+    const [account] = run([
+      row("acct-gn", "Ad A", "2026-07-20", 5_000, "Testing", "id-a"),
+      row("acct-gn", "Ad A", "2026-07-21", 0, "Testing", "id-zero"),
+    ]);
+    expect(account.movement.breakout[0].adIds).toEqual(["id-a"]);
+  });
+
+  it("survives a null ad_id without inventing one", () => {
+    const [account] = run([
+      row("acct-gn", "Ad A", "2026-07-20", 5_000, "Testing", null),
+    ]);
+    expect(account.movement.breakout[0].adIds).toEqual([]);
   });
 });

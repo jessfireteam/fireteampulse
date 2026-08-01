@@ -8,12 +8,14 @@
  * when the job ran.
  */
 import { useMemo, useState } from "react";
-import { ArrowDownRight, ArrowUpRight, Copy, Loader2, RefreshCw } from "lucide-react";
+import {
+  ArrowDownRight, ArrowUpRight, Copy, ExternalLink, Loader2, RefreshCw,
+} from "lucide-react";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { useAuth } from "@/hooks/useAuth";
 import { useMovementData } from "@/hooks/useMovementData";
 import type { AccountMovement } from "@/lib/movement/aggregate";
-import type { Move } from "@/lib/movement/movement";
+import { adsManagerUrl, type Move } from "@/lib/movement/movement";
 import { Button } from "@/components/ui/button";
 
 const PERIODS = [
@@ -31,6 +33,7 @@ const signed = (n: number) =>
 
 function MoveRow({ move, kind }: { move: Move; kind: "breakout" | "established" }) {
   const delta = move.current - move.prior;
+  const href = adsManagerUrl(move.accountId, move.adIds);
   const how =
     kind === "breakout"
       ? move.prior <= 0
@@ -73,7 +76,26 @@ function MoveRow({ move, kind }: { move: Move; kind: "breakout" | "established" 
           </span>
         )}
       </td>
-      <td className="py-1.5 text-sm break-all">{move.name}</td>
+      <td className="py-1.5 text-sm break-all">
+        {href ? (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group inline-flex items-start gap-1 hover:text-primary hover:underline underline-offset-2"
+            title={
+              move.adIds.length > 1
+                ? `Open all ${move.adIds.length} ads with this name in Ads Manager`
+                : "Open in Ads Manager"
+            }
+          >
+            {move.name}
+            <ExternalLink className="mt-0.5 h-3 w-3 shrink-0 opacity-0 group-hover:opacity-70" />
+          </a>
+        ) : (
+          move.name
+        )}
+      </td>
     </tr>
   );
 }

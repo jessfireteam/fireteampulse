@@ -13,6 +13,7 @@ import {
   MOVE_FLOOR,
   classify,
   isAgency,
+  adsManagerUrl,
   lastCompleteWeek,
   shiftDays,
   wasDuplicated,
@@ -24,7 +25,11 @@ const ad = (
   prior: number,
   current: number,
   duplicated = false
-): AdWeek => ({ name, prior, current, duplicated });
+): AdWeek => ({
+  name, prior, current, duplicated,
+  accountId: "act-1",
+  adIds: ["120000000000001"],
+});
 
 describe("window arithmetic", () => {
   it.each([
@@ -178,5 +183,25 @@ describe("agency attribution", () => {
     expect(isAgency("PRSP-SEAS-DROP50[2404_Big Deal Summer Sale_S3]")).toBe(false);
     expect(isAgency("Video - Founder TedX - UW_Hook1_Mercedes")).toBe(false);
     expect(isAgency("gift_shift_lifter")).toBe(false);
+  });
+});
+
+describe("Ads Manager deep link", () => {
+  it("selects the ad in its own account", () => {
+    const url = adsManagerUrl("604210910355837", ["120250426636590363"])!;
+    expect(url).toContain("act=604210910355837");
+    expect(url).toContain("selected_ad_ids=120250426636590363");
+  });
+
+  it("selects every id sharing a name, not an arbitrary one", () => {
+    // 14% of names map to several ids and one Ground News name spans 23.
+    // Linking one of them would open a fragment of the spend on the row.
+    const url = adsManagerUrl("act-1", ["333", "111", "222"])!;
+    expect(decodeURIComponent(url)).toContain("selected_ad_ids=111,222,333");
+  });
+
+  it("returns null rather than a useless link when there is nothing to open", () => {
+    expect(adsManagerUrl("act-1", [])).toBeNull();
+    expect(adsManagerUrl("", ["111"])).toBeNull();
   });
 });
