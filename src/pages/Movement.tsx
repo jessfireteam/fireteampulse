@@ -9,11 +9,12 @@
  */
 import { useMemo, useState } from "react";
 import {
-  ArrowDownRight, ArrowUpRight, Copy, ExternalLink, Loader2, RefreshCw,
+  ArrowDownRight, ArrowUpRight, Copy, ExternalLink, ImageOff, Loader2, RefreshCw,
 } from "lucide-react";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { useAuth } from "@/hooks/useAuth";
 import { useMovementData } from "@/hooks/useMovementData";
+import { useThumbnails } from "@/hooks/useThumbnails";
 import type { AccountMovement } from "@/lib/movement/aggregate";
 import { adsManagerUrl, type Move } from "@/lib/movement/movement";
 import { Button } from "@/components/ui/button";
@@ -31,7 +32,49 @@ const signed = (n: number) =>
   (n >= 0 ? "+" : "") +
   n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 
-function MoveRow({ move, kind }: { move: Move; kind: "breakout" | "established" }) {
+/**
+ * The ad's creative, at the size Ads Manager shows it.
+ *
+ * An ad name encodes what the team meant to make; the thumbnail is the only
+ * thing on the row that says what actually ran. A name maps to several ad ids
+ * (14% of them do), but those are the same creative duplicated across ad sets,
+ * so the first id that resolves is the right one to show.
+ *
+ * Always occupies its square, thumbnail or not. Rows that shrink when an image
+ * is missing make the table jitter as thumbnails stream in.
+ */
+function Thumb({ move, thumbs }: { move: Move; thumbs: Map<string, string> }) {
+  const src = move.adIds.map((id) => thumbs.get(id)).find(Boolean);
+  if (!src) {
+    return (
+      <div
+        className="h-10 w-10 shrink-0 rounded border border-border/60 bg-muted/30 flex items-center justify-center"
+        title="No thumbnail stored for this ad"
+      >
+        <ImageOff className="h-3.5 w-3.5 text-muted-foreground/40" />
+      </div>
+    );
+  }
+  // Deliberately no hover-to-enlarge. The obvious CSS version gets cropped to
+  // the column by the table's own clipping, and escaping that needs a portal
+  // and JS positioning for a row that already links straight to Ads Manager.
+  return (
+    <img
+      src={src}
+      alt=""
+      loading="lazy"
+      className="h-10 w-10 shrink-0 rounded border border-border/60 object-cover bg-muted/30"
+    />
+  );
+}
+
+function MoveRow({
+  move, kind, thumbs,
+}: {
+  move: Move;
+  kind: "breakout" | "established";
+  thumbs: Map<string, string>;
+}) {
   const delta = move.current - move.prior;
   const href = adsManagerUrl(move.accountId, move.adIds);
   const how =
@@ -76,38 +119,46 @@ function MoveRow({ move, kind }: { move: Move; kind: "breakout" | "established" 
           </span>
         )}
       </td>
-      <td className="py-1.5 text-sm break-all">
-        {href ? (
-          <a
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="group inline-flex items-start gap-1 hover:text-primary hover:underline underline-offset-2"
-            title={
-              move.adIds.length > 1
-                ? `Open all ${move.adIds.length} ads with this name in Ads Manager`
-                : "Open in Ads Manager"
-            }
-          >
-            {move.name}
-            <ExternalLink className="mt-0.5 h-3 w-3 shrink-0 opacity-0 group-hover:opacity-70" />
-          </a>
-        ) : (
-          move.name
-        )}
+      {/* Thumbnail and name share a cell so the image sits against the name the
+          way it does in Ads Manager, rather than in a column of its own. */}
+      <td className="py-1.5 text-sm">
+        <div className="flex items-center gap-2.5">
+          <Thumb move={move} thumbs={thumbs} />
+          <span className="break-all">
+            {href ? (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group inline-flex items-start gap-1 hover:text-primary hover:underline underline-offset-2"
+                title={
+                  move.adIds.length > 1
+                    ? `Open all ${move.adIds.length} ads with this name in Ads Manager`
+                    : "Open in Ads Manager"
+                }
+              >
+                {move.name}
+                <ExternalLink className="mt-0.5 h-3 w-3 shrink-0 opacity-0 group-hover:opacity-70" />
+              </a>
+            ) : (
+              move.name
+            )}
+          </span>
+        </div>
       </td>
     </tr>
   );
 }
 
 function Block({
-  title, blurb, rows, kind, totalLabel,
+  title, blurb, rows, kind, totalLabel, thumbs,
 }: {
   title: string;
   blurb: string;
   rows: Move[];
   kind: "breakout" | "established";
   totalLabel: string;
+  thumbs: Map<string, string>;
 }) {
   if (rows.length === 0) return null;
   const sum = rows.reduce((t, r) => t + r.rank, 0);
@@ -124,7 +175,7 @@ function Block({
         <tbody>
           {/* No cap. The Slack post truncates because a message has to; a page does not. */}
           {rows.map((m) => (
-            <MoveRow key={m.name} move={m} kind={kind} />
+            <MoveRow key={m.name} move={m} kind={kind} thumbs={thumbs} />
           ))}
         </tbody>
       </table>
@@ -132,7 +183,12 @@ function Block({
   );
 }
 
-function Account({ account }: { account: AccountMovement }) {
+function Account({
+  account, thumbs,
+}: {
+  account: AccountMovement;
+  thumbs: Map<string, string>;
+}) {
   const delta = account.spend - account.priorSpend;
   const pct = account.priorSpend ? (100 * delta) / account.priorSpend : null;
   const { breakout, established } = account.movement;
@@ -175,6 +231,7 @@ function Account({ account }: { account: AccountMovement }) {
         rows={breakout}
         kind="breakout"
         totalLabel="taking"
+        thumbs={thumbs}
       />
       <Block
         title="Established"
@@ -182,6 +239,7 @@ function Account({ account }: { account: AccountMovement }) {
         rows={established}
         kind="established"
         totalLabel="moved"
+        thumbs={thumbs}
       />
     </section>
   );
@@ -197,6 +255,15 @@ export default function Movement() {
     if (!data?.priorTotal) return null;
     return (100 * (data.total - data.priorTotal)) / data.priorTotal;
   }, [data]);
+
+  // Only the ads that made it onto the page, not every ad that had spend.
+  const shownAdIds = useMemo(() => {
+    if (!data) return [];
+    return data.accounts.flatMap((a) =>
+      [...a.movement.breakout, ...a.movement.established].flatMap((m) => m.adIds)
+    );
+  }, [data]);
+  const thumbs = useThumbnails(shownAdIds);
 
   if (loading) {
     return (
@@ -283,7 +350,7 @@ export default function Movement() {
         {data && !isLoading && (
           <div className="space-y-4">
             {data.accounts.map((a) => (
-              <Account key={a.client} account={a} />
+              <Account key={a.client} account={a} thumbs={thumbs} />
             ))}
           </div>
         )}

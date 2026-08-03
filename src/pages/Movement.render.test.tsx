@@ -20,6 +20,12 @@ vi.mock("@/hooks/useMovementData", () => ({
     return state.current.value;
   },
 }));
+vi.mock("@/hooks/useThumbnails", () => ({
+  useThumbnails: (adIds: string[]) => {
+    state.current.thumbArgs = adIds;
+    return state.current.thumbs ?? new Map<string, string>();
+  },
+}));
 
 import Movement from "./Movement";
 
@@ -194,5 +200,51 @@ describe("Ads Manager links", () => {
     state.current = { value: { ...loaded, data: { ...loaded.data, accounts: noIds } } };
     mount();
     expect(screen.getByText("Unlinkable Ad").closest("a")).toBeNull();
+  });
+});
+
+describe("Movement page thumbnails", () => {
+  const rowFor = (name: string) => screen.getByText(name).closest("tr")!;
+
+  it("asks only for the ads it is showing, not every ad with spend", () => {
+    mount();
+    const asked = state.current.thumbArgs as string[];
+    // The fixture's only ids are the two halves of the duplicated ad plus the
+    // shared id on the rest; nothing outside the rendered rows may appear.
+    expect(asked).toContain("id-orig");
+    expect(asked).toContain("id-copy");
+    expect(new Set(asked).size).toBeLessThanOrEqual(3);
+  });
+
+  // Queried by tag, not by role: the thumbnails carry alt="" because the ad
+  // name beside them already says what the row is, and an empty alt makes an
+  // image presentational, so getByRole("img") cannot see it.
+  const thumbIn = (tr: HTMLElement) => tr.querySelector("img");
+
+  it("renders the stored image against the ad it belongs to", () => {
+    state.current.thumbs = new Map([["id-orig", "https://cdn.test/thumb-a.jpg"]]);
+    mount();
+    const img = thumbIn(rowFor("Video - News&Yapper - Fireteam"))!;
+    expect(img.getAttribute("src")).toBe("https://cdn.test/thumb-a.jpg");
+    expect(img.getAttribute("alt")).toBe("");
+    expect(img.getAttribute("loading")).toBe("lazy");
+  });
+
+  it("falls back to a placeholder rather than collapsing the row", () => {
+    state.current.thumbs = new Map();
+    mount();
+    const cell = rowFor("Video - Founder TedX - Mercedes");
+    expect(thumbIn(cell)).toBeNull();
+    // Same 40px square either way, so rows do not jump as images stream in.
+    expect(cell.querySelector(".h-10.w-10")).toBeTruthy();
+  });
+
+  it("uses whichever id of a duplicated ad actually resolved", () => {
+    // 14% of names map to several ad ids. They are the same creative in
+    // different ad sets, so the second id is as correct as the first.
+    state.current.thumbs = new Map([["id-copy", "https://cdn.test/thumb-b.jpg"]]);
+    mount();
+    const img = thumbIn(rowFor("Video - News&Yapper - Fireteam"))!;
+    expect(img.getAttribute("src")).toBe("https://cdn.test/thumb-b.jpg");
   });
 });
