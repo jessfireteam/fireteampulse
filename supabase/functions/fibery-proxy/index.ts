@@ -108,6 +108,12 @@ const QUERIES: Record<QueryType, string> = {
   'revision-stats': 'DYNAMIC',
 }
 
+// Fibery rejects any limit above 3000 ("limit is out of range 0, 3001"), so
+// that is the page size, and MAX_PAGES is a runaway guard rather than a real
+// ceiling (24k projects is years of headroom at current volume).
+const WINNERS_PAGE_SIZE = 3000
+const WINNERS_MAX_PAGES = 8
+
 // Map query types to their Fibery endpoints
 const QUERY_ENDPOINTS: Record<QueryType, string> = {
   'projects': 'https://fireteam.fibery.io/api/graphql/space/Projects',
@@ -229,6 +235,9 @@ Deno.serve(async (req) => {
 
     let query = QUERIES[queryType as QueryType]
     const url = QUERY_ENDPOINTS[queryType as QueryType]
+    // Set by the winners branch below; when non-null the request is served by
+    // the paged loop instead of the single-shot fetch at the end.
+    let paginateWinners: ((offset: number) => string) | null = null
 
     // Dynamic query for tasks: fetch completed tasks from last 7 months (covers 26-week peak calc)
     if (queryType === 'tasks') {
@@ -586,12 +595,22 @@ Deno.serve(async (req) => {
       }`
     }
 
-    // Dynamic query for winners: fetch all projects with roles, contractors, and version tags
+    // Dynamic query for winners: fetch all projects with roles, contractors, and version tags.
+    //
+    // Fibery hard-caps `limit` at 3000 per call, and as of 2026-08-10 there were
+    // ~2.8k non-retired tracked projects, so a single call was already about to
+    // start silently dropping the oldest months of winner tracking (the oldest
+    // row it returned was 2025-09-25, three weeks after tracking began). So this
+    // pages with `offset` until a short page comes back, and filters server-side
+    // to the tracking window — keep the date in step with WINNERS_TRACKING_START
+    // in src/hooks/useWinnersData.ts.
     if (queryType === 'winners') {
-      query = `{
+      paginateWinners = (offset: number) => `{
         findProjects(
           orderBy: { creationDate: DESC }
-          limit: 3000
+          creationDate: { greater: "2025-08-31" }
+          limit: ${WINNERS_PAGE_SIZE}
+          offset: ${offset}
         ) {
           id
           name
@@ -775,6 +794,47 @@ Deno.serve(async (req) => {
       }
 
       return new Response(JSON.stringify({ bullets }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
+    // Paged path (winners only): keep asking for the next page until Fibery
+    // returns a short one, then hand back a single merged findProjects array so
+    // the client sees exactly the same shape as before.
+    if (paginateWinners) {
+      const merged: unknown[] = []
+      for (let page = 0; page < WINNERS_MAX_PAGES; page++) {
+        const pageRes = await fetchWithRetry(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Token ${FIBERY_TOKEN}` },
+          body: JSON.stringify({ query: paginateWinners(page * WINNERS_PAGE_SIZE) })
+        })
+        const pageText = await pageRes.text()
+        if (!pageRes.ok) {
+          console.error(`External API error: status=${pageRes.status}, body=${pageText.substring(0, 500)}, queryType=winners, page=${page}`)
+          return new Response(
+            JSON.stringify({ error: 'External API error', status: pageRes.status, detail: pageText.substring(0, 200) }),
+            { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+        const pageData = JSON.parse(pageText)
+        if (pageData.errors?.length) {
+          console.error(`Fibery GraphQL error on winners page ${page}: ${JSON.stringify(pageData.errors).substring(0, 300)}`)
+          return new Response(JSON.stringify(pageData), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          })
+        }
+        const rows = pageData?.data?.findProjects ?? []
+        merged.push(...rows)
+        if (rows.length < WINNERS_PAGE_SIZE) break
+        if (page === WINNERS_MAX_PAGES - 1) {
+          // Better a loud log than a silently truncated dataset — this is the
+          // exact failure the pagination was added to remove.
+          console.error(`winners pagination hit WINNERS_MAX_PAGES (${WINNERS_MAX_PAGES}); dataset may be truncated at ${merged.length} projects`)
+        }
+      }
+      console.log(`winners: returned ${merged.length} projects`)
+      return new Response(JSON.stringify({ data: { findProjects: merged } }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }

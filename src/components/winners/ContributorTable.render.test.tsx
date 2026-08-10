@@ -51,8 +51,15 @@ describe("Winners UI renders", () => {
         projects: 40,
         expected: 5.5,
         significant: false,
-        scoreLabel: "Jan '26–Mar '26",
-        baselineLabel: "Sep '25–Dec '25",
+        scoreLabel: "Mar '26–May '26",
+        baselineLabel: "Nov '25–Feb '26",
+        series: [
+          { label: "Nov '25–Jan '26", index: 88, significant: false },
+          { label: "Dec '25–Feb '26", index: 102, significant: false },
+          { label: "Jan '26–Mar '26", index: null, significant: false },
+          { label: "Feb '26–Apr '26", index: 130, significant: false },
+          { label: "Mar '26–May '26", index: 145, significant: false },
+        ],
       },
     };
     render(<ContributorTable contributors={[am]} clientStats={data.clientStats} />);
@@ -63,7 +70,11 @@ describe("Winners UI renders", () => {
     // all-time or the collapsed LOO expected.
     expect(screen.getByText("40")).toBeTruthy();
     expect(screen.getByText("5.5")).toBeTruthy();
-    expect(screen.getByText(/scored window/i)).toBeTruthy();
+    expect(screen.getByText(/completed in/i)).toBeTruthy();
+    // The rolling-window sparkline renders, with a bar per window (the null
+    // window included, drawn flat on the midline).
+    const spark = screen.getByRole("img", { name: /Book trend over the last/i });
+    expect(spark.querySelectorAll("rect").length).toBe(5);
   });
 
   it("WinnersSummary mounts and names a top performer with an adjusted index", () => {

@@ -22,6 +22,56 @@ function indexColor(pi: number | null): string {
   return "bg-red-500/15 text-red-400";
 }
 
+// Rolling-window sparkline. One AM quarter is 5-15 winners, so any single
+// index swings ±50 on noise alone — the shape across windows is the real
+// signal, and showing it stops a reader treating one point as a verdict.
+// Bars are centred on 100: above the midline is over-expectation, below is
+// under. Clamped to 0-200 so one 300 doesn't flatten the rest.
+function AmTrendSparkline({ series }: { series: NonNullable<Contributor["amTrend"]>["series"] }) {
+  const points = series.filter((s) => s.index !== null);
+  if (points.length < 2) return null;
+
+  const W = 62, H = 20, MID = H / 2, GAP = 1.5;
+  const bw = (W - GAP * (series.length - 1)) / series.length;
+
+  return (
+    <svg
+      width={W}
+      height={H}
+      viewBox={`0 0 ${W} ${H}`}
+      className="overflow-visible"
+      role="img"
+      aria-label={`Book trend over the last ${points.length} windows: ${points.map((p) => `${p.label}: ${p.index}`).join(", ")}`}
+    >
+      {/* The 100 line — expectation. Above/below it is the entire signal, so it
+          has to stay legible at 20px tall; anything fainter disappears. */}
+      <line x1={0} y1={MID} x2={W} y2={MID} className="stroke-muted-foreground/60" strokeWidth={1} />
+      {series.map((s, i) => {
+        const x = i * (bw + GAP);
+        if (s.index === null) {
+          return <rect key={i} x={x} y={MID - 0.75} width={bw} height={1.5} className="fill-muted-foreground/20" />;
+        }
+        // 100 -> 0px, 200 -> +MID, 0 -> -MID
+        const mag = (Math.min(200, Math.max(0, s.index)) - 100) / 100;
+        const h = Math.max(1, Math.abs(mag) * MID);
+        const up = mag >= 0;
+        return (
+          <rect
+            key={i}
+            x={x}
+            y={up ? MID - h : MID}
+            width={bw}
+            height={h}
+            className={up ? "fill-emerald-400/80" : "fill-red-400/80"}
+          >
+            <title>{`${s.label}: ${s.index}${s.significant ? " ★" : ""}`}</title>
+          </rect>
+        );
+      })}
+    </svg>
+  );
+}
+
 function AmTrendCell({ trend }: { trend: NonNullable<Contributor["amTrend"]> }) {
   if (trend.index === null) {
     return (
@@ -31,18 +81,26 @@ function AmTrendCell({ trend }: { trend: NonNullable<Contributor["amTrend"]> }) 
     );
   }
   const smallSample = trend.projects < 20;
+  const history = trend.series
+    .map((s) => `${s.label}: ${s.index ?? "n/a"}${s.significant ? " ★" : ""}`)
+    .join("\n");
   return (
-    <div className="flex flex-col gap-0.5">
-      <span
-        className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-sm font-semibold w-fit ${indexColor(trend.index)}`}
-        title={`Book Trend: ${trend.scoreLabel} book scored against its own ${trend.baselineLabel} baseline (client difficulty cancels; agency-drift adjusted). ${trend.actual} winners on ${trend.projects} projects. ★ = unlikely to be noise.`}
-      >
-        {trend.index}
-        {trend.significant && <span>★</span>}
-      </span>
-      <span className="text-[10px] text-muted-foreground/70 px-1.5">
-        trend{smallSample ? " · thin" : ""}
-      </span>
+    <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-0.5">
+        <span
+          className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-sm font-semibold w-fit ${indexColor(trend.index)}`}
+          title={`Book Trend: ${trend.scoreLabel} book scored against its own ${trend.baselineLabel} baseline (client difficulty cancels; agency-drift adjusted). ${trend.actual} winners on ${trend.projects} projects. ★ = unlikely to be noise.`}
+        >
+          {trend.index}
+          {trend.significant && <span>★</span>}
+        </span>
+        <span className="text-[10px] text-muted-foreground/70 px-1.5">
+          trend{smallSample ? " · thin" : ""}
+        </span>
+      </div>
+      <div title={`Rolling 3-month windows, oldest to newest:\n${history}`}>
+        <AmTrendSparkline series={trend.series} />
+      </div>
     </div>
   );
 }
@@ -123,9 +181,10 @@ function RoleTable({ roleId, contributors }: { roleId: string; contributors: Con
         <p className="text-xs text-muted-foreground px-1 -mt-1">
           W Index here is a <span className="font-medium">Book Trend</span> (not client-adjusted): each AM's recent book scored against its own prior-period baseline, so it reflects whether the book is winning more than before.
           {sorted[0]?.amTrend && (
-            <> Ads / Winners / Expected below are for the scored window (<span className="font-medium">{sorted[0].amTrend.scoreLabel}</span> vs {sorted[0].amTrend.baselineLabel} baseline), not all-time.</>
+            <> Ads / Winners / Expected below are for work <span className="font-medium">completed in {sorted[0].amTrend.scoreLabel}</span> (vs a {sorted[0].amTrend.baselineLabel} baseline), not all-time.</>
           )}
-          {" "}Noisy quarter-to-quarter — read the direction, not the point.
+          {" "}Any single quarter swings ±50 on noise, so the bars show the last{" "}
+          {sorted[0]?.amTrend?.series.length ?? 5} rolling windows: read the shape, not the number.
         </p>
       )}
       <div className="rounded-lg border border-border/50 bg-card/50 backdrop-blur-sm overflow-hidden">
