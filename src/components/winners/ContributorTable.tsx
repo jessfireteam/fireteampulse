@@ -13,6 +13,10 @@ interface Props {
   clientStats: ClientStat[];
 }
 
+// Below this many matured baseline projects, a client's own prior rate is noise
+// and the shrinkage has pulled the expectation to the agency rate anyway.
+const AM_THIN_BASELINE = 8;
+
 function indexColor(pi: number | null): string {
   if (pi === null) return "bg-muted text-muted-foreground";
   if (pi >= 110) return "bg-emerald-500/20 text-emerald-400";
@@ -31,7 +35,12 @@ function AmTrendSparkline({ series }: { series: NonNullable<Contributor["amTrend
   const points = series.filter((s) => s.index !== null);
   if (points.length < 2) return null;
 
-  const W = 62, H = 20, MID = H / 2, GAP = 1.5;
+  // Scale, not size, was what made the first version illegible. Mapping the
+  // full 0-200 index range onto the half-height meant real values (which sit
+  // roughly 40-160) only ever used a third of the available pixels, so a 104
+  // rendered as a 1px sliver. DOMAIN is the ± index spread that fills the
+  // half-height; anything past it clamps and gets a marker.
+  const W = 104, H = 34, MID = H / 2, GAP = 2, DOMAIN = 55;
   const bw = (W - GAP * (series.length - 1)) / series.length;
 
   return (
@@ -49,23 +58,43 @@ function AmTrendSparkline({ series }: { series: NonNullable<Contributor["amTrend
       {series.map((s, i) => {
         const x = i * (bw + GAP);
         if (s.index === null) {
-          return <rect key={i} x={x} y={MID - 0.75} width={bw} height={1.5} className="fill-muted-foreground/20" />;
+          return (
+            <rect key={i} x={x} y={MID - 0.75} width={bw} height={1.5} className="fill-muted-foreground/20">
+              <title>{`${s.label}: no data`}</title>
+            </rect>
+          );
         }
-        // 100 -> 0px, 200 -> +MID, 0 -> -MID
-        const mag = (Math.min(200, Math.max(0, s.index)) - 100) / 100;
-        const h = Math.max(1, Math.abs(mag) * MID);
-        const up = mag >= 0;
+        const delta = s.index - 100;
+        const clamped = Math.abs(delta) > DOMAIN;
+        // Floor of 2px so "at expectation" still reads as a bar rather than
+        // vanishing into the midline.
+        const h = Math.max(2, (Math.min(Math.abs(delta), DOMAIN) / DOMAIN) * MID);
+        const up = delta >= 0;
         return (
-          <rect
-            key={i}
-            x={x}
-            y={up ? MID - h : MID}
-            width={bw}
-            height={h}
-            className={up ? "fill-emerald-400/80" : "fill-red-400/80"}
-          >
-            <title>{`${s.label}: ${s.index}${s.significant ? " ★" : ""}`}</title>
-          </rect>
+          <Fragment key={i}>
+            <rect
+              x={x}
+              y={up ? MID - h : MID}
+              width={bw}
+              height={h}
+              className={up ? "fill-emerald-400/85" : "fill-red-400/85"}
+            >
+              <title>{`${s.label}: ${s.index}${s.significant ? " ★" : ""}`}</title>
+            </rect>
+            {/* Off-scale marker so a clamped bar isn't mistaken for the cap. */}
+            {clamped && (
+              <rect
+                x={x}
+                y={up ? 0 : H - 1.5}
+                width={bw}
+                height={1.5}
+                className={up ? "fill-emerald-200" : "fill-red-200"}
+              />
+            )}
+            {s.significant && (
+              <circle cx={x + bw / 2} cy={up ? MID - h - 2.5 : MID + h + 2.5} r={1.4} className="fill-foreground/70" />
+            )}
+          </Fragment>
         );
       })}
     </svg>
@@ -294,7 +323,75 @@ function RoleTable({ roleId, contributors }: { roleId: string; contributors: Con
                       {(winRateDisplay * 100).toFixed(1)}%
                     </TableCell>
                   </TableRow>
-                  {isExpanded && (
+                  {isExpanded && amWindow && (
+                    <TableRow>
+                      <TableCell colSpan={8} className="bg-muted/20 px-8 py-3">
+                        <p className="text-[11px] text-muted-foreground mb-2">
+                          Work completed in <span className="font-medium">{amWindow.scoreLabel}</span>, scored against
+                          each client's own <span className="font-medium">{amWindow.baselineLabel}</span> record.
+                          A client with no prior-window history is scored against the agency rate instead, marked{" "}
+                          <span className="text-amber-400/90">new</span>.
+                        </p>
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="text-muted-foreground">
+                              <th className="text-left py-1 pr-4">Client</th>
+                              <th className="text-left py-1 pr-4">Ads</th>
+                              <th className="text-left py-1 pr-4">Winners</th>
+                              <th className="text-left py-1 pr-4">Expected</th>
+                              <th className="text-left py-1 pr-4">Delta</th>
+                              <th className="text-left py-1">Its own baseline</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {amWindow.clients.map((cl) => {
+                              const delta = cl.winners - cl.expected;
+                              const isNew = cl.baselineProjects < 0.5;
+                              return (
+                                <tr key={cl.name}>
+                                  <td className="py-1 pr-4 font-medium">{cl.name}</td>
+                                  <td className="py-1 pr-4">{cl.projects}</td>
+                                  <td className="py-1 pr-4">{cl.winners}</td>
+                                  <td
+                                    className="py-1 pr-4"
+                                    title={`${((cl.expected / Math.max(1, cl.projects)) * 100).toFixed(1)}% effective rate after shrinkage and agency drift`}
+                                  >
+                                    {cl.expected.toFixed(1)}
+                                  </td>
+                                  <td className={`py-1 pr-4 ${delta > 0.05 ? "text-emerald-400" : delta < -0.05 ? "text-red-400" : "text-muted-foreground"}`}>
+                                    {delta > 0 ? "+" : ""}{delta.toFixed(1)}
+                                  </td>
+                                  <td className="py-1 text-muted-foreground">
+                                    {isNew ? (
+                                      <span className="text-amber-400/90" title="No completed work in the baseline window — scored against the agency rate.">
+                                        new
+                                      </span>
+                                    ) : (
+                                      <>
+                                        {cl.baselineWinners} of {cl.baselineProjects.toFixed(0)}{" "}
+                                        {/* A handful of prior projects carries almost no signal, and the
+                                            shrinkage pulls it to the agency rate — so printing its raw
+                                            percentage (a 0-for-3 as "0%") next to a healthy Expected reads
+                                            as a contradiction. Say "thin" instead. */}
+                                        {cl.baselineProjects < AM_THIN_BASELINE ? (
+                                          <span className="text-muted-foreground/60" title="Too few prior projects to carry a rate — mostly scored against the agency rate.">
+                                            (thin)
+                                          </span>
+                                        ) : (
+                                          `(${((cl.baselineWinners / cl.baselineProjects) * 100).toFixed(0)}%)`
+                                        )}
+                                      </>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {isExpanded && !amWindow && (
                     <TableRow>
                       <TableCell colSpan={8} className="bg-muted/20 px-8 py-3">
                         <table className="w-full text-xs">

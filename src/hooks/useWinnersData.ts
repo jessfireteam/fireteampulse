@@ -72,6 +72,26 @@ export interface AmTrend {
   // winners, so a single value swings ±50 on Poisson noise alone — the series
   // is the only honest read. Rendered as a sparkline next to the index.
   series: Array<{ label: string; index: number | null; significant: boolean }>;
+  // Per-client detail for the score window, so the expanded row reconciles with
+  // the index above it. The craft Windex's leave-one-out breakdown is useless
+  // for an AM: they're the only AM on nearly every account, so removing them
+  // removes the whole baseline and every real client reads "n/a" while a
+  // 1-project sliver on someone else's account reads as measurable. Here the
+  // baseline is the client's own prior window instead, which every client has
+  // (or falls back to the agency rate).
+  clients: AmTrendClient[];
+}
+
+export interface AmTrendClient {
+  name: string;
+  projects: number; // projects completed in the score window
+  winners: number;
+  expected: number;
+  // The client's own prior-window record, [maturedProjects, winners]. Zero
+  // projects means no history in the baseline window, so `expected` came off
+  // the agency rate rather than this client's own past.
+  baselineProjects: number;
+  baselineWinners: number;
 }
 
 export interface Contributor {
@@ -321,6 +341,7 @@ interface AmWindow {
   significant: boolean;
   scoreLabel: string;
   baselineLabel: string;
+  clients: AmTrendClient[];
 }
 
 // One rolling window of the AM Book Trend. `lagMonths` is how far back the
@@ -343,6 +364,7 @@ function computeAmWindow(
   // project that finished three weeks ago contributes ~a quarter of a project's
   // worth of expectation rather than counting as a full loss.
   const clientBase: Record<string, [number, number]> = {}; // [maturedN, winners]
+  const clientNames: Record<string, string> = {};
   let agBaseN = 0, agBaseW = 0, agScoreN = 0, agScoreW = 0;
   // perClient: [rawProjects, winners, maturedN]
   const amScore: Record<string, { name: string; perClient: Record<string, [number, number, number]> }> = {};
@@ -351,6 +373,7 @@ function computeAmWindow(
     const idx = trendMonthIndex(p);
     if (idx === null) return;
     const cid = p.client?.id;
+    if (cid && p.client?.name) clientNames[cid] = p.client.name;
     const win = getWinnerDate(p) ? 1 : 0;
     const mw = maturityWeight(daysSinceDone(p, nowMs));
     if (idx >= baseStart && idx <= baseEnd) {
@@ -381,6 +404,7 @@ function computeAmWindow(
   const out = new Map<string, AmWindow>();
   Object.entries(amScore).forEach(([amId, data]) => {
     let expected = 0, actual = 0, projectsN = 0;
+    const clients: AmTrendClient[] = [];
     Object.entries(data.perClient).forEach(([cid, [cn, cw, cmw]]) => {
       const [bn, bw] = clientBase[cid] ?? [0, 0];
       // Trailing client baseline, shrunk toward the agency rate for stability.
@@ -388,13 +412,23 @@ function computeAmWindow(
       // measured 2026-08-10, genuinely-new clients win at 9.9% vs 9.5% for
       // established ones, so that fallback is not a meaningful bias.
       const shrunkBase = (bw + AM_TREND_SHRINK * agRate) / (bn + AM_TREND_SHRINK);
-      expected += cmw * shrunkBase * drift;
+      const expectedC = cmw * shrunkBase * drift;
+      expected += expectedC;
       actual += cw;
       projectsN += cn;
+      clients.push({
+        name: clientNames[cid] ?? cid,
+        projects: cn,
+        winners: cw,
+        expected: expectedC,
+        baselineProjects: bn,
+        baselineWinners: bw,
+      });
     });
+    clients.sort((a, b) => b.projects - a.projects);
     const index = expected > 1e-6 ? Math.round((actual / expected) * 100) : null;
     const significant = expected > 1e-6 && Math.abs((actual - expected) / Math.sqrt(expected)) >= SIGNIFICANCE_Z;
-    out.set(amId, { index, actual, projects: projectsN, expected, significant, scoreLabel, baselineLabel });
+    out.set(amId, { index, actual, projects: projectsN, expected, significant, scoreLabel, baselineLabel, clients });
   });
   return out;
 }
