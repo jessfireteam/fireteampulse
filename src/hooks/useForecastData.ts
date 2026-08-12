@@ -2,16 +2,22 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { queryFibery, type ProjectCompletionsResponse } from "@/lib/fibery";
-import { useTasksData, processTasksForCapacity } from "@/hooks/useFiberyData";
+import { useTasksData, processTasksForCapacity, isExcludedMember } from "@/hooks/useFiberyData";
 import { useClientsData, useClientPlansData } from "@/hooks/useClientsData";
 import { activeClientNames, filterActiveHistories } from "@/lib/forecast/activeClients";
 import { computeRolePeaks } from "@/lib/forecast/calibration";
 import { computeClientHistory } from "@/lib/forecast/history";
 import { deriveClientPlans } from "@/lib/forecast/plan";
-import { HISTORY_MONTHS, type ClientHistory, type ClientPlan, type RolePeaks } from "@/lib/forecast/types";
+import type { MeasuredPerson } from "@/lib/forecast/supply";
+import { FORECAST_ROLES, HISTORY_MONTHS, type ClientHistory, type ClientPlan, type ForecastRoleKey, type RolePeaks } from "@/lib/forecast/types";
+
+const FORECAST_ROLE_KEYS = new Set<string>(FORECAST_ROLES.map((r) => r.key));
 
 export interface ForecastData {
+  /** Measured from Fibery task history; the reference the roster's declared capacity is checked against. */
   peaks: RolePeaks;
+  /** Per-person measured throughput, so the roster can seed from it and show drift. */
+  measuredPeople: MeasuredPerson[];
   /** Read-only trailing actuals, shown left of the editable months. */
   histories: ClientHistory[];
   /** Current per-client plan derived from Fibery; drives the editable months. */
@@ -40,6 +46,20 @@ export function useForecastData(): ForecastData {
 
     const roleGroups = processTasksForCapacity(tasks, "all");
     const peaks = computeRolePeaks(roleGroups);
+    // Same figure computeRolePeaks sums, kept per person so a roster row can seed from its own
+    // person rather than a role total. "Other" is dropped: it isn't a forecast role.
+    const measuredPeople: MeasuredPerson[] = roleGroups
+      .filter((g) => FORECAST_ROLE_KEYS.has(g.role))
+      .flatMap((g) =>
+        g.people
+          .filter((p) => !isExcludedMember(p.name))
+          .map((p) => ({
+            name: p.name,
+            role: g.role as ForecastRoleKey,
+            maxWeek26: (p.taskTypes.find((t) => t.taskType === p.primaryTaskType) ?? p.subtotal)
+              .maxWeek26,
+          })),
+      );
     const rawHistories = computeClientHistory(projects, now, HISTORY_MONTHS);
     const active = activeClientNames(clients);
     const histories = filterActiveHistories(rawHistories, active);
@@ -62,6 +82,7 @@ export function useForecastData(): ForecastData {
 
     return {
       peaks,
+      measuredPeople,
       histories,
       plans,
       // clientPlansQuery.isLoading is included so the grid doesn't flash run-rate numbers

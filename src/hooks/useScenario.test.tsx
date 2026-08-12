@@ -21,7 +21,24 @@ const SAVED_ROW = {
       hypothetical: false,
     },
   ],
-  cost_config: null,
+  // A populated cost_config carrying the roster's capacity fields, so this also covers
+  // "adding role/capacityPerWeek to a person doesn't make loading the page look like an edit".
+  cost_config: {
+    partnerSalaryByMonth: new Array(12).fill(0),
+    rentByMonth: new Array(12).fill(0),
+    nonProdSalaryByMonth: new Array(12).fill(0),
+    overheadLines: [],
+    // The two deprecated keys are present because the app writes the emptyCostConfig-merged
+    // object, so the live row carries them (verified against production). Omitting them here
+    // makes the load-time merge re-add them, which counts as a change and fires a save — so a
+    // fixture without them tests a state that can't occur and fails for the wrong reason.
+    overheadByMonth: new Array(12).fill(0),
+    costPerDeliverableByMonth: new Array(12).fill(0),
+    team: [
+      { id: "k", name: "Khushboo", side: "video", monthlyCost: 2000, startMonthIndex: 0, role: "Video" },
+      { id: "j", name: "John", side: "both", monthlyCost: 6250, startMonthIndex: 0, role: "Copywriters", capacityPerWeek: 8 },
+    ],
+  },
   updated_at: "2026-08-11T13:59:42.181Z",
 };
 
@@ -101,6 +118,36 @@ describe("useScenario", () => {
     expect(update).not.toHaveBeenCalled();
     expect(insert).not.toHaveBeenCalled();
     expect(result.current.saveState).not.toBe("saving");
+  });
+
+  it("loads the roster's role and capacity fields back intact", async () => {
+    const { result } = renderHook(() => useScenario(plans, "jess@fireteam.is"));
+    await waitFor(() => expect(result.current.costConfig.team).toHaveLength(2));
+    const john = result.current.costConfig.team.find((p) => p.id === "j")!;
+    expect(john.role).toBe("Copywriters");
+    expect(john.capacityPerWeek).toBe(8);
+    const khushboo = result.current.costConfig.team.find((p) => p.id === "k")!;
+    expect(khushboo.role).toBe("Video");
+    expect(khushboo.capacityPerWeek).toBeUndefined();
+  });
+
+  it("saves a roster capacity edit, which goes through the cost path not the client path", async () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useScenario(plans, "jess@fireteam.is"));
+    await vi.waitFor(() => expect(result.current.costConfig.team).toHaveLength(2));
+    act(() => {
+      result.current.updateCost({
+        team: result.current.costConfig.team.map((p) =>
+          p.id === "k" ? { ...p, capacityPerWeek: 6 } : p,
+        ),
+      });
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    expect(update).toHaveBeenCalledTimes(1);
+    const sentTeam = update.mock.calls[0][0].cost_config.team;
+    expect(sentTeam.find((p: { id: string }) => p.id === "k").capacityPerWeek).toBe(6);
   });
 
   it("still saves a real edit", async () => {

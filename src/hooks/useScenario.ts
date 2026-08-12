@@ -37,6 +37,20 @@ export function useScenario(plans: ClientPlan[], userEmail?: string | null) {
   const seededRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  /**
+   * True once a human has actually changed something in this tab. Until then the hook must
+   * never write, no matter how far local state has drifted from the stored row — and it does
+   * drift, because volumes are derived from Fibery on every load.
+   *
+   * The signature check below is not sufficient on its own: the seed captures its
+   * "already persisted" signature before the loaded cost_config has landed in state, so with a
+   * populated cost_config the first render pair looked like an edit and fired a save. That was
+   * live (production's row has a cost_config) and only invisible in tests because a null
+   * cost_config never triggers the second state update. This flag is the invariant stated
+   * outright: opening the page writes nothing.
+   */
+  const dirtyRef = useRef(false);
+
   // Optimistic-concurrency + merge state:
   //  - token: the row's updated_at our local state is branched from
   //  - baseline*: the remote scenario our unsaved edits diverge from (3-way merge base)
@@ -116,6 +130,12 @@ export function useScenario(plans: ClientPlan[], userEmail?: string | null) {
     if (!seededRef.current) return;
 
     const sig = scenarioSignature(clients, costConfig);
+    if (!dirtyRef.current) {
+      // Nothing a person did. Adopt the signature so the first real edit is measured against
+      // what's on screen, and write nothing.
+      lastSavedSigRef.current = sig;
+      return;
+    }
     if (sig === lastSavedSigRef.current) {
       setSaveState((s) => (s === "saving" ? "saved" : s));
       return;
@@ -248,10 +268,13 @@ export function useScenario(plans: ClientPlan[], userEmail?: string | null) {
     };
   }, []);
 
-  const update = (id: string, patch: Partial<ScenarioClient>) =>
+  const update = (id: string, patch: Partial<ScenarioClient>) => {
+    dirtyRef.current = true;
     setClients((cs) => cs.map((c) => (c.id === id ? { ...c, ...patch } : c)));
+  };
 
-  const addClient = () =>
+  const addClient = () => {
+    dirtyRef.current = true;
     setClients((cs) => [
       ...cs,
       {
@@ -263,10 +286,17 @@ export function useScenario(plans: ClientPlan[], userEmail?: string | null) {
         hypothetical: true,
       },
     ]);
+  };
 
-  const removeClient = (id: string) => setClients((cs) => cs.filter((c) => c.id !== id));
+  const removeClient = (id: string) => {
+    dirtyRef.current = true;
+    setClients((cs) => cs.filter((c) => c.id !== id));
+  };
 
-  const updateCost = (patch: Partial<CostConfig>) => setCostConfig((c) => ({ ...c, ...patch }));
+  const updateCost = (patch: Partial<CostConfig>) => {
+    dirtyRef.current = true;
+    setCostConfig((c) => ({ ...c, ...patch }));
+  };
 
   return { clients, update, addClient, removeClient, costConfig, updateCost, saveState };
 }

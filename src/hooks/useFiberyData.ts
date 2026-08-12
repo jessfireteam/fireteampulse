@@ -220,6 +220,11 @@ const ROLE_ASSIGNMENTS: Record<string, { role: RoleType; primaryTaskType: string
   // Video (internal + Alex as external VE contractor; Sanchit Singh corrects
   // the previous "Sanchit"-keyed entry that never matched the Fibery display name)
   'Vaiv Singh': [{ role: 'Video', primaryTaskType: 'Video Editing' }],
+  // Fibery reports Khushboo by email rather than a display name (same as riteesh), so key her
+  // that way — a 'Khushboo' key would match nothing, which is the bug the Sanchit note below
+  // describes. Without an entry here she has no MEASURED figure at all; the forecast can still
+  // count her from declared roster capacity.
+  'khushboo@fireteam.is': [{ role: 'Video', primaryTaskType: 'Video Editing' }],
   'Sanchit Singh': [{ role: 'Video', primaryTaskType: 'Video Editing' }],
   'Ike': [{ role: 'Video', primaryTaskType: 'Video Editing' }],
   'Alex': [{ role: 'Video', primaryTaskType: 'Video Editing' }],

@@ -9,8 +9,8 @@ import {
   type ForecastResult,
   type ForecastRoleKey,
   type RoleMonthCell,
-  type RolePeaks,
   type RoleRates,
+  type RoleSupply,
   type RoleStatus,
   type ScenarioClient,
 } from "./types";
@@ -35,7 +35,8 @@ const ROLE_KEYS = FORECAST_ROLES.map((r) => r.key);
 
 export function runForecast(
   scenario: ScenarioClient[],
-  peaks: RolePeaks,
+  /** Per-month ceiling per role; a hire's start month steps it up mid-horizon. */
+  supply: RoleSupply,
   horizonMonths: number,
   referenceDate: Date,
   roleRates?: RoleRates,
@@ -56,7 +57,7 @@ export function runForecast(
 
     const roles = {} as Record<ForecastRoleKey, RoleMonthCell>;
     ROLE_KEYS.forEach((key) => {
-      const peak = peaks[key] ?? 0;
+      const peak = supply[key]?.[m] ?? 0;
       const inc = ROLE_INCIDENCE[key];
       const rate = roleRates?.[key] ?? DEFAULT_ROLE_RATES[key] ?? 1;
       const demandPerWeek =
