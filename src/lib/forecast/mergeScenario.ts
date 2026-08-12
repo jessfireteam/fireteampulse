@@ -1,15 +1,23 @@
-import type { ClientHistory, ScenarioClient } from "./types";
+import type { ClientPlan, ScenarioClient } from "./types";
 
 /**
- * Reconcile the saved scenario with the current active-client roster:
- * - active clients (from histories) are seeded flat from their run-rate
- * - a saved entry matching an active client by name overrides its videos/statics/enabled
- * - saved HYPOTHETICAL clients (no matching active client) are carried over
+ * Reconcile the saved scenario with the current per-client plan:
+ * - every active client gets its volumes from the derived plan (Max x trailing mix)
+ * - a saved entry flagged `manualVolumes` keeps its own volumes instead
+ * - everything else on a saved entry (pricing, ad spend, one-offs, active window) is
+ *   carried over untouched; this only ever decides the two volume arrays
+ * - saved HYPOTHETICAL clients (no matching plan) are carried over as-is
  * - saved entries for clients no longer active are dropped (unless hypothetical)
  * Saved per-month arrays are only trusted if their length === horizon.
+ *
+ * Why volumes are derived rather than read from the saved row: the previous version seeded
+ * a client from trailing history once and then let the saved row win forever, so nothing
+ * ever refreshed. Deriving here (rather than in a post-load effect) matters — useScenario
+ * takes the signature of this output as "already persisted", so a plan change in Fibery
+ * updates the grid without triggering a write.
  */
 export function mergeScenario(
-  histories: ClientHistory[],
+  plans: ClientPlan[],
   saved: ScenarioClient[],
   horizon: number,
   makeId: () => string,
@@ -19,15 +27,32 @@ export function mergeScenario(
   const goodLen = (a: unknown): a is number[] => Array.isArray(a) && a.length === horizon;
   const goodLabels = (a: unknown): a is string[] => Array.isArray(a) && a.length === horizon;
 
-  const seeded: ScenarioClient[] = histories.map((h) => {
-    const prior = savedByName.get(key(h.client));
+  /**
+   * Migration for rows saved before `manualVolumes` existed: a derived or seeded row is flat
+   * by construction, so a row whose months VARY is proof someone shaped it deliberately (a
+   * ramp, a paused month). Treat that as manual rather than flattening real work. A flat
+   * saved row is indistinguishable from a stale seed, so it re-derives.
+   */
+  const shaped = (c: ScenarioClient): boolean =>
+    (goodLen(c.videosByMonth) && new Set(c.videosByMonth).size > 1) ||
+    (goodLen(c.staticsByMonth) && new Set(c.staticsByMonth).size > 1);
+
+  const seeded: ScenarioClient[] = plans.map((p) => {
+    const prior = savedByName.get(key(p.client));
+    const manual =
+      !!prior &&
+      (!!prior.manualVolumes || shaped(prior)) &&
+      goodLen(prior.videosByMonth) &&
+      goodLen(prior.staticsByMonth);
     return {
       id: makeId(),
-      name: h.client,
-      videosByMonth: prior && goodLen(prior.videosByMonth) ? prior.videosByMonth : new Array(horizon).fill(h.seedVideos),
-      staticsByMonth: prior && goodLen(prior.staticsByMonth) ? prior.staticsByMonth : new Array(horizon).fill(h.seedStatics),
+      name: p.client,
+      videosByMonth: manual ? prior!.videosByMonth : new Array(horizon).fill(p.videos),
+      staticsByMonth: manual ? prior!.staticsByMonth : new Array(horizon).fill(p.statics),
       enabled: prior ? prior.enabled : true,
       hypothetical: false,
+      // Absent rather than false when not manual, so it never reads as a diff.
+      manualVolumes: manual ? true : undefined,
       newBusiness: prior?.newBusiness,
       pricing: prior?.pricing,
       adSpendByMonth: goodLen(prior?.adSpendByMonth) ? prior!.adSpendByMonth : undefined,
@@ -49,6 +74,7 @@ export function mergeScenario(
       staticsByMonth: goodLen(c.staticsByMonth) ? c.staticsByMonth : new Array(horizon).fill(0),
       enabled: c.enabled,
       hypothetical: true,
+      manualVolumes: c.manualVolumes,
       newBusiness: c.newBusiness,
       pricing: c.pricing,
       adSpendByMonth: goodLen(c.adSpendByMonth) ? c.adSpendByMonth : undefined,

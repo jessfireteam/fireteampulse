@@ -15,9 +15,9 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function PartnersInner() {
-  const { peaks, histories, isLoading, error } = useForecastData();
+  const { peaks, histories, plans, isLoading, error } = useForecastData();
   const { user } = useAuth();
-  const { clients, update, addClient, removeClient, costConfig, updateCost, saveState } = useScenario(histories, user?.email);
+  const { clients, update, addClient, removeClient, costConfig, updateCost, saveState } = useScenario(plans, user?.email);
 
   // Modal-driven client creation: addClient() appends a new client but doesn't
   // return its id (the id is minted inside the hook's setState). We stash the
@@ -77,6 +77,7 @@ function PartnersInner() {
             historyLabels={historyLabels}
             monthLabels={monthLabels}
             histories={histories}
+            plans={plans}
             onUpdate={update}
             onAdd={addClient}
             onRemove={removeClient}

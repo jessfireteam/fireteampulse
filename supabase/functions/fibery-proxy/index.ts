@@ -36,7 +36,7 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
 const ALLOWED_EMAIL_DOMAIN = '@fireteam.is'
 
 // Whitelisted query types - only these are allowed
-const ALLOWED_QUERY_TYPES = ['projects', 'tasks', 'pending-tasks', 'client-months', 'client-weeks', 'project-completions', 'project-upcoming', 'project-timeline-upcoming', 'project-pacing', 'shipped-tasks', 'client-expenses', 'creator-costs', 'leads', 'stage-tracking', 'clients', 'winners', 'slack-highlights', 'revision-stats'] as const
+const ALLOWED_QUERY_TYPES = ['projects', 'tasks', 'pending-tasks', 'client-months', 'client-weeks', 'project-completions', 'project-upcoming', 'project-timeline-upcoming', 'project-pacing', 'shipped-tasks', 'client-expenses', 'creator-costs', 'leads', 'stage-tracking', 'clients', 'client-plans', 'winners', 'slack-highlights', 'revision-stats'] as const
 type QueryType = typeof ALLOWED_QUERY_TYPES[number]
 
 // Predefined queries for security - no arbitrary GraphQL allowed
@@ -103,6 +103,18 @@ const QUERIES: Record<QueryType, string> = {
       status { name }
     }
   }`,
+  // Deliberately separate from 'clients' rather than extra fields on it. Half the dashboard
+  // depends on 'clients' resolving, and these two field names are a convention guess about
+  // Fibery's GraphQL naming, so a wrong guess must not be able to take that query down.
+  'client-plans': `{
+    findClients(
+      limit: 500
+    ) {
+      name
+      maxDeliverablesPerMonth
+      minDeliverablesPerMonth
+    }
+  }`,
   'winners': 'DYNAMIC',
   'slack-highlights': 'DYNAMIC',
   'revision-stats': 'DYNAMIC',
@@ -131,6 +143,7 @@ const QUERY_ENDPOINTS: Record<QueryType, string> = {
   'leads': 'https://fireteam.fibery.io/api/graphql/space/Leads',
   'stage-tracking': 'https://fireteam.fibery.io/api/graphql/space/Projects',
   'clients': 'https://fireteam.fibery.io/api/graphql/space/Clients',
+  'client-plans': 'https://fireteam.fibery.io/api/graphql/space/Clients',
   'winners': 'https://fireteam.fibery.io/api/graphql/space/Projects',
   'slack-highlights': '',  // handled before reaching the generic Fibery fetch
   'revision-stats': 'https://fireteam.fibery.io/api/graphql/space/Projects',
