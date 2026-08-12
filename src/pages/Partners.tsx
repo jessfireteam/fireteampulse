@@ -5,9 +5,11 @@ import { useForecastData } from "@/hooks/useForecastData";
 import { useScenario } from "@/hooks/useScenario";
 import { useAuth } from "@/hooks/useAuth";
 import { runForecast } from "@/lib/forecast/engine";
+import { resolveRoleSupply } from "@/lib/forecast/supply";
 import { HORIZON_MONTHS, HISTORY_MONTHS, FORECAST_ROLES, DEFAULT_ROLE_RATES, type ClientPricing } from "@/lib/forecast/types";
 import { Input } from "@/components/ui/input";
 import { ScenarioBuilder } from "@/components/partners/ScenarioBuilder";
+import { SupplyPanel } from "@/components/partners/SupplyPanel";
 import { ForecastChart } from "@/components/partners/ForecastChart";
 import { HireTimeline } from "@/components/partners/HireTimeline";
 import { PnlTab } from "@/components/partners/PnlTab";
@@ -15,7 +17,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function PartnersInner() {
-  const { peaks, histories, plans, isLoading, error } = useForecastData();
+  const { peaks, measuredPeople, histories, plans, isLoading, error } = useForecastData();
   const { user } = useAuth();
   const { clients, update, addClient, removeClient, costConfig, updateCost, saveState } = useScenario(plans, user?.email);
 
@@ -48,9 +50,16 @@ function PartnersInner() {
     [],
   );
 
+  // Supply comes from the P&L roster (role + capacity + start month), so a hire lifts the
+  // ceiling from the month they begin. Roles with nobody assigned keep reading measured peaks.
+  const resolved = useMemo(
+    () => resolveRoleSupply(costConfig.team ?? [], peaks, measuredPeople, HORIZON_MONTHS),
+    [costConfig.team, peaks, measuredPeople],
+  );
+
   const result = useMemo(
-    () => runForecast(clients, peaks, HORIZON_MONTHS, new Date(), costConfig.roleRates),
-    [clients, peaks, costConfig.roleRates],
+    () => runForecast(clients, resolved.supply, HORIZON_MONTHS, new Date(), costConfig.roleRates),
+    [clients, resolved.supply, costConfig.roleRates],
   );
 
   if (isLoading) return <Skeleton className="h-96 m-8" />;
@@ -72,6 +81,12 @@ function PartnersInner() {
         <TabsContent value="capacity" className="space-y-8">
           <ForecastChart result={result} />
           <HireTimeline result={result} />
+          <SupplyPanel
+            supply={resolved.supply}
+            measuredPeaks={peaks}
+            perPerson={resolved.perPerson}
+            monthLabels={monthLabels}
+          />
           <ScenarioBuilder
             clients={clients}
             historyLabels={historyLabels}
@@ -119,6 +134,7 @@ function PartnersInner() {
             onUpdate={update}
             onUpdateCost={updateCost}
             onAddClientWithPricing={handleAddClientWithPricing}
+            supplyRows={resolved.perPerson}
           />
         </TabsContent>
       </Tabs>

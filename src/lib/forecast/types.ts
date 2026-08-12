@@ -11,14 +11,35 @@ export type ForecastRoleKey =
 export interface ForecastRole {
   key: ForecastRoleKey;
   display: string;
+  /**
+   * The unit one person's weekly capacity is counted in for this role. Shown next to the
+   * roster input because entering the wrong unit fails silently. Copywriting is briefs, NOT
+   * deliverables: DEFAULT_ROLE_RATES.Copywriters is 0.5, so demand already assumes one brief
+   * covers two deliverables.
+   */
+  unit: string;
 }
 
 export const FORECAST_ROLES: ForecastRole[] = [
-  { key: "Account", display: "Account" },
-  { key: "Creative Review", display: "Creative Review" },
-  { key: "Copywriters", display: "Copywriting" },
-  { key: "Design", display: "Design" },
-  { key: "Video", display: "Video Editing" },
+  { key: "Account", display: "Account", unit: "briefs sent/wk" },
+  { key: "Creative Review", display: "Creative Review", unit: "reviews/wk" },
+  { key: "Copywriters", display: "Copywriting", unit: "briefs/wk" },
+  { key: "Design", display: "Design", unit: "statics/wk" },
+  { key: "Video", display: "Video Editing", unit: "videos/wk" },
+];
+
+/**
+ * Roles a roster person can be assigned to. Account is deliberately absent: its demand is
+ * modelled per deliverable, but an account manager's real ceiling is how many client
+ * relationships they hold, so a per-week number would be a confident wrong answer. Account
+ * keeps reading measured actuals until it gets a client-based model. Put an AM on the roster
+ * with no role — they'll carry cost and no capacity.
+ */
+export const ROSTER_ROLE_KEYS: ForecastRoleKey[] = [
+  "Creative Review",
+  "Copywriters",
+  "Design",
+  "Video",
 ];
 
 /** Average weeks per calendar month, used for month<->week conversions. */
@@ -27,8 +48,20 @@ export const WEEKS_PER_MONTH = 4.345;
 /** Forecast horizon in months (grid column count). */
 export const HORIZON_MONTHS = 12;
 
-/** role -> peak role-tasks/week (supply ceiling). */
+/**
+ * role -> peak role-tasks/week MEASURED from Fibery task history (each assigned person's
+ * busiest week out of the last 26, summed). Kept as the reference figure that declared
+ * roster capacity is checked against, and still the supply source for any role nobody on
+ * the roster is assigned to.
+ */
 export type RolePeaks = Record<ForecastRoleKey, number>;
+
+/**
+ * role -> supply ceiling per month, length HORIZON_MONTHS. Per month rather than flat
+ * because roster people carry a start month: a hire lifts the ceiling from the month they
+ * begin instead of retroactively across the whole horizon.
+ */
+export type RoleSupply = Record<ForecastRoleKey, number[]>;
 
 /** tasks-per-deliverable multiplier per role; reality isn't a flat 1 (copy ~0.5, creative review ~2). */
 export type RoleRates = Partial<Record<ForecastRoleKey, number>>;
@@ -157,6 +190,19 @@ export interface ProductionPerson {
   side: "video" | "static" | "both";
   monthlyCost: number;
   startMonthIndex: number; // 0 = active now; >0 = a hire beginning that month
+  /**
+   * Which role's supply this person contributes to. `side` can't answer this — it's a cost
+   * allocation dimension (Nicolle is "video" but casts creators, copywriters are "both"), not
+   * a job. Absent = cost only, contributing no capacity, which is every pre-existing row.
+   */
+  role?: ForecastRoleKey;
+  /**
+   * Declared throughput in this role's own task unit per week: videos for Video, statics for
+   * Design, reviews for Creative Review, and BRIEFS for Copywriters (one brief already covers
+   * ~2 deliverables via DEFAULT_ROLE_RATES.Copywriters = 0.5, so this is briefs written, not
+   * deliverables covered). Absent = fall back to this person's measured busiest week.
+   */
+  capacityPerWeek?: number;
   /** Classification only. Production cost counts ALL producers regardless; "salary" producers are subtracted from the dedicated Non-production salary line so each person is counted once. */
   employment?: "contractor" | "salary";
 }
