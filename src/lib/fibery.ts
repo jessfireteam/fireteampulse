@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 
 // Query types that match the edge function whitelist
-type QueryType = 'projects' | 'tasks' | 'pending-tasks' | 'client-months' | 'client-weeks' | 'project-completions' | 'project-upcoming' | 'project-timeline-upcoming' | 'project-pacing' | 'shipped-tasks' | 'client-expenses' | 'creator-costs' | 'leads' | 'stage-tracking' | 'clients' | 'winners' | 'revision-stats';
+type QueryType = 'projects' | 'tasks' | 'pending-tasks' | 'client-months' | 'client-weeks' | 'project-completions' | 'project-upcoming' | 'project-timeline-upcoming' | 'project-pacing' | 'shipped-tasks' | 'client-expenses' | 'creator-costs' | 'leads' | 'stage-tracking' | 'clients' | 'client-plans' | 'winners' | 'revision-stats';
 
 export async function queryFibery<T>(queryType: QueryType): Promise<T> {
   const { data, error } = await supabase.functions.invoke('fibery-proxy', {
@@ -198,6 +198,19 @@ export interface StageTrackingResponse {
 export interface FiberyClient {
   name: string | null;
   status: { name: string } | null;
+}
+
+/** From the separate 'client-plans' query; see the note on that query in fibery-proxy. */
+export interface FiberyClientPlan {
+  name: string | null;
+  /** Auto-scheduling ceiling ops enforces; the current operating plan. Null when unset. */
+  maxDeliverablesPerMonth: number | null;
+  /** Contractual minimum. Display only. */
+  minDeliverablesPerMonth: number | null;
+}
+
+export interface ClientPlansResponse {
+  findClients: FiberyClientPlan[];
 }
 
 export interface ClientsResponse {

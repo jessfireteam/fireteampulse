@@ -1,41 +1,100 @@
 import { describe, it, expect } from "vitest";
 import { mergeScenario } from "../mergeScenario";
-import type { ClientHistory, ScenarioClient } from "../types";
+import type { ClientPlan, ScenarioClient } from "../types";
 
 const H = 12;
 let n = 0; const makeId = () => `id-${++n}`;
-const hist = (client: string, sv = 0, ss = 0): ClientHistory => ({ client, videosByMonth: [0,0,0], staticsByMonth: [0,0,0], seedVideos: sv, seedStatics: ss });
+const plan = (client: string, videos = 0, statics = 0, over: Partial<ClientPlan> = {}): ClientPlan => ({ client, max: videos + statics, min: null, videoShare: 0.5, mixSource: "client", videos, statics, source: "max", ...over });
 const saved = (name: string, over: Partial<ScenarioClient> = {}): ScenarioClient => ({ id: "x", name, videosByMonth: new Array(H).fill(0), staticsByMonth: new Array(H).fill(0), enabled: true, hypothetical: false, ...over });
 
 describe("mergeScenario", () => {
-  it("seeds active clients flat from run-rate when no saved entry", () => {
-    const r = mergeScenario([hist("Acme", 5, 2)], [], H, makeId);
+  it("seeds active clients flat from the derived plan when no saved entry", () => {
+    const r = mergeScenario([plan("Acme", 5, 2)], [], H, makeId);
     expect(r).toHaveLength(1);
     expect(r[0].videosByMonth).toEqual(new Array(H).fill(5));
     expect(r[0].staticsByMonth).toEqual(new Array(H).fill(2));
   });
-  it("overrides an active client's months/enabled from the saved entry", () => {
-    const v = new Array(H).fill(9);
-    const r = mergeScenario([hist("Acme", 5, 2)], [saved("Acme", { videosByMonth: v, enabled: false })], H, makeId);
-    expect(r[0].videosByMonth).toEqual(v);
+  it("REPLACES saved volumes that were never explicitly edited (the staleness fix)", () => {
+    const stale = new Array(H).fill(9);
+    const r = mergeScenario(
+      [plan("Acme", 5, 2)],
+      [saved("Acme", { videosByMonth: stale, staticsByMonth: stale })],
+      H,
+      makeId,
+    );
+    expect(r[0].videosByMonth).toEqual(new Array(H).fill(5));
+    expect(r[0].staticsByMonth).toEqual(new Array(H).fill(2));
+    expect(r[0].manualVolumes).toBeUndefined();
+  });
+  it("keeps a saved row whose months VARY, even with no manualVolumes flag (migration)", () => {
+    // A derived row is flat by construction, so varying months are proof of a deliberate
+    // ramp. Ground News and Spacelift both have one in the live scenario.
+    const ramp = new Array(H).fill(4);
+    ramp[0] = 1;
+    ramp[1] = 2;
+    const r = mergeScenario(
+      [plan("Ground News", 24, 6)],
+      [saved("Ground News", { videosByMonth: ramp })],
+      H,
+      makeId,
+    );
+    expect(r[0].videosByMonth).toEqual(ramp);
+    expect(r[0].manualVolumes).toBe(true);
+  });
+  it("detects a shaped ramp in the statics array too", () => {
+    const ramp = new Array(H).fill(3);
+    ramp[5] = 0; // a paused month
+    const r = mergeScenario(
+      [plan("Acme", 5, 2)],
+      [saved("Acme", { staticsByMonth: ramp })],
+      H,
+      makeId,
+    );
+    expect(r[0].staticsByMonth).toEqual(ramp);
+    expect(r[0].manualVolumes).toBe(true);
+  });
+  it("keeps saved volumes when the client is flagged manualVolumes", () => {
+    const mine = new Array(H).fill(9);
+    const r = mergeScenario(
+      [plan("Acme", 5, 2)],
+      [saved("Acme", { videosByMonth: mine, staticsByMonth: mine, manualVolumes: true })],
+      H,
+      makeId,
+    );
+    expect(r[0].videosByMonth).toEqual(mine);
+    expect(r[0].staticsByMonth).toEqual(mine);
+    expect(r[0].manualVolumes).toBe(true);
+  });
+  it("leaves manualVolumes absent rather than false, so it never reads as a diff", () => {
+    const r = mergeScenario([plan("Acme", 5, 2)], [], H, makeId);
+    expect("manualVolumes" in r[0]).toBe(true);
+    expect(r[0].manualVolumes).toBeUndefined();
+  });
+  it("still takes enabled from the saved entry", () => {
+    const r = mergeScenario([plan("Acme", 5, 2)], [saved("Acme", { enabled: false })], H, makeId);
     expect(r[0].enabled).toBe(false);
   });
   it("keeps saved hypothetical clients not in the active roster", () => {
-    const r = mergeScenario([hist("Acme")], [saved("Prospect X", { hypothetical: true, videosByMonth: new Array(H).fill(3) })], H, makeId);
+    const r = mergeScenario([plan("Acme")], [saved("Prospect X", { hypothetical: true, videosByMonth: new Array(H).fill(3) })], H, makeId);
     expect(r.map((c) => c.name)).toContain("Prospect X");
   });
+  it("never re-derives a hypothetical client's volumes", () => {
+    const v = new Array(H).fill(3);
+    const r = mergeScenario([plan("Acme", 5, 2)], [saved("Prospect X", { hypothetical: true, videosByMonth: v })], H, makeId);
+    expect(r.find((c) => c.name === "Prospect X")!.videosByMonth).toEqual(v);
+  });
   it("drops saved non-hypothetical entries for clients no longer active", () => {
-    const r = mergeScenario([hist("Acme")], [saved("Retired Co")], H, makeId);
+    const r = mergeScenario([plan("Acme")], [saved("Retired Co")], H, makeId);
     expect(r.map((c) => c.name)).toEqual(["Acme"]);
   });
-  it("ignores saved month arrays of the wrong length", () => {
-    const r = mergeScenario([hist("Acme", 5)], [saved("Acme", { videosByMonth: [1,2,3] })], H, makeId);
+  it("ignores manual month arrays of the wrong length", () => {
+    const r = mergeScenario([plan("Acme", 5, 2)], [saved("Acme", { videosByMonth: [1, 2, 3], manualVolumes: true })], H, makeId);
     expect(r[0].videosByMonth).toEqual(new Array(H).fill(5));
   });
-  it("preserves saved revenue fields (pricing/adSpend/agencyPct) by client name", () => {
+  it("preserves saved revenue fields (pricing/adSpend/agencyPct) across a re-derive", () => {
     const pricing = { minFee: 3000, tiers: [{ upTo: null, rate: 5 }] };
     const r = mergeScenario(
-      [hist("Acme", 5, 2)],
+      [plan("Acme", 5, 2)],
       [saved("Acme", { pricing, adSpendByMonth: new Array(H).fill(100000), agencyPctByMonth: new Array(H).fill(40) })],
       H,
       makeId,
@@ -46,7 +105,7 @@ describe("mergeScenario", () => {
   });
   it("preserves saved active-window months for an active client", () => {
     const r = mergeScenario(
-      [hist("Acme", 5, 2)],
+      [plan("Acme", 5, 2)],
       [saved("Acme", { startMonthIndex: 1, endMonthIndex: 6 })],
       H,
       makeId,
@@ -56,7 +115,7 @@ describe("mergeScenario", () => {
   });
   it("preserves saved active-window months for a hypothetical client", () => {
     const r = mergeScenario(
-      [hist("Acme")],
+      [plan("Acme")],
       [saved("Prospect X", { hypothetical: true, startMonthIndex: 3, endMonthIndex: null })],
       H,
       makeId,
@@ -67,7 +126,7 @@ describe("mergeScenario", () => {
   });
   it("preserves the newBusiness flag for both active and hypothetical clients", () => {
     const r = mergeScenario(
-      [hist("Acme", 5, 2)],
+      [plan("Acme", 5, 2)],
       [
         saved("Acme", { newBusiness: true }),
         saved("Prospect X", { hypothetical: true, newBusiness: true }),
@@ -81,7 +140,7 @@ describe("mergeScenario", () => {
   it("preserves saved one-off fees for an active client", () => {
     const oneOffs = new Array(H).fill(0); oneOffs[0] = 10000;
     const r = mergeScenario(
-      [hist("Acme", 5, 2)],
+      [plan("Acme", 5, 2)],
       [saved("Acme", { oneOffsByMonth: oneOffs })],
       H,
       makeId,

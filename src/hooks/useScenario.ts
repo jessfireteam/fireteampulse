@@ -1,7 +1,7 @@
 // src/hooks/useScenario.ts
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { HORIZON_MONTHS, emptyCostConfig, type ClientHistory, type ScenarioClient, type CostConfig } from "@/lib/forecast/types";
+import { HORIZON_MONTHS, emptyCostConfig, type ClientPlan, type ScenarioClient, type CostConfig } from "@/lib/forecast/types";
 import { mergeScenario } from "@/lib/forecast/mergeScenario";
 import { reconcileScenario, reconcileCost, scenarioSignature } from "@/lib/forecast/reconcileScenario";
 
@@ -25,7 +25,7 @@ const sameToken = (a?: string | null, b?: string | null) =>
 
 export type SaveState = "idle" | "saving" | "saved" | "error";
 
-export function useScenario(histories: ClientHistory[], userEmail?: string | null) {
+export function useScenario(plans: ClientPlan[], userEmail?: string | null) {
   const [clients, setClients] = useState<ScenarioClient[]>([]);
   const [costConfig, setCostConfig] = useState<CostConfig>(() => emptyCostConfig(HORIZON_MONTHS));
   const [saveState, setSaveState] = useState<SaveState>("idle");
@@ -93,11 +93,11 @@ export function useScenario(histories: ClientHistory[], userEmail?: string | nul
     };
   }, []);
 
-  // 2) Seed once, after both the saved row and histories are available.
+  // 2) Seed once, after both the saved row and the derived plans are available.
   useEffect(() => {
     if (seededRef.current) return;
-    if (!loaded || histories.length === 0) return;
-    const seeded = mergeScenario(histories, savedClients ?? [], HORIZON_MONTHS, nextId);
+    if (!loaded || plans.length === 0) return;
+    const seeded = mergeScenario(plans, savedClients ?? [], HORIZON_MONTHS, nextId);
     setClients(seeded);
     // Baseline for the 3-way merge is the raw remote row (what edits diverge from).
     baselineClientsRef.current = savedClients ?? [];
@@ -107,7 +107,7 @@ export function useScenario(histories: ClientHistory[], userEmail?: string | nul
     // change the signature and do save.
     lastSavedSigRef.current = scenarioSignature(seeded, costConfig);
     seededRef.current = true;
-  }, [loaded, histories, savedClients, costConfig]);
+  }, [loaded, plans, savedClients, costConfig]);
 
   // 3) Debounced, concurrency-guarded autosave. Only writes when local state
   //    actually diverges from what is persisted, and never blindly overwrites

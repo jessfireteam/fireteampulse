@@ -53,6 +53,30 @@ export interface ClientHistory {
   seedStatics: number;
 }
 
+/**
+ * The current operating plan for one client, derived on every load — never stored.
+ *
+ * `Clients/Max Deliverables Per Month` in Fibery is the auto-scheduling ceiling that
+ * Morning Production Ops enforces, so it IS the plan and it moves whenever the plan
+ * moves. `Min` is the contractual minimum and is display-only here.
+ */
+export interface ClientPlan {
+  client: string;
+  /** Fibery Max; null when unset. 0 is a real plan of zero, not "unset". */
+  max: number | null;
+  /** Fibery Min (contractual minimum); display only, never drives volumes. */
+  min: number | null;
+  /** Share of trailing output that was video, 0..1. */
+  videoShare: number;
+  /** Whether videoShare is this client's own mix or the agency-wide fallback (thin sample). */
+  mixSource: "client" | "agency";
+  /** Derived monthly volumes. When source is "max", videos + statics === max exactly. */
+  videos: number;
+  statics: number;
+  /** "max" = split from the Fibery plan; "runrate" = no Max set, trailing actuals instead. */
+  source: "max" | "runrate";
+}
+
 export interface ClientBaseline {
   client: string;
   /** Recent run-rate in assets/month from the last 4 completed weeks. */
@@ -72,6 +96,13 @@ export interface ScenarioClient {
   staticsByMonth: number[];
   enabled: boolean;
   hypothetical: boolean;
+  /**
+   * Set only when someone deliberately typed a volume for this client. Signed clients
+   * without it re-derive from the Fibery plan on every load, which is what keeps the
+   * grid current. Absent (not false) when unset, so it never shows up as a diff in
+   * scenarioSignature().
+   */
+  manualVolumes?: boolean;
   /** Pipeline status: true = prospective new business, false/undefined = signed client. Display/sort only; does not affect math. */
   newBusiness?: boolean;
   pricing?: ClientPricing;
