@@ -21,7 +21,8 @@ export function StuckWorkStrip({ stages }: Props) {
       <p className="text-xs text-muted-foreground max-w-3xl">
         Open tasks past their due date, by pipeline stage, left to right in the order work
         flows. Unassigned means the task is late and nobody owns it yet. Median days late
-        separates fresh slippage from long-dead chains that need cancelling.
+        separates fresh slippage from long-dead chains that need cancelling. Looks back 3
+        months, so anything older than that has fallen off this view entirely.
       </p>
       <div className="grid gap-2 w-full" style={{ gridTemplateColumns: `repeat(${stages.length}, minmax(0, 1fr))` }}>
         {stages.map((s, i) => (
