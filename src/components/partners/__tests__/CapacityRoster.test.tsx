@@ -35,13 +35,19 @@ function renderRoster(onUpdatePerson = vi.fn(), onAddPerson = vi.fn()) {
   return { onUpdatePerson, onAddPerson };
 }
 
-const rowFor = (name: string) => screen.getByText(name).closest("tr")!;
+const rowFor = (name: string) => screen.getByDisplayValue(name).closest("tr")!;
 
 describe("CapacityRoster", () => {
   it("adds a capacity-only person without touching the P&L money form", () => {
     const { onAddPerson } = renderRoster();
     fireEvent.click(screen.getByText("+ Add person (capacity only)"));
     expect(onAddPerson).toHaveBeenCalledWith("New person");
+  });
+
+  it("lets the person's name be typed right in the table — names are the join key to actuals", () => {
+    const { onUpdatePerson } = renderRoster();
+    fireEvent.change(screen.getByDisplayValue("Mark"), { target: { value: "Mark Datola" } });
+    expect(onUpdatePerson).toHaveBeenCalledWith("m", { name: "Mark Datola" });
   });
 
   it("shows each person's recent actual next to the max we set", () => {

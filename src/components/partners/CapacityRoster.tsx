@@ -56,7 +56,12 @@ export function CapacityRoster({ team, resolved, monthLabels, onUpdatePerson, on
     return (
       <tr key={p.id} className="border-t border-border/50">
         <td className="px-2 py-1 whitespace-nowrap">
-          {p.name}
+          <Input
+            aria-label={`Name for ${p.id}`}
+            className="h-7 w-36 inline-block"
+            value={p.name}
+            onChange={(e) => onUpdatePerson(p.id, { name: e.target.value })}
+          />
           {p.startMonthIndex > 0 && (
             <span className="text-[10px] text-muted-foreground/60"> from {monthLabels[p.startMonthIndex]}</span>
           )}
@@ -113,6 +118,12 @@ export function CapacityRoster({ team, resolved, monthLabels, onUpdatePerson, on
         Fibery. Max is ours to set: the most we're willing to run someone at, not their record
         week. Leave Max blank and that person's own actual is used instead. People marked Not
         production carry cost on the P&amp;L and no capacity here.
+      </p>
+      <p className="text-xs text-muted-foreground">
+        Actuals attach by name, automatically: type the name the way Fibery shows the person
+        (first name is enough when it's unambiguous) and set their Role, and their recent work
+        appears on its own — nothing to trigger. "no history" means the name matched nobody
+        doing that role's work, or they're new.
       </p>
       <div className="overflow-x-auto">
         <table className="text-sm border-collapse">
