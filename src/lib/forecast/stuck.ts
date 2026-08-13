@@ -48,23 +48,36 @@ export function stageOf(taskName: string): StageKey | null {
   return null;
 }
 
+/** A blocker sitting with the client rather than with us. */
+function isClientCourt(taskName: string): boolean {
+  return taskName.toLowerCase().includes("client approval");
+}
+
 export interface StuckStage {
   key: StageKey;
   label: string;
   note?: string;
-  /** Overdue, not-done tasks sitting in this stage. */
+  /**
+   * PROJECTS stuck at this stage — each live project counts exactly once, at the stage of its
+   * earliest-due late task (the thing actually blocking it). Raw late-task counts were the
+   * first version and they lied by cascade: one late brief made every downstream task in the
+   * chain late too, so Deliverable QC showed 104 where only 5 projects were truly waiting on a
+   * review. This is the ops tab's true-vs-inherited distinction, applied per project.
+   */
   count: number;
-  /** Of those, how many have no assignee at all — work nobody owns yet. */
+  /** Of those blockers, how many have no assignee at all — work nobody owns yet. */
   unassigned: number;
-  /** Median days late, so ten fresh stragglers read differently from ten June zombies. */
+  /** Of those blockers, how many are "get client approval" — in the client's court, not ours. */
+  clientCourt: number;
+  /** Median days the blockers are late, so fresh slippage reads differently from June zombies. */
   medianDaysLate: number;
 }
 
 const DAY_MS = 86_400_000;
 
 export function computeStuckWork(tasks: Task[], today: Date): StuckStage[] {
-  const lateness = new Map<StageKey, number[]>();
-  const unassigned = new Map<StageKey, number>();
+  // Group each project's late open tasks; its frontier (earliest due) is the real blocker.
+  const byProject = new Map<string, { task: Task; due: Date }[]>();
 
   tasks.forEach((t) => {
     if (t.done || !t.dueDate) return;
@@ -74,12 +87,26 @@ export function computeStuckWork(tasks: Task[], today: Date): StuckStage[] {
     if (status === "cancelled" || status === "completed") return;
     const due = new Date(t.dueDate + (t.dueDate.length === 10 ? "T00:00:00" : ""));
     if (!(due < today)) return;
-    const stage = stageOf(t.name);
-    if (!stage) return;
-    const daysLate = Math.floor((today.getTime() - due.getTime()) / DAY_MS);
+    if (!stageOf(t.name)) return;
+    // Same project name can exist under two clients; key on both.
+    const key = `${t.project?.client?.name ?? "?"}::${t.project?.name ?? t.id}`;
+    if (!byProject.has(key)) byProject.set(key, []);
+    byProject.get(key)!.push({ task: t, due });
+  });
+
+  const lateness = new Map<StageKey, number[]>();
+  const unassigned = new Map<StageKey, number>();
+  const clientCourt = new Map<StageKey, number>();
+
+  byProject.forEach((entries) => {
+    entries.sort((a, b) => a.due.getTime() - b.due.getTime());
+    const blocker = entries[0];
+    const stage = stageOf(blocker.task.name)!;
+    const daysLate = Math.floor((today.getTime() - blocker.due.getTime()) / DAY_MS);
     if (!lateness.has(stage)) lateness.set(stage, []);
     lateness.get(stage)!.push(daysLate);
-    if (!t.assignee?.name) unassigned.set(stage, (unassigned.get(stage) ?? 0) + 1);
+    if (!blocker.task.assignee?.name) unassigned.set(stage, (unassigned.get(stage) ?? 0) + 1);
+    if (isClientCourt(blocker.task.name)) clientCourt.set(stage, (clientCourt.get(stage) ?? 0) + 1);
   });
 
   return STAGES.map((s) => {
@@ -91,6 +118,7 @@ export function computeStuckWork(tasks: Task[], today: Date): StuckStage[] {
       note: "note" in s ? s.note : undefined,
       count: late.length,
       unassigned: unassigned.get(s.key) ?? 0,
+      clientCourt: clientCourt.get(s.key) ?? 0,
       medianDaysLate: median,
     };
   });
