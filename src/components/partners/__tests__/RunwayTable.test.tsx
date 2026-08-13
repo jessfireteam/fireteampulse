@@ -8,32 +8,33 @@ const monthLabels = ["Aug", "Sep", "Oct", "Nov"];
 
 const roles: RunwayRole[] = [
   {
-    role: "Video", display: "Video Editing", hireUnit: 8,
+    role: "Video", display: "Video Editing", hireUnit: 8, hireUnitSource: "team",
     nowGap: 1.1, monthGaps: [0.8, 0.2, -0.4, -0.6],
     hireBy: "Sep", firstDeficitLabel: "Nov", blocked: false,
   },
   {
-    role: "Casting", display: "Casting", hireUnit: 13,
+    role: "Casting", display: "Casting", hireUnit: 11, hireUnitSource: "override",
     nowGap: -0.3, monthGaps: [-0.4, -0.7, -1.0, -1.0],
     hireBy: "Aug", firstDeficitLabel: "Sep", blocked: false,
   },
   {
-    role: "Copywriters", display: "Copywriting", hireUnit: 10,
+    role: "Copywriters", display: "Copywriting", hireUnit: 10, hireUnitSource: "default",
     nowGap: 0, monthGaps: [0, 0, 0, 0], hireBy: null, firstDeficitLabel: null,
     blocked: true, blockedReason: "set a max for everyone in this role",
   },
 ];
 
-function renderTable(onLeadWeeksChange = vi.fn()) {
+function renderTable(onLeadWeeksChange = vi.fn(), onHireUnitChange = vi.fn()) {
   render(
     <RunwayTable
       roles={roles}
       monthLabels={monthLabels}
       hireLeadWeeks={6}
       onLeadWeeksChange={onLeadWeeksChange}
+      onHireUnitChange={onHireUnitChange}
     />,
   );
-  return onLeadWeeksChange;
+  return { onLeadWeeksChange, onHireUnitChange };
 }
 
 describe("RunwayTable", () => {
@@ -69,9 +70,29 @@ describe("RunwayTable", () => {
     expect(table.className).toContain("w-full");
   });
 
+  it("shows the derived unit as placeholder, pins an override on typing, and reverts", () => {
+    const { onHireUnitChange } = renderTable();
+    // Team-derived unit: shown as placeholder, box empty.
+    const video = screen.getByLabelText("One hire's weekly output for Video Editing") as HTMLInputElement;
+    expect(video.placeholder).toBe("8");
+    expect(video.value).toBe("");
+    // Overridden unit: shown as the value, with a revert.
+    const casting = screen.getByLabelText("One hire's weekly output for Casting") as HTMLInputElement;
+    expect(casting.value).toBe("11");
+    fireEvent.change(video, { target: { value: "10" } });
+    expect(onHireUnitChange).toHaveBeenCalledWith("Video", 10);
+    fireEvent.click(screen.getByText("revert"));
+    expect(onHireUnitChange).toHaveBeenCalledWith("Casting", undefined);
+  });
+
+  it("badges a role still on the frozen default", () => {
+    renderTable();
+    expect(screen.getByText("default")).toBeTruthy();
+  });
+
   it("wires the lead-time input straight through", () => {
-    const spy = renderTable();
+    const { onLeadWeeksChange } = renderTable();
     fireEvent.change(screen.getByLabelText("Hiring lead time in weeks"), { target: { value: "8" } });
-    expect(spy).toHaveBeenCalledWith(8);
+    expect(onLeadWeeksChange).toHaveBeenCalledWith(8);
   });
 });

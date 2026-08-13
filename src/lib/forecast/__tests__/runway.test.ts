@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeRunway, clientFootprint, RUNWAY_ROLE_KEYS } from "../runway";
+import { computeRunway, clientFootprint, hireUnitFor, RUNWAY_ROLE_KEYS } from "../runway";
 import { runForecast } from "../engine";
 import { resolveRoleSupply, type MeasuredPerson } from "../supply";
 import type { ProductionPerson, ScenarioClient } from "../types";
@@ -106,6 +106,40 @@ describe("computeRunway", () => {
   it("excludes Account entirely", () => {
     expect(RUNWAY_ROLE_KEYS).not.toContain("Account");
     expect(build().map((r) => r.role)).not.toContain("Account");
+  });
+});
+
+describe("hireUnitFor", () => {
+  it("derives the unit from the median of the role's typed maxes", () => {
+    // Editors 8/8/8/6 -> median 8. The unit follows the team's ceilings, not their output.
+    expect(hireUnitFor("Video", team).unit).toBe(8);
+    expect(hireUnitFor("Video", team).source).toBe("team");
+  });
+
+  it("moves when the team's maxes move — the efficiency-tool case", () => {
+    // Copywriting tooling doubles what a writer clears; Jess raises the maxes; the unit
+    // follows without anyone touching the runway.
+    const boosted = team.map((p) =>
+      p.role === "Copywriters" ? { ...p, capacityPerWeek: 20 } : p,
+    );
+    expect(hireUnitFor("Copywriters", boosted).unit).toBe(20);
+  });
+
+  it("ignores role members with no typed max when deriving", () => {
+    // Shreya has no max; John's 10 alone defines the copywriter unit.
+    expect(hireUnitFor("Copywriters", team).unit).toBe(10);
+  });
+
+  it("falls back to the frozen default when nobody in the role has a max", () => {
+    const r = hireUnitFor("AM Review", team);
+    expect(r.unit).toBe(20);
+    expect(r.source).toBe("default");
+  });
+
+  it("lets an explicit override beat the team median", () => {
+    const r = hireUnitFor("Casting", team, { hireUnitPerWeek: { Casting: 9 } });
+    expect(r.unit).toBe(9);
+    expect(r.source).toBe("override");
   });
 });
 

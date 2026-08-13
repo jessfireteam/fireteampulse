@@ -33,6 +33,8 @@ export interface RunwayRole {
   role: ForecastRoleKey;
   display: string;
   hireUnit: number;
+  /** Where the unit came from, so the number is auditable on the page. */
+  hireUnitSource: HireUnitSource;
   /** Surplus/deficit in fractional hires at TODAY'S actual flow (the "are we drowning" column). */
   nowGap: number;
   /** Surplus/deficit per horizon month at plan(+pipeline) demand. */
@@ -59,8 +61,39 @@ export interface RunwayInput {
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
-export function hireUnitFor(role: ForecastRoleKey, config?: RunwayConfig): number {
-  return config?.hireUnitPerWeek?.[role] ?? RUNWAY_DEFAULT_HIRE_UNITS[role];
+export type HireUnitSource = "override" | "team" | "default";
+
+/**
+ * What one NEW hire adds per week. Resolution order:
+ *   1. an explicit override typed on the runway (a belief: "a junior won't match Nicolle"),
+ *   2. the median of the typed maxes of the people already in the role — new hires get the
+ *      same tooling as the team, so the team's ceiling is the best estimate of a new hire's.
+ *      This is what keeps the unit current when efficiency changes: raising a person's max
+ *      (which the over-max flags already prompt) moves the hire unit with it, automatically.
+ *   3. the frozen default, when nobody in the role has a typed max yet.
+ *
+ * Deliberately NOT a trailing average of actual output: observed throughput is demand-limited
+ * (the editors averaged 4.7/wk against an 8/wk cap because only ~16 edits/wk of work arrived),
+ * so an actuals-based unit would shrink in blocked weeks and inflate the hire signal exactly
+ * when the problem is a blockage, not capacity.
+ */
+export function hireUnitFor(
+  role: ForecastRoleKey,
+  team: ProductionPerson[],
+  config?: RunwayConfig,
+): { unit: number; source: HireUnitSource } {
+  const override = config?.hireUnitPerWeek?.[role];
+  if (typeof override === "number" && override > 0) return { unit: override, source: "override" };
+  const maxes = team
+    .filter((p) => p.role === role && typeof p.capacityPerWeek === "number" && p.capacityPerWeek > 0)
+    .map((p) => p.capacityPerWeek as number)
+    .sort((a, b) => a - b);
+  if (maxes.length > 0) {
+    const mid = Math.floor(maxes.length / 2);
+    const median = maxes.length % 2 ? maxes[mid] : (maxes[mid - 1] + maxes[mid]) / 2;
+    return { unit: median, source: "team" };
+  }
+  return { unit: RUNWAY_DEFAULT_HIRE_UNITS[role], source: "default" };
 }
 
 function demandPerWeekAt(
@@ -106,7 +139,7 @@ export function computeRunway(input: RunwayInput): RunwayRole[] {
 
   return RUNWAY_ROLE_KEYS.map((role) => {
     const display = FORECAST_ROLES.find((r) => r.key === role)!.display;
-    const unit = hireUnitFor(role, config);
+    const { unit, source: hireUnitSource } = hireUnitFor(role, team, config);
     const blockedReason = blockedReasonFor(role, team);
 
     const nowDemand = demandPerWeekAt(
@@ -135,6 +168,7 @@ export function computeRunway(input: RunwayInput): RunwayRole[] {
       role,
       display,
       hireUnit: unit,
+      hireUnitSource,
       nowGap,
       monthGaps,
       hireBy,

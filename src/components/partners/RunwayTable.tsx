@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { SectionHeader } from "@/components/dashboard/SectionHeader";
 import { clientFootprint, type RunwayRole } from "@/lib/forecast/runway";
-import type { RoleRates } from "@/lib/forecast/types";
+import type { ForecastRoleKey, RoleRates } from "@/lib/forecast/types";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -12,6 +12,8 @@ interface Props {
   roleRates?: RoleRates;
   hireLeadWeeks: number;
   onLeadWeeksChange: (weeks: number) => void;
+  /** Pin or clear a per-role hire-unit override; undefined clears back to the team median. */
+  onHireUnitChange: (role: ForecastRoleKey, value: number | undefined) => void;
 }
 
 const fmtGap = (g: number) => (g > 0 ? `+${g.toFixed(1)}` : g.toFixed(1));
@@ -28,7 +30,7 @@ function gapClass(g: number): string {
  * the months are demand at the full plan plus the new-business pipeline (when does growth
  * break us). A hire-by chip backs the first real deficit off by the hiring lead time.
  */
-export function RunwayTable({ roles, monthLabels, roleRates, hireLeadWeeks, onLeadWeeksChange }: Props) {
+export function RunwayTable({ roles, monthLabels, roleRates, hireLeadWeeks, onLeadWeeksChange, onHireUnitChange }: Props) {
   const [fpSize, setFpSize] = useState(12);
   const [fpVideoPct, setFpVideoPct] = useState(50);
 
@@ -77,7 +79,40 @@ export function RunwayTable({ roles, monthLabels, roleRates, hireLeadWeeks, onLe
               <tr key={r.role} className={cn("border-t border-border/50", r.blocked && "opacity-50")}>
                 <td className="px-2 py-1 font-sans whitespace-nowrap">
                   {r.display}
-                  <span className="text-muted-foreground/60"> ·1 hire = {r.hireUnit}/wk</span>
+                  <span className="text-muted-foreground/60"> ·1 hire =</span>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    aria-label={`One hire's weekly output for ${r.display}`}
+                    title={
+                      r.hireUnitSource === "team"
+                        ? "Median of this role's typed maxes — raises itself when you raise the team's maxes (e.g. new tooling). Type here only to pin a different belief about a NEW hire."
+                        : r.hireUnitSource === "override"
+                          ? "Pinned by hand; revert to follow the team's maxes again"
+                          : "Default — nobody in this role has a typed max yet"
+                    }
+                    className="inline-block h-6 w-14 mx-1 font-mono text-right align-middle"
+                    placeholder={String(r.hireUnit)}
+                    value={r.hireUnitSource === "override" ? r.hireUnit : ""}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      onHireUnitChange(r.role, raw === "" ? undefined : parseFloat(raw) || 0);
+                    }}
+                  />
+                  <span className="text-muted-foreground/60">/wk</span>
+                  {r.hireUnitSource === "override" && (
+                    <button
+                      type="button"
+                      onClick={() => onHireUnitChange(r.role, undefined)}
+                      className="ml-1 text-[10px] text-muted-foreground/60 underline hover:text-foreground"
+                    >
+                      revert
+                    </button>
+                  )}
+                  {r.hireUnitSource === "default" && (
+                    <span className="ml-1 text-[9px] uppercase tracking-wide px-1 py-0.5 rounded bg-amber-500/15 text-amber-500">default</span>
+                  )}
                 </td>
                 {r.blocked ? (
                   <td colSpan={monthLabels.length + 2} className="px-2 py-1 font-sans text-muted-foreground italic">
