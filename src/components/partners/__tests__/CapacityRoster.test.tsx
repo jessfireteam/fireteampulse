@@ -22,21 +22,28 @@ const measured: MeasuredPerson[] = [
   { name: "Erik Furtado", role: "Design", actualPerWeek: 11 },
 ];
 
-function renderRoster(onUpdatePerson = vi.fn()) {
+function renderRoster(onUpdatePerson = vi.fn(), onAddPerson = vi.fn()) {
   render(
     <CapacityRoster
       team={team}
       resolved={resolveRoleSupply(team, measured, H)}
       monthLabels={monthLabels}
       onUpdatePerson={onUpdatePerson}
+      onAddPerson={onAddPerson}
     />,
   );
-  return onUpdatePerson;
+  return { onUpdatePerson, onAddPerson };
 }
 
 const rowFor = (name: string) => screen.getByText(name).closest("tr")!;
 
 describe("CapacityRoster", () => {
+  it("adds a capacity-only person without touching the P&L money form", () => {
+    const { onAddPerson } = renderRoster();
+    fireEvent.click(screen.getByText("+ Add person (capacity only)"));
+    expect(onAddPerson).toHaveBeenCalledWith("New person");
+  });
+
   it("shows each person's recent actual next to the max we set", () => {
     renderRoster();
     const row = rowFor("Khushboo");
@@ -103,7 +110,7 @@ describe("CapacityRoster", () => {
   });
 
   it("clearing the max box goes back to following actuals", () => {
-    const onUpdatePerson = renderRoster();
+    const { onUpdatePerson } = renderRoster();
     fireEvent.change(within(rowFor("Khushboo")).getByLabelText("Max per week for Khushboo"), {
       target: { value: "" },
     });
@@ -111,7 +118,7 @@ describe("CapacityRoster", () => {
   });
 
   it("dropping the role clears the max, so no number survives in the wrong unit", () => {
-    const onUpdatePerson = renderRoster();
+    const { onUpdatePerson } = renderRoster();
     fireEvent.change(within(rowFor("John")).getByLabelText("Role for John"), {
       target: { value: "" },
     });

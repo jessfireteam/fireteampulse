@@ -116,6 +116,24 @@ function PartnersInner() {
                 team: (costConfig.team ?? []).map((p) => (p.id === id ? { ...p, ...patch } : p)),
               })
             }
+            onAddPerson={(name) =>
+              updateCost({
+                team: [
+                  ...(costConfig.team ?? []),
+                  {
+                    // Same id scheme as the P&L roster: stable across reloads, collision-free.
+                    id:
+                      typeof crypto !== "undefined" && crypto.randomUUID
+                        ? `person-${crypto.randomUUID()}`
+                        : `person-${Date.now()}-${Math.round(Math.random() * 1e9)}`,
+                    name,
+                    side: "both",
+                    monthlyCost: 0,
+                    startMonthIndex: 0,
+                  },
+                ],
+              })
+            }
           />
           <ScenarioBuilder
             clients={clients}

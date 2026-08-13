@@ -1,6 +1,7 @@
 // src/components/partners/CapacityRoster.tsx
 import { Fragment } from "react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { SectionHeader } from "@/components/dashboard/SectionHeader";
 import {
   FORECAST_ROLES,
@@ -16,6 +17,8 @@ interface Props {
   resolved: ResolvedSupply;
   monthLabels: string[];
   onUpdatePerson: (id: string, patch: Partial<ProductionPerson>) => void;
+  /** Adds a capacity-only person: $0 cost, side "both" — the P&L money fields never apply. */
+  onAddPerson: (name: string) => void;
 }
 
 const fmt = (n: number | null) => (n === null ? "—" : Number.isInteger(n) ? String(n) : n.toFixed(1));
@@ -31,7 +34,7 @@ const roleOf = (k: ForecastRoleKey) => FORECAST_ROLES.find((r) => r.key === k)!;
  * Actuals are a recent average, not a busiest-ever week. Planning at everyone's simultaneous
  * personal record is how a forecast schedules burnout and then reports it as healthy.
  */
-export function CapacityRoster({ team, resolved, monthLabels, onUpdatePerson }: Props) {
+export function CapacityRoster({ team, resolved, monthLabels, onUpdatePerson, onAddPerson }: Props) {
   const { perPerson, actualsByRole, supply } = resolved;
 
   const setRole = (p: ProductionPerson, value: string) =>
@@ -179,6 +182,9 @@ export function CapacityRoster({ team, resolved, monthLabels, onUpdatePerson }: 
           </tbody>
         </table>
       </div>
+      <Button variant="outline" size="sm" onClick={() => onAddPerson("New person")}>
+        + Add person (capacity only)
+      </Button>
     </div>
   );
 }
