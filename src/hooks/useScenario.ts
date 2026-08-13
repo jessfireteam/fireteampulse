@@ -25,7 +25,19 @@ const sameToken = (a?: string | null, b?: string | null) =>
 
 export type SaveState = "idle" | "saving" | "saved" | "error";
 
-export function useScenario(plans: ClientPlan[], userEmail?: string | null) {
+/**
+ * @param plansReady false while any query feeding `plans` is still in flight. The seed MUST wait
+ * for it. `plans.length > 0` is not a sufficient gate: the client roster query resolves before
+ * the Max query and the project-history query, so for a moment `plans` holds every client at
+ * 0 videos / 0 statics. Seeding then locks those zeros in via seededRef, and the next edit
+ * persists them — which is exactly what happened on 2026-08-13, flattening the whole forecast to
+ * ~0% utilization and writing zeros for all 16 clients to the shared row.
+ */
+export function useScenario(
+  plans: ClientPlan[],
+  userEmail?: string | null,
+  plansReady = true,
+) {
   const [clients, setClients] = useState<ScenarioClient[]>([]);
   const [costConfig, setCostConfig] = useState<CostConfig>(() => emptyCostConfig(HORIZON_MONTHS));
   const [saveState, setSaveState] = useState<SaveState>("idle");
@@ -110,7 +122,7 @@ export function useScenario(plans: ClientPlan[], userEmail?: string | null) {
   // 2) Seed once, after both the saved row and the derived plans are available.
   useEffect(() => {
     if (seededRef.current) return;
-    if (!loaded || plans.length === 0) return;
+    if (!loaded || !plansReady || plans.length === 0) return;
     const seeded = mergeScenario(plans, savedClients ?? [], HORIZON_MONTHS, nextId);
     setClients(seeded);
     // Baseline for the 3-way merge is the raw remote row (what edits diverge from).
@@ -121,7 +133,7 @@ export function useScenario(plans: ClientPlan[], userEmail?: string | null) {
     // change the signature and do save.
     lastSavedSigRef.current = scenarioSignature(seeded, costConfig);
     seededRef.current = true;
-  }, [loaded, plans, savedClients, costConfig]);
+  }, [loaded, plansReady, plans, savedClients, costConfig]);
 
   // 3) Debounced, concurrency-guarded autosave. Only writes when local state
   //    actually diverges from what is persisted, and never blindly overwrites

@@ -171,7 +171,7 @@ export interface TaskTypeRow {
   due30Days: number;
 }
 
-export type RoleType = 'Account' | 'Creative Review' | 'Copywriters' | 'Design' | 'Video' | 'Other';
+export type RoleType = 'Account' | 'Creative Review' | 'Copywriters' | 'Casting' | 'Design' | 'Video' | 'Other';
 
 export interface PersonCapacity {
   name: string;
@@ -232,7 +232,9 @@ const ROLE_ASSIGNMENTS: Record<string, { role: RoleType; primaryTaskType: string
   'Angelia Saplan': [{ role: 'Other', primaryTaskType: 'Assignments' }],
   'Rachyl Jackson': [{ role: 'Other', primaryTaskType: 'Other' }],
   'Kenny Fisher': [{ role: 'Other', primaryTaskType: 'Assign Editor' }],
-  'Nicolle Valladares': [{ role: 'Other', primaryTaskType: 'Cast Creator' }],
+  // Casting is a real production constraint, not "Other": Nicolle is the only person doing it
+  // (51 of 51 casting tasks in the 4 weeks to 2026-08-13), so the forecast needs to see it.
+  'Nicolle Valladares': [{ role: 'Casting', primaryTaskType: 'Cast Creator' }],
   'Jada Hall': [{ role: 'Other', primaryTaskType: 'Upload' }],
 };
 

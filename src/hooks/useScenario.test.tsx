@@ -131,6 +131,28 @@ describe("useScenario", () => {
     expect(khushboo.capacityPerWeek).toBeUndefined();
   });
 
+  it("does NOT seed from a half-loaded plan list, and picks up the real one when it lands", async () => {
+    // The 2026-08-13 failure: the client roster query resolves before the Max and project-history
+    // queries, so `plans` briefly holds every client at 0/0. Seeding then locked the zeros in and
+    // the next edit persisted them, flattening the forecast to ~0% utilization.
+    const zeroPlans: ClientPlan[] = [
+      { client: "Ground News", max: null, min: null, videoShare: 0.5, mixSource: "agency", videos: 0, statics: 0, source: "runrate" },
+    ];
+    const { result, rerender } = renderHook(
+      ({ p, ready }: { p: ClientPlan[]; ready: boolean }) => useScenario(p, "jess@fireteam.is", ready),
+      { initialProps: { p: zeroPlans, ready: false } },
+    );
+    await waitFor(() => expect(result.current.costConfig.team).toHaveLength(2));
+    // Nothing seeded while the data was still in flight.
+    expect(result.current.clients).toHaveLength(0);
+
+    rerender({ p: plans, ready: true });
+    await waitFor(() => expect(result.current.clients).toHaveLength(1));
+    expect(result.current.clients[0].videosByMonth[0]).toBe(25);
+    expect(result.current.clients[0].staticsByMonth[0]).toBe(5);
+    expect(update).not.toHaveBeenCalled();
+  });
+
   it("saves a roster capacity edit, which goes through the cost path not the client path", async () => {
     vi.useFakeTimers();
     const { result } = renderHook(() => useScenario(plans, "jess@fireteam.is"));

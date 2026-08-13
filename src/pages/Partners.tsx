@@ -19,7 +19,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 function PartnersInner() {
   const { measuredPeople, histories, plans, isLoading, error } = useForecastData();
   const { user } = useAuth();
-  const { clients, update, addClient, removeClient, costConfig, updateCost, saveState } = useScenario(plans, user?.email);
+  // isLoading is passed through as the seed gate: PartnersInner's hooks run even while the page
+  // renders a skeleton, so without it useScenario would seed from a half-loaded plan list.
+  const { clients, update, addClient, removeClient, costConfig, updateCost, saveState } = useScenario(plans, user?.email, !isLoading);
 
   // Modal-driven client creation: addClient() appends a new client but doesn't
   // return its id (the id is minted inside the hook's setState). We stash the

@@ -19,7 +19,7 @@ import { runForecast } from "@/lib/forecast/engine";
 import { flatSupply } from "@/lib/forecast/supply";
 import type { ScenarioClient, RolePeaks } from "@/lib/forecast/types";
 
-const peaks: RolePeaks = { Account: 100, "Creative Review": 100, Copywriters: 100, Design: 2, Video: 2 };
+const peaks: RolePeaks = { Account: 100, "Creative Review": 100, Copywriters: 100, Casting: 100, Design: 2, Video: 2 };
 const scenario: ScenarioClient[] = [{
   id: "1", name: "C",
   videosByMonth: new Array(12).fill(40),   // pushes Video utilization well over 100% to exercise the red band + >100 domain
