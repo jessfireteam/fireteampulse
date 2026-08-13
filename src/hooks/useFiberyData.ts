@@ -213,12 +213,12 @@ const ROLE_ASSIGNMENTS: Record<string, { role: RoleType; primaryTaskType: string
   'riteesh@fireteam.is': [{ role: 'Copywriters', primaryTaskType: 'Brief Work' }],
   'Shreya': [{ role: 'Copywriters', primaryTaskType: 'Brief Work' }],
   'Hira': [{ role: 'Copywriters', primaryTaskType: 'Brief Work' }],
-  // Design (internal + Prince as external GD contractor)
+  // Design. Prince (external GD) removed 2026-08-13: no longer working with us, and he had zero
+  // completed tasks in the three months before that, so his removal changes no number.
   'Erik Furtado': [{ role: 'Design', primaryTaskType: 'Design' }],
   'Reynelle Reid': [{ role: 'Design', primaryTaskType: 'Design' }],
-  'Prince': [{ role: 'Design', primaryTaskType: 'Design' }],
-  // Video (internal + Alex as external VE contractor; Sanchit Singh corrects
-  // the previous "Sanchit"-keyed entry that never matched the Fibery display name)
+  // Video (Sanchit Singh corrects the previous "Sanchit"-keyed entry that never matched the
+  // Fibery display name)
   'Vaiv Singh': [{ role: 'Video', primaryTaskType: 'Video Editing' }],
   // Fibery reports Khushboo by email rather than a display name (same as riteesh), so key her
   // that way — a 'Khushboo' key would match nothing, which is the bug the Sanchit note below
@@ -227,7 +227,13 @@ const ROLE_ASSIGNMENTS: Record<string, { role: RoleType; primaryTaskType: string
   'khushboo@fireteam.is': [{ role: 'Video', primaryTaskType: 'Video Editing' }],
   'Sanchit Singh': [{ role: 'Video', primaryTaskType: 'Video Editing' }],
   'Ike': [{ role: 'Video', primaryTaskType: 'Video Editing' }],
-  'Alex': [{ role: 'Video', primaryTaskType: 'Video Editing' }],
+  // Alex (external VE) removed 2026-08-13: no longer working with us. He was mostly doing
+  // revision passes by the end (2 first-pass edits vs ~11 revisions in his last 4 weeks), so
+  // dropping him barely moves the video ceiling — but leaving him in overstated it. His past
+  // output still counts in client volume actuals, which come from projects, not from this map.
+  // Removing the entry rather than adding him to EXCLUDED_MEMBERS is deliberate: both this map
+  // and isExcludedMember match names by substring in BOTH directions, so the bare key 'Alex'
+  // would have captured any future Alexandra.
   // Other / Ops / PM
   'Angelia Saplan': [{ role: 'Other', primaryTaskType: 'Assignments' }],
   'Rachyl Jackson': [{ role: 'Other', primaryTaskType: 'Other' }],
