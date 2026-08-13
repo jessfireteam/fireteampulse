@@ -12,12 +12,13 @@ import { Input } from "@/components/ui/input";
 import { ScenarioBuilder } from "@/components/partners/ScenarioBuilder";
 import { CapacityRoster } from "@/components/partners/CapacityRoster";
 import { RunwayTable } from "@/components/partners/RunwayTable";
+import { StuckWorkStrip } from "@/components/partners/StuckWorkStrip";
 import { PnlTab } from "@/components/partners/PnlTab";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function PartnersInner() {
-  const { measuredPeople, histories, plans, isLoading, error } = useForecastData();
+  const { measuredPeople, histories, plans, stuckStages, isLoading, error } = useForecastData();
   const { user } = useAuth();
   // isLoading is passed through as the seed gate: PartnersInner's hooks run even while the page
   // renders a skeleton, so without it useScenario would seed from a half-loaded plan list.
@@ -105,6 +106,7 @@ function PartnersInner() {
             hireLeadWeeks={costConfig.runway?.hireLeadWeeks ?? DEFAULT_HIRE_LEAD_WEEKS}
             onLeadWeeksChange={(w) => updateCost({ runway: { ...(costConfig.runway ?? {}), hireLeadWeeks: w } })}
           />
+          <StuckWorkStrip stages={stuckStages} />
           <CapacityRoster
             team={costConfig.team ?? []}
             resolved={resolved}
