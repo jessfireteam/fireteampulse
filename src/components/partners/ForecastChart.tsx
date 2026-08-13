@@ -31,7 +31,7 @@ export function ForecastChart({ result }: { result: ForecastResult }) {
 
   return (
     <div className="space-y-3">
-      <SectionHeader title="Projected utilization (% of peak)" />
+      <SectionHeader title="Projected utilization (% of capacity)" />
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data}>
@@ -42,7 +42,8 @@ export function ForecastChart({ result }: { result: ForecastResult }) {
             <ReferenceArea y1={50} y2={75} fill="#10b981" fillOpacity={0.08} />
             <ReferenceArea y1={75} y2={85} fill="#f59e0b" fillOpacity={0.10} />
             <ReferenceArea y1={85} y2={domainMax} fill="#ef4444" fillOpacity={0.10} />
-            <ReferenceLine y={100} stroke="#ef4444" strokeDasharray="4 4" label="peak" />
+            {/* 100% is the ceiling from the capacity table, not a historical peak. */}
+            <ReferenceLine y={100} stroke="#ef4444" strokeDasharray="4 4" label="capacity" />
             {FORECAST_ROLES.map((role) => (
               <Line
                 key={role.key}

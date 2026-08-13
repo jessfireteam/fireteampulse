@@ -161,6 +161,11 @@ export type RoleStatus = "ok" | "warning" | "critical" | "over";
 export interface RoleMonthCell {
   role: ForecastRoleKey;
   demandPerWeek: number;
+  /**
+   * This month's capacity ceiling for the role. Named `peak` for historical reasons and it is
+   * NOT a peak any more: it is the sum of the maxes set per person in the capacity table, or
+   * their recent actual where no max is set. Nothing here is a busiest-ever week.
+   */
   peak: number;
   utilization: number; // demand / peak
   status: RoleStatus;
