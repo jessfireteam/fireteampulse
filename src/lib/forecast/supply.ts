@@ -20,6 +20,13 @@ export interface MeasuredPerson {
   name: string;
   role: ForecastRoleKey;
   actualPerWeek: number;
+  /**
+   * REVISION-prefixed completions per week, shown beside the actual and never folded into it.
+   * The split has now produced the same confusion three times (editors "at half capacity",
+   * the video rate dial, Niki's 15-vs-26 reviews): the actual counts first-round work only,
+   * so the revision half must be visible or someone re-derives it monthly.
+   */
+  revisionsPerWeek?: number;
 }
 
 /** A person's capacity row: what they actually do, versus the max we're willing to run them at. */
@@ -32,6 +39,8 @@ export interface PersonSupplyRow {
   desiredMax?: number;
   /** Recent actual per week, or null when no Fibery history matched them. */
   actualPerWeek: number | null;
+  /** Their revision-round completions per week, alongside — display only. */
+  revisionsPerWeek: number | null;
   /** What counts toward the ceiling. */
   effective: number;
   /** False when no measured person matched by name — surface it, don't imply zero. */
@@ -116,6 +125,7 @@ export function resolveRoleSupply(
     .map((p) => {
       const hit = matchMeasured(p.name, p.role, measured);
       const actualPerWeek = hit ? hit.actualPerWeek : null;
+      const revisionsPerWeek = hit?.revisionsPerWeek ?? null;
       const desiredMax = typeof p.capacityPerWeek === "number" ? p.capacityPerWeek : undefined;
       return {
         id: p.id,
@@ -124,6 +134,7 @@ export function resolveRoleSupply(
         startMonthIndex: p.startMonthIndex ?? 0,
         desiredMax,
         actualPerWeek,
+        revisionsPerWeek,
         effective: desiredMax ?? actualPerWeek ?? 0,
         matched: hit !== null,
       };

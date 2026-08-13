@@ -66,7 +66,17 @@ export function CapacityRoster({ team, resolved, monthLabels, onUpdatePerson, on
             <span className="text-[10px] text-muted-foreground/60"> from {monthLabels[p.startMonthIndex]}</span>
           )}
         </td>
-        <td className={cn("px-2 py-1 text-right font-mono", over && "text-amber-500")}>{fmt(actual)}</td>
+        <td className={cn("px-2 py-1 text-right font-mono whitespace-nowrap", over && "text-amber-500")}>
+          {fmt(actual)}
+          {row?.revisionsPerWeek ? (
+            <span
+              className="text-muted-foreground/60"
+              title="Revision-round completions per week — counted separately from the actual, which is first-round work only"
+            >
+              {" "}(+{fmt(row.revisionsPerWeek)} rev)
+            </span>
+          ) : null}
+        </td>
         <td className="px-2 py-1">
           <Input
             type="number"

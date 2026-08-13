@@ -17,7 +17,7 @@ const team: ProductionPerson[] = [
   { id: "m", name: "Mark", side: "both", monthlyCost: 6700, startMonthIndex: 0 },
 ];
 const measured: MeasuredPerson[] = [
-  { name: "Vaiv Singh", role: "Video", actualPerWeek: 6 },
+  { name: "Vaiv Singh", role: "Video", actualPerWeek: 6, revisionsPerWeek: 3 },
   { name: "khushboo@fireteam.is", role: "Video", actualPerWeek: 6 },
   { name: "Erik Furtado", role: "Design", actualPerWeek: 11 },
 ];
@@ -48,6 +48,15 @@ describe("CapacityRoster", () => {
     const { onUpdatePerson } = renderRoster();
     fireEvent.change(screen.getByDisplayValue("Mark"), { target: { value: "Mark Datola" } });
     expect(onUpdatePerson).toHaveBeenCalledWith("m", { name: "Mark Datola" });
+  });
+
+  it("shows revision-round completions beside the actual, never folded into it", () => {
+    renderRoster();
+    const vaiv = rowFor("Vaiv");
+    // First-round actual stays 6; the revision half is visible instead of re-derivable.
+    expect(within(vaiv).getByText("(+3 rev)")).toBeTruthy();
+    // Khushboo has no revisions in the window: no suffix at all.
+    expect(within(rowFor("Khushboo")).queryByText(/rev\)/)).toBeNull();
   });
 
   it("shows each person's recent actual next to the max we set", () => {

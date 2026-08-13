@@ -55,13 +55,21 @@ export function useForecastData(): ForecastData {
         g.people
           .filter((p) => !isExcludedMember(p.name))
           .map((p) => {
-            const row = p.taskTypes.find((t) => t.taskType === p.primaryTaskType) ?? p.subtotal;
-            const recent = row.weekCounts.slice(-ACTUAL_WINDOW_WEEKS);
-            const perWeek = recent.length ? recent.reduce((s, n) => s + n, 0) / recent.length : 0;
+            const avg = (row?: { weekCounts: number[] }) => {
+              const recent = row?.weekCounts.slice(-ACTUAL_WINDOW_WEEKS) ?? [];
+              return recent.length
+                ? Math.round((recent.reduce((s, n) => s + n, 0) / recent.length) * 10) / 10
+                : 0;
+            };
+            const primary = p.taskTypes.find((t) => t.taskType === p.primaryTaskType) ?? p.subtotal;
+            // Their REVISION-prefixed completions, whatever kind — a reviewer's are review
+            // rounds, an editor's are edit rounds. Shown beside the actual, never added to it.
+            const revisions = p.taskTypes.find((t) => t.taskType === "Revisions");
             return {
               name: p.name,
               role: g.role as ForecastRoleKey,
-              actualPerWeek: Math.round(perWeek * 10) / 10,
+              actualPerWeek: avg(primary),
+              revisionsPerWeek: avg(revisions),
             };
           }),
       );
