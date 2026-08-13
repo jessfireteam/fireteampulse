@@ -4,7 +4,7 @@ import { flatSupply } from "../supply";
 import type { ScenarioClient, RolePeaks } from "../types";
 
 const peaks: RolePeaks = {
-  Account: 100, "Creative Review": 100, Copywriters: 100, Design: 2, Video: 2,
+  Account: 100, "Creative Review": 100, Copywriters: 100, Casting: 100, Design: 2, Video: 2,
 };
 const sup = flatSupply(peaks, 12);
 function client(videos: number[], statics: number[], over: Partial<ScenarioClient> = {}): ScenarioClient {
@@ -26,6 +26,15 @@ describe("runForecast", () => {
     expect(result.months[3].roles.Video.status).toBe("ok"); // 10/wk vs 20
     expect(result.months[3].roles.Video.peak).toBe(20);
     expect(result.hireByRole.Video).toBe(0);
+  });
+
+  it("casting demand comes from videos only, at the share of videos that need a cast", () => {
+    // 43.45 videos/mo ~ 10/wk. Casting's default rate of 0.5 says half of them need a creator
+    // cast, so 5/wk. Statics generate no casting demand at all.
+    const videoOnly = runForecast([client(flat(43.45), flat(0))], sup, 6, ref);
+    expect(videoOnly.months[0].roles.Casting.demandPerWeek).toBeCloseTo(5, 2);
+    const staticOnly = runForecast([client(flat(0), flat(43.45))], sup, 6, ref);
+    expect(staticOnly.months[0].roles.Casting.demandPerWeek).toBe(0);
   });
 
   it("video volume drives Video role; static volume drives Design role", () => {

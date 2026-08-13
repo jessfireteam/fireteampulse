@@ -5,6 +5,7 @@ export type ForecastRoleKey =
   | "Account"
   | "Creative Review"
   | "Copywriters"
+  | "Casting"
   | "Design"
   | "Video";
 
@@ -24,6 +25,7 @@ export const FORECAST_ROLES: ForecastRole[] = [
   { key: "Account", display: "Account", unit: "briefs sent/wk" },
   { key: "Creative Review", display: "Creative Review", unit: "reviews/wk" },
   { key: "Copywriters", display: "Copywriting", unit: "briefs/wk" },
+  { key: "Casting", display: "Casting", unit: "casts/wk" },
   { key: "Design", display: "Design", unit: "statics/wk" },
   { key: "Video", display: "Video Editing", unit: "videos/wk" },
 ];
@@ -38,6 +40,7 @@ export const FORECAST_ROLES: ForecastRole[] = [
 export const ROSTER_ROLE_KEYS: ForecastRoleKey[] = [
   "Creative Review",
   "Copywriters",
+  "Casting",
   "Design",
   "Video",
 ];
@@ -69,6 +72,10 @@ export const DEFAULT_ROLE_RATES: Record<ForecastRoleKey, number> = {
   Account: 1,
   "Creative Review": 2,
   Copywriters: 0.5,
+  // Only creator-led videos need a cast, not every video. 51 casting tasks were completed in
+  // the 4 weeks to 2026-08-13 against roughly twice that many videos, so half is the starting
+  // point — tune it on the "Tasks per deliverable" dial rather than in code.
+  Casting: 0.5,
   Design: 1,
   Video: 1,
 };

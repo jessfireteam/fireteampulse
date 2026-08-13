@@ -20,6 +20,9 @@ const ROLE_INCIDENCE: Record<ForecastRoleKey, { video: number; static: number }>
   Account: { video: 1, static: 1 },
   "Creative Review": { video: 1, static: 1 },
   Copywriters: { video: 1, static: 1 },
+  // Casting attaches to video only; the share of videos that actually need a creator cast is
+  // the role's rate, not its incidence.
+  Casting: { video: 1, static: 0 },
   Design: { video: 0, static: 1 },
   Video: { video: 1, static: 0 },
 };
