@@ -1,8 +1,7 @@
 import { useMemo, useState } from "react";
 import { runPnL } from "@/lib/forecast/pnl";
 import { computeFee } from "@/lib/forecast/fee";
-import { BREAKEVEN_FLOOR, FORECAST_ROLES, ROSTER_ROLE_KEYS, type ClientPricing, type CostConfig, type OverheadLine, type ProductionPerson, type ScenarioClient } from "@/lib/forecast/types";
-import type { PersonSupplyRow } from "@/lib/forecast/supply";
+import { BREAKEVEN_FLOOR, type ClientPricing, type CostConfig, type OverheadLine, type ProductionPerson, type ScenarioClient } from "@/lib/forecast/types";
 import { SectionHeader } from "@/components/dashboard/SectionHeader";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -33,8 +32,6 @@ interface Props {
   onUpdate: (id: string, patch: Partial<ScenarioClient>) => void;
   onUpdateCost: (patch: Partial<CostConfig>) => void;
   onAddClientWithPricing?: (name: string, pricing: ClientPricing, newBusiness?: boolean) => void;
-  /** Resolved capacity per roster person, for the measured placeholder and drift hints. */
-  supplyRows?: PersonSupplyRow[];
 }
 
 const checkboxClass =
@@ -43,7 +40,7 @@ const checkboxClass =
 const fmt = (n: number) => `$${Math.round(n).toLocaleString()}`;
 const fmtu = (n: number | null) => (n === null ? "-" : `$${Math.round(n).toLocaleString()}`);
 
-export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCost, onAddClientWithPricing, supplyRows }: Props) {
+export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCost, onAddClientWithPricing }: Props) {
   const [view, setView] = useState<"fee" | "spend" | "pct" | "profit">("fee");
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<ScenarioClient | null>(null);
@@ -315,73 +312,12 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
       <div className="space-y-3">
         <SectionHeader title="Production team" />
         <p className="text-xs text-muted-foreground">
-          Role and capacity here drive the Capacity tab's supply ceiling, and a person's start
-          month steps it up when they begin. Leave capacity blank to follow what that person has
-          actually been completing in Fibery (shown greyed next to the box). Account managers go
-          in with no role: they carry cost, and account capacity still comes from actuals.
+          Cost side only. Who does which role and how much they can take is set on the Capacity
+          tab, against the same people.
         </p>
-        {(costConfig.team ?? []).map((p) => {
-          const sup = supplyRows?.find((r) => r.id === p.id);
-          const unit = p.role ? FORECAST_ROLES.find((r) => r.key === p.role)?.unit : undefined;
-          return (
+        {(costConfig.team ?? []).map((p) => (
           <div key={p.id} className="flex gap-2 items-center">
             <Input className="flex-1" value={p.name} onChange={(e) => updatePerson(p.id, { name: e.target.value })} />
-            <select
-              aria-label="Role"
-              className="bg-background border border-input rounded px-2 h-7 text-sm"
-              value={p.role ?? ""}
-              onChange={(e) =>
-                updatePerson(p.id, {
-                  role: (e.target.value || undefined) as ProductionPerson["role"],
-                  // Dropping the role drops the capacity with it; a number in the wrong unit
-                  // silently surviving a role change is worse than retyping it.
-                  ...(e.target.value ? {} : { capacityPerWeek: undefined }),
-                })
-              }
-            >
-              <option value="">Cost only</option>
-              {ROSTER_ROLE_KEYS.map((k) => (
-                <option key={k} value={k}>{FORECAST_ROLES.find((r) => r.key === k)!.display}</option>
-              ))}
-            </select>
-            {p.role && (
-              <div className="flex items-center gap-1 whitespace-nowrap">
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  aria-label="Capacity per week"
-                  className="w-16 font-mono text-right"
-                  placeholder={sup?.measured != null ? String(sup.measured) : "—"}
-                  value={p.capacityPerWeek ?? ""}
-                  onChange={(e) => {
-                    const raw = e.target.value;
-                    updatePerson(p.id, {
-                      capacityPerWeek: raw === "" ? undefined : parseFloat(raw) || 0,
-                    });
-                  }}
-                />
-                <span className="text-[10px] text-muted-foreground">{unit}</span>
-                {p.capacityPerWeek != null && sup?.measured != null && (
-                  <button
-                    type="button"
-                    title={`Follow measured actuals (${sup.measured})`}
-                    onClick={() => updatePerson(p.id, { capacityPerWeek: undefined })}
-                    className="text-[10px] text-muted-foreground/60 underline hover:text-foreground"
-                  >
-                    revert
-                  </button>
-                )}
-                {sup && !sup.matched && (
-                  <span
-                    className="text-[10px] uppercase tracking-wide px-1 py-0.5 rounded bg-amber-500/15 text-amber-500"
-                    title="No Fibery task history matched this name, so there's nothing to fall back on. Type a capacity, or check the name matches how Fibery reports them."
-                  >
-                    no actuals
-                  </span>
-                )}
-              </div>
-            )}
             <select
               aria-label="Side"
               className="bg-background border border-input rounded px-2 h-7 text-sm"
@@ -415,8 +351,7 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
             </select>
             <Button variant="ghost" size="sm" aria-label="Remove person" onClick={() => removePerson(p.id)}>✕</Button>
           </div>
-          );
-        })}
+        ))}
         <Button variant="outline" size="sm" onClick={addPerson}>+ Add person / hire</Button>
       </div>
 
