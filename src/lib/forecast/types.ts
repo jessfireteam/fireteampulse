@@ -3,7 +3,8 @@
 /** Internal role key matches RoleType from useFiberyData (the 5 production roles). */
 export type ForecastRoleKey =
   | "Account"
-  | "Creative Review"
+  | "CD Review"
+  | "AM Review"
   | "Copywriters"
   | "Casting"
   | "Design"
@@ -15,15 +16,18 @@ export interface ForecastRole {
   /**
    * The unit one person's weekly capacity is counted in for this role. Shown next to the
    * roster input because entering the wrong unit fails silently. Copywriting is briefs, NOT
-   * deliverables: DEFAULT_ROLE_RATES.Copywriters is 0.5, so demand already assumes one brief
-   * covers two deliverables.
+   * deliverables — the Copywriters rate converts between them.
    */
   unit: string;
 }
 
 export const FORECAST_ROLES: ForecastRole[] = [
   { key: "Account", display: "Account", unit: "briefs sent/wk" },
-  { key: "Creative Review", display: "Creative Review", unit: "reviews/wk" },
+  // Creative Review split in two on purpose: measured (4wks to 2026-08-13), Jess reviews 1.0x
+  // of everything that ships with nobody else able to absorb it, while the AMs share 1.8x.
+  // Pooling them hid that one line is a single person with no redundancy.
+  { key: "CD Review", display: "CD Review", unit: "reviews/wk" },
+  { key: "AM Review", display: "AM Review", unit: "reviews/wk" },
   { key: "Copywriters", display: "Copywriting", unit: "briefs/wk" },
   { key: "Casting", display: "Casting", unit: "casts/wk" },
   { key: "Design", display: "Design", unit: "statics/wk" },
@@ -38,7 +42,8 @@ export const FORECAST_ROLES: ForecastRole[] = [
  * with no role — they'll carry cost and no capacity.
  */
 export const ROSTER_ROLE_KEYS: ForecastRoleKey[] = [
-  "Creative Review",
+  "CD Review",
+  "AM Review",
   "Copywriters",
   "Casting",
   "Design",
@@ -70,12 +75,16 @@ export type RoleSupply = Record<ForecastRoleKey, number[]>;
 export type RoleRates = Partial<Record<ForecastRoleKey, number>>;
 export const DEFAULT_ROLE_RATES: Record<ForecastRoleKey, number> = {
   Account: 1,
-  "Creative Review": 2,
-  Copywriters: 0.5,
-  // Only creator-led videos need a cast, not every video. 51 casting tasks were completed in
-  // the 4 weeks to 2026-08-13 against roughly twice that many videos, so half is the starting
-  // point — tune it on the "Tasks per deliverable" dial rather than in code.
-  Casting: 0.5,
+  // Measured: 372 review tasks against 133 deliverables in 4 weeks — 1.01 by the CD (Jess),
+  // 1.79 by the AMs. The two must sum to total review load per deliverable (~2.8).
+  "CD Review": 1,
+  "AM Review": 1.8,
+  // Measured: 202 brief-writing tasks against 133 deliverables in the same window (1.52).
+  Copywriters: 1.5,
+  // Only creator-led videos need a cast, not every video. Measured: 51 casts against 64
+  // completed videos in the 4 weeks to 2026-08-13 (0.80). Tune on the "Tasks per
+  // deliverable" dial, not in code.
+  Casting: 0.8,
   Design: 1,
   Video: 1,
 };

@@ -18,7 +18,8 @@ import {
 /** Fixed: each project generates exactly one task per applicable role. */
 const ROLE_INCIDENCE: Record<ForecastRoleKey, { video: number; static: number }> = {
   Account: { video: 1, static: 1 },
-  "Creative Review": { video: 1, static: 1 },
+  "CD Review": { video: 1, static: 1 },
+  "AM Review": { video: 1, static: 1 },
   Copywriters: { video: 1, static: 1 },
   // Casting attaches to video only; the share of videos that actually need a creator cast is
   // the role's rate, not its incidence.
@@ -65,7 +66,12 @@ export function runForecast(
       const rate = roleRates?.[key] ?? DEFAULT_ROLE_RATES[key] ?? 1;
       const demandPerWeek =
         (videosPerWeek * inc.video + staticsPerWeek * inc.static) * rate;
-      const utilization = peak > 0 ? demandPerWeek / peak : 0;
+      // A role with real demand and NO capacity is the worst state on the chart, not the
+      // safest. The old `: 0` made exactly that role read as 0% / "clear" — which is how
+      // Casting showed "clear" while one person was doing 51 casts a month with a ceiling
+      // the code had computed as zero.
+      const utilization =
+        peak > 0 ? demandPerWeek / peak : demandPerWeek > 0 ? Number.POSITIVE_INFINITY : 0;
       const status = statusFor(utilization);
       roles[key] = { role: key, demandPerWeek, peak, utilization, status };
       if (status === "over" && hireByRole[key] === null) hireByRole[key] = m;

@@ -171,7 +171,7 @@ export interface TaskTypeRow {
   due30Days: number;
 }
 
-export type RoleType = 'Account' | 'Creative Review' | 'Copywriters' | 'Casting' | 'Design' | 'Video' | 'Other';
+export type RoleType = 'Account' | 'CD Review' | 'AM Review' | 'Copywriters' | 'Casting' | 'Design' | 'Video' | 'Other';
 
 export interface PersonCapacity {
   name: string;
@@ -205,11 +205,11 @@ export const EXCLUDED_MEMBERS = new Set(['riteesh@fireteam.is']);
 // display names; if a teammate is renamed there, update here too.
 const ROLE_ASSIGNMENTS: Record<string, { role: RoleType; primaryTaskType: string }[]> = {
   // Account
-  'Niki Brazier': [{ role: 'Account', primaryTaskType: 'Briefs Sent' }, { role: 'Creative Review', primaryTaskType: 'Creative Review' }],
-  'Emily Peter': [{ role: 'Account', primaryTaskType: 'Briefs Sent' }, { role: 'Creative Review', primaryTaskType: 'Creative Review' }],
-  'Amanda': [{ role: 'Account', primaryTaskType: 'Briefs Sent' }, { role: 'Creative Review', primaryTaskType: 'Creative Review' }],
+  'Niki Brazier': [{ role: 'Account', primaryTaskType: 'Briefs Sent' }, { role: 'AM Review', primaryTaskType: 'Creative Review' }],
+  'Emily Peter': [{ role: 'Account', primaryTaskType: 'Briefs Sent' }, { role: 'AM Review', primaryTaskType: 'Creative Review' }],
+  'Amanda': [{ role: 'Account', primaryTaskType: 'Briefs Sent' }, { role: 'AM Review', primaryTaskType: 'Creative Review' }],
   // Copywriters
-  'Jess Bachman': [{ role: 'Copywriters', primaryTaskType: 'Brief Work' }, { role: 'Creative Review', primaryTaskType: 'Creative Review' }],
+  'Jess Bachman': [{ role: 'Copywriters', primaryTaskType: 'Brief Work' }, { role: 'CD Review', primaryTaskType: 'Creative Review' }],
   'riteesh@fireteam.is': [{ role: 'Copywriters', primaryTaskType: 'Brief Work' }],
   'Shreya': [{ role: 'Copywriters', primaryTaskType: 'Brief Work' }],
   'Hira': [{ role: 'Copywriters', primaryTaskType: 'Brief Work' }],
@@ -471,7 +471,10 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
 
   people.sort((a, b) => b.subtotal.avg30Day - a.subtotal.avg30Day);
 
-  const roleOrder: RoleType[] = ['Account', 'Creative Review', 'Copywriters', 'Design', 'Video', 'Other'];
+  // Every RoleType belongs in this list. Casting was missing from it after the role was
+  // added, so Nicolle's 51 casts/month never formed a group, the role's capacity computed as
+  // zero, and (before the engine fix) zero capacity rendered as 0% utilization — "clear".
+  const roleOrder: RoleType[] = ['Account', 'CD Review', 'AM Review', 'Copywriters', 'Casting', 'Design', 'Video', 'Other'];
   return roleOrder
     .map(role => ({
       role,
