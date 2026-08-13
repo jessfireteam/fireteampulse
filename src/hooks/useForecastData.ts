@@ -5,18 +5,15 @@ import { queryFibery, type ProjectCompletionsResponse } from "@/lib/fibery";
 import { useTasksData, processTasksForCapacity, isExcludedMember } from "@/hooks/useFiberyData";
 import { useClientsData, useClientPlansData } from "@/hooks/useClientsData";
 import { activeClientNames, filterActiveHistories } from "@/lib/forecast/activeClients";
-import { computeRolePeaks } from "@/lib/forecast/calibration";
 import { computeClientHistory } from "@/lib/forecast/history";
 import { deriveClientPlans } from "@/lib/forecast/plan";
-import type { MeasuredPerson } from "@/lib/forecast/supply";
-import { FORECAST_ROLES, HISTORY_MONTHS, type ClientHistory, type ClientPlan, type ForecastRoleKey, type RolePeaks } from "@/lib/forecast/types";
+import { ACTUAL_WINDOW_WEEKS, type MeasuredPerson } from "@/lib/forecast/supply";
+import { FORECAST_ROLES, HISTORY_MONTHS, type ClientHistory, type ClientPlan, type ForecastRoleKey } from "@/lib/forecast/types";
 
 const FORECAST_ROLE_KEYS = new Set<string>(FORECAST_ROLES.map((r) => r.key));
 
 export interface ForecastData {
-  /** Measured from Fibery task history; the reference the roster's declared capacity is checked against. */
-  peaks: RolePeaks;
-  /** Per-person measured throughput, so the roster can seed from it and show drift. */
+  /** Per-person recent actual throughput, compared against the max we set for each person. */
   measuredPeople: MeasuredPerson[];
   /** Read-only trailing actuals, shown left of the editable months. */
   histories: ClientHistory[];
@@ -45,20 +42,25 @@ export function useForecastData(): ForecastData {
     const planRows = clientPlansQuery.data?.findClients ?? [];
 
     const roleGroups = processTasksForCapacity(tasks, "all");
-    const peaks = computeRolePeaks(roleGroups);
-    // Same figure computeRolePeaks sums, kept per person so a roster row can seed from its own
-    // person rather than a role total. "Other" is dropped: it isn't a forecast role.
+    // Recent actual per week per person: the last ACTUAL_WINDOW_WEEKS completed weeks of their
+    // primary task type, averaged. weekCounts runs oldest -> newest and excludes the current
+    // partial week, so the tail is the most recent full weeks. An average, not a peak — see
+    // MeasuredPerson. "Other" is dropped: it isn't a forecast role.
     const measuredPeople: MeasuredPerson[] = roleGroups
       .filter((g) => FORECAST_ROLE_KEYS.has(g.role))
       .flatMap((g) =>
         g.people
           .filter((p) => !isExcludedMember(p.name))
-          .map((p) => ({
-            name: p.name,
-            role: g.role as ForecastRoleKey,
-            maxWeek26: (p.taskTypes.find((t) => t.taskType === p.primaryTaskType) ?? p.subtotal)
-              .maxWeek26,
-          })),
+          .map((p) => {
+            const row = p.taskTypes.find((t) => t.taskType === p.primaryTaskType) ?? p.subtotal;
+            const recent = row.weekCounts.slice(-ACTUAL_WINDOW_WEEKS);
+            const perWeek = recent.length ? recent.reduce((s, n) => s + n, 0) / recent.length : 0;
+            return {
+              name: p.name,
+              role: g.role as ForecastRoleKey,
+              actualPerWeek: Math.round(perWeek * 10) / 10,
+            };
+          }),
       );
     const rawHistories = computeClientHistory(projects, now, HISTORY_MONTHS);
     const active = activeClientNames(clients);
@@ -81,7 +83,6 @@ export function useForecastData(): ForecastData {
     const plans = deriveClientPlans(withPlans, histories);
 
     return {
-      peaks,
       measuredPeople,
       histories,
       plans,
