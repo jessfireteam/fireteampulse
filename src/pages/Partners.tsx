@@ -105,6 +105,14 @@ function PartnersInner() {
             roleRates={costConfig.roleRates}
             hireLeadWeeks={costConfig.runway?.hireLeadWeeks ?? DEFAULT_HIRE_LEAD_WEEKS}
             onLeadWeeksChange={(w) => updateCost({ runway: { ...(costConfig.runway ?? {}), hireLeadWeeks: w } })}
+            onHireUnitChange={(role, value) =>
+              updateCost({
+                runway: {
+                  ...(costConfig.runway ?? {}),
+                  hireUnitPerWeek: { ...(costConfig.runway?.hireUnitPerWeek ?? {}), [role]: value },
+                },
+              })
+            }
           />
           <StuckWorkStrip stages={stuckStages} />
           <CapacityRoster
