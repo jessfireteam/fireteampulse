@@ -6,10 +6,12 @@ import { useScenario } from "@/hooks/useScenario";
 import { useAuth } from "@/hooks/useAuth";
 import { runForecast } from "@/lib/forecast/engine";
 import { resolveRoleSupply } from "@/lib/forecast/supply";
-import { HORIZON_MONTHS, HISTORY_MONTHS, FORECAST_ROLES, DEFAULT_ROLE_RATES, type ClientPricing } from "@/lib/forecast/types";
+import { computeRunway } from "@/lib/forecast/runway";
+import { HORIZON_MONTHS, HISTORY_MONTHS, FORECAST_ROLES, DEFAULT_ROLE_RATES, DEFAULT_HIRE_LEAD_WEEKS, type ClientPricing } from "@/lib/forecast/types";
 import { Input } from "@/components/ui/input";
 import { ScenarioBuilder } from "@/components/partners/ScenarioBuilder";
 import { CapacityRoster } from "@/components/partners/CapacityRoster";
+import { RunwayTable } from "@/components/partners/RunwayTable";
 import { ForecastChart } from "@/components/partners/ForecastChart";
 import { HireTimeline } from "@/components/partners/HireTimeline";
 import { PnlTab } from "@/components/partners/PnlTab";
@@ -65,6 +67,22 @@ function PartnersInner() {
     [clients, resolved.supply, costConfig.roleRates],
   );
 
+  // Today's ACTUAL production for the runway's Now column: newest full history month.
+  const runwayRoles = useMemo(() => {
+    const actualVideos = histories.reduce((s, h) => s + (h.seedVideos ?? 0), 0);
+    const actualStatics = histories.reduce((s, h) => s + (h.seedStatics ?? 0), 0);
+    return computeRunway({
+      months: result.months,
+      monthLabels,
+      supply: resolved.supply,
+      actualVideosPerMonth: actualVideos,
+      actualStaticsPerMonth: actualStatics,
+      team: costConfig.team ?? [],
+      roleRates: costConfig.roleRates,
+      config: costConfig.runway,
+    });
+  }, [histories, result.months, monthLabels, resolved.supply, costConfig.team, costConfig.roleRates, costConfig.runway]);
+
   if (isLoading) return <Skeleton className="h-96 m-8" />;
   if (error) return <div className="p-8 text-destructive">Failed to load forecast data.</div>;
 
@@ -82,6 +100,13 @@ function PartnersInner() {
           <TabsTrigger value="pnl">P&amp;L</TabsTrigger>
         </TabsList>
         <TabsContent value="capacity" className="space-y-8">
+          <RunwayTable
+            roles={runwayRoles}
+            monthLabels={monthLabels}
+            roleRates={costConfig.roleRates}
+            hireLeadWeeks={costConfig.runway?.hireLeadWeeks ?? DEFAULT_HIRE_LEAD_WEEKS}
+            onLeadWeeksChange={(w) => updateCost({ runway: { ...(costConfig.runway ?? {}), hireLeadWeeks: w } })}
+          />
           <ForecastChart result={result} />
           <HireTimeline result={result} />
           <CapacityRoster

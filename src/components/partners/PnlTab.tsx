@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { runPnL } from "@/lib/forecast/pnl";
 import { computeFee } from "@/lib/forecast/fee";
-import { BREAKEVEN_FLOOR, type ClientPricing, type CostConfig, type OverheadLine, type ProductionPerson, type ScenarioClient } from "@/lib/forecast/types";
+import { BREAKEVEN_FLOOR, type PipelineConfig, type ClientPricing, type CostConfig, type OverheadLine, type ProductionPerson, type ScenarioClient } from "@/lib/forecast/types";
 import { SectionHeader } from "@/components/dashboard/SectionHeader";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -122,6 +122,27 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
       </PopoverContent>
     </Popover>
   );
+
+  // Default pipeline fee = median of current client minFees, so the panel opens with a
+  // number from your own book rather than a blank.
+  const medianMinFee = useMemo(() => {
+    const fees = clients
+      .map((c) => c.pricing?.minFee)
+      .filter((f): f is number => typeof f === "number" && f > 0)
+      .sort((a, b) => a - b);
+    return fees.length ? fees[Math.floor(fees.length / 2)] : 5000;
+  }, [clients]);
+
+  const pipeline: PipelineConfig = costConfig.pipeline ?? {
+    enabled: false,
+    everyNMonths: 1,
+    firstMonthIndex: 2,
+    videosPerMonth: 6,
+    staticsPerMonth: 6,
+    minFee: medianMinFee,
+  };
+  const setPipeline = (patch: Partial<PipelineConfig>) =>
+    onUpdateCost({ pipeline: { ...pipeline, ...patch } });
 
   return (
     <div className="space-y-6">
@@ -307,6 +328,47 @@ export function PnlTab({ clients, costConfig, monthLabels, onUpdate, onUpdateCos
             <tr><td className="p-1 text-muted-foreground">Cost / deliverable</td><td className="border-r border-border" />{rows.map((r) => <td key={r.monthIndex} className="p-1 text-right font-mono text-muted-foreground">{fmtu(r.costPerDeliverable)}</td>)}</tr>
           </tbody>
         </table>
+      </div>
+
+      <div className="space-y-3">
+        <SectionHeader title="New-business pipeline" />
+        <p className="text-xs text-muted-foreground">
+          Leads arrive on a predictable cadence, so model them as a standing assumption instead
+          of one-off rows: this stamps a future client into both tabs on the cadence below.
+          Each generated row is editable like any client (ramp it, price it, uncheck it) and
+          the capacity runway includes its demand.
+        </p>
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <label className="flex items-center gap-2">
+            <Checkbox
+              className={checkboxClass}
+              checked={pipeline.enabled}
+              onCheckedChange={(v) => setPipeline({ enabled: !!v })}
+              aria-label="Enable pipeline"
+            />
+            <span>sign one new client every</span>
+          </label>
+          <Input type="number" min="1" aria-label="Cadence in months" className="h-7 w-12 font-mono text-right"
+            value={pipeline.everyNMonths}
+            onChange={(e) => setPipeline({ everyNMonths: Math.max(1, parseInt(e.target.value) || 1) })} />
+          <span>month(s), starting</span>
+          <select aria-label="First signing month" className="bg-background border border-input rounded px-2 h-7"
+            value={pipeline.firstMonthIndex}
+            onChange={(e) => setPipeline({ firstMonthIndex: parseInt(e.target.value) })}>
+            {monthLabels.map((l, i) => (<option key={i} value={i}>{l}</option>))}
+          </select>
+          <span>· each at</span>
+          <Input type="number" min="0" aria-label="Pipeline videos per month" className="h-7 w-12 font-mono text-right"
+            value={pipeline.videosPerMonth}
+            onChange={(e) => setPipeline({ videosPerMonth: parseInt(e.target.value) || 0 })} />
+          <span>videos +</span>
+          <Input type="number" min="0" aria-label="Pipeline statics per month" className="h-7 w-12 font-mono text-right"
+            value={pipeline.staticsPerMonth}
+            onChange={(e) => setPipeline({ staticsPerMonth: parseInt(e.target.value) || 0 })} />
+          <span>statics/mo, billing</span>
+          <MoneyInput value={pipeline.minFee} onChange={(n) => setPipeline({ minFee: n })} className="w-24" />
+          <span>/mo</span>
+        </div>
       </div>
 
       <div className="space-y-3">

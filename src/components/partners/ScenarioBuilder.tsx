@@ -128,17 +128,26 @@ export function ScenarioBuilder({
                           value={c.name}
                           onChange={(e) => onUpdate(c.id, { name: e.target.value })}
                         />
-                        {c.newBusiness && (
+                        {c.pipeline ? (
+                          <span
+                            className="text-[9px] uppercase tracking-wide px-1 py-0.5 rounded bg-sky-500/15 text-sky-500 whitespace-nowrap"
+                            title="Generated from the New-business pipeline on the P&L tab. Uncheck to exclude it; it regenerates from the config, so there is no delete."
+                          >
+                            pipeline
+                          </span>
+                        ) : c.newBusiness ? (
                           <span className="text-[9px] uppercase tracking-wide px-1 py-0.5 rounded bg-amber-500/15 text-amber-500 whitespace-nowrap">new biz</span>
+                        ) : null}
+                        {!c.pipeline && (
+                          <Button
+                            aria-label="Remove client"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onRemove(c.id)}
+                          >
+                            ✕
+                          </Button>
                         )}
-                        <Button
-                          aria-label="Remove client"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => onRemove(c.id)}
-                        >
-                          ✕
-                        </Button>
                       </div>
                       {plan && (
                         <div className="mt-1 flex items-center gap-1.5 pl-6 text-[10px] whitespace-nowrap">

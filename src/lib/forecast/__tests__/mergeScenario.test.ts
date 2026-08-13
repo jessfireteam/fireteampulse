@@ -137,6 +137,45 @@ describe("mergeScenario", () => {
     expect(r.find((c) => c.name === "Acme")!.newBusiness).toBe(true);
     expect(r.find((c) => c.name === "Prospect X")!.newBusiness).toBe(true);
   });
+  it("adds generated pipeline rows and lets a saved same-name row carry the edits", () => {
+    const gen: ScenarioClient = {
+      id: "pipeline-oct", name: "Pipeline · Oct '26",
+      videosByMonth: new Array(H).fill(6), staticsByMonth: new Array(H).fill(6),
+      enabled: true, hypothetical: true, pipeline: true,
+      pricing: { minFee: 5000, tiers: [] },
+      startMonthIndex: 2,
+    };
+    const savedRow = saved("Pipeline · Oct '26", {
+      enabled: false, // unchecked persists
+      pricing: { minFee: 9000, tiers: [] },
+      videosByMonth: new Array(H).fill(3),
+      staticsByMonth: new Array(H).fill(3),
+      manualVolumes: true,
+      pipeline: true,
+      hypothetical: true,
+    });
+    const r = mergeScenario([plan("Acme", 5, 2)], [savedRow], H, makeId, [gen]);
+    const p = r.find((c) => c.name === "Pipeline · Oct '26")!;
+    expect(p.enabled).toBe(false);
+    expect(p.pricing?.minFee).toBe(9000);
+    expect(p.videosByMonth).toEqual(new Array(H).fill(3));
+    expect(p.pipeline).toBe(true);
+    // Not duplicated by the hypothetical carry-over.
+    expect(r.filter((c) => c.name === "Pipeline · Oct '26")).toHaveLength(1);
+  });
+
+  it("drops a stale unpinned pipeline row but carries a pinned one", () => {
+    const stale = saved("Pipeline · Sep '26", { pipeline: true, hypothetical: true });
+    const pinned = saved("Pipeline · Aug '26", {
+      pipeline: true, hypothetical: true, manualVolumes: true,
+      videosByMonth: new Array(H).fill(4), staticsByMonth: new Array(H).fill(0),
+    });
+    // Generator no longer produces either month.
+    const r = mergeScenario([plan("Acme", 5, 2)], [stale, pinned], H, makeId, []);
+    expect(r.map((c) => c.name)).not.toContain("Pipeline · Sep '26");
+    expect(r.find((c) => c.name === "Pipeline · Aug '26")!.videosByMonth).toEqual(new Array(H).fill(4));
+  });
+
   it("preserves saved one-off fees for an active client", () => {
     const oneOffs = new Array(H).fill(0); oneOffs[0] = 10000;
     const r = mergeScenario(

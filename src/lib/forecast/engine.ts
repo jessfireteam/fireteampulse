@@ -16,7 +16,7 @@ import {
 } from "./types";
 
 /** Fixed: each project generates exactly one task per applicable role. */
-const ROLE_INCIDENCE: Record<ForecastRoleKey, { video: number; static: number }> = {
+export const ROLE_INCIDENCE: Record<ForecastRoleKey, { video: number; static: number }> = {
   Account: { video: 1, static: 1 },
   "CD Review": { video: 1, static: 1 },
   "AM Review": { video: 1, static: 1 },
