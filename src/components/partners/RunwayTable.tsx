@@ -36,24 +36,30 @@ export function RunwayTable({ roles, monthLabels, roleRates, hireLeadWeeks, onLe
 
   return (
     <div className="space-y-3">
-      <SectionHeader title="Hiring runway — surplus/deficit in people" />
-      <p className="text-xs text-muted-foreground">
-        Each cell is (team ÷ one hire's weekly output) minus (demand ÷ same), so −0.8 means
-        "0.8 of a hire short". Now = today's actual production. The months = every client's
-        plan plus the new-business pipeline from the P&amp;L tab. A req date appears when a month
-        goes half a person short, backed off by{" "}
+      <SectionHeader title="Hiring runway — spare people by month" />
+      <p className="text-xs text-muted-foreground max-w-3xl">
+        Every number is a count of people. +1.1 on Video Editing means one spare editor's worth
+        of capacity that month. −0.5 means you are half a hire short. The Now column is what the
+        team actually produced last month. The month columns are what every client's plan plus
+        the pipeline would demand.
+      </p>
+      <p className="text-xs text-muted-foreground max-w-3xl flex items-center gap-1 flex-wrap">
+        <span>
+          When a role goes half a hire short, the last column shows when to start hiring: the
+          month it breaks, minus
+        </span>
         <Input
           type="number"
           min="0"
           aria-label="Hiring lead time in weeks"
-          className="inline-block h-6 w-14 mx-1 font-mono text-right align-middle"
+          className="inline-block h-6 w-12 font-mono text-right align-middle"
           value={hireLeadWeeks}
           onChange={(e) => onLeadWeeksChange(parseInt(e.target.value) || 0)}
-        />{" "}
-        weeks of hiring lead time.
+        />
+        <span>weeks to find and onboard someone.</span>
       </p>
       <div className="overflow-x-auto">
-        <table className="border-collapse text-xs">
+        <table className="border-collapse text-xs w-full min-w-[900px]">
           <thead>
             <tr className="text-muted-foreground">
               <th className="text-left font-medium px-2 py-1 whitespace-nowrap">Role</th>
@@ -63,7 +69,7 @@ export function RunwayTable({ roles, monthLabels, roleRates, hireLeadWeeks, onLe
               {monthLabels.map((l) => (
                 <th key={l} className="text-right font-medium px-1.5 py-1 whitespace-nowrap">{l}</th>
               ))}
-              <th className="text-left font-medium px-2 py-1 whitespace-nowrap">Post req by</th>
+              <th className="text-left font-medium px-2 py-1 whitespace-nowrap">Start hiring by</th>
             </tr>
           </thead>
           <tbody className="font-mono tabular-nums">
@@ -91,7 +97,7 @@ export function RunwayTable({ roles, monthLabels, roleRates, hireLeadWeeks, onLe
                       {r.hireBy ? (
                         <span
                           className="text-red-500 font-semibold"
-                          title={`First month more than half a hire short: ${r.firstDeficitLabel}`}
+                          title={`Goes half a hire short in ${r.firstDeficitLabel}; starting then leaves no time to hire and onboard`}
                         >
                           {r.hireBy}
                         </span>
