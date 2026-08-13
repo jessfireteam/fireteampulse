@@ -38,6 +38,15 @@ const SAVED_ROW = {
       { id: "k", name: "Khushboo", side: "video", monthlyCost: 2000, startMonthIndex: 0, role: "Video" },
       { id: "j", name: "John", side: "both", monthlyCost: 6250, startMonthIndex: 0, role: "Copywriters", capacityPerWeek: 8 },
     ],
+    // A live pipeline config: rows derive from it at seed, and deriving them must not write.
+    pipeline: {
+      enabled: true,
+      everyNMonths: 1,
+      firstMonthIndex: 2,
+      videosPerMonth: 6,
+      staticsPerMonth: 6,
+      minFee: 5000,
+    },
   },
   updated_at: "2026-08-11T13:59:42.181Z",
 };
@@ -102,15 +111,32 @@ describe("useScenario", () => {
 
   it("adopts the derived plan over the stale stored volumes", async () => {
     const { result } = renderHook(() => useScenario(plans, "jess@fireteam.is"));
-    await waitFor(() => expect(result.current.clients).toHaveLength(1));
-    expect(result.current.clients[0].videosByMonth[0]).toBe(25);
-    expect(result.current.clients[0].staticsByMonth[0]).toBe(5);
+    await waitFor(() => expect(result.current.clients.length).toBeGreaterThan(0));
+    const gn = result.current.clients.find((c) => c.name === "Ground News")!;
+    expect(gn.videosByMonth[0]).toBe(25);
+    expect(gn.staticsByMonth[0]).toBe(5);
+  });
+
+  it("derives pipeline rows from the stored config at seed, without writing", async () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useScenario(plans, "jess@fireteam.is"));
+    await vi.waitFor(() => expect(result.current.clients.length).toBeGreaterThan(0));
+    const pipelineRows = result.current.clients.filter((c) => c.pipeline);
+    // firstMonthIndex 2, monthly cadence, 12-month horizon -> 10 rows.
+    expect(pipelineRows).toHaveLength(10);
+    expect(pipelineRows[0].startMonthIndex).toBe(2);
+    expect(pipelineRows[0].pricing?.minFee).toBe(5000);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    expect(update).not.toHaveBeenCalled();
+    expect(insert).not.toHaveBeenCalled();
   });
 
   it("does NOT write to the shared row just because the plan changed on load", async () => {
     vi.useFakeTimers();
     const { result } = renderHook(() => useScenario(plans, "jess@fireteam.is"));
-    await vi.waitFor(() => expect(result.current.clients).toHaveLength(1));
+    await vi.waitFor(() => expect(result.current.clients.length).toBeGreaterThan(0));
     // Push well past the autosave debounce.
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5000);
@@ -147,9 +173,11 @@ describe("useScenario", () => {
     expect(result.current.clients).toHaveLength(0);
 
     rerender({ p: plans, ready: true });
-    await waitFor(() => expect(result.current.clients).toHaveLength(1));
-    expect(result.current.clients[0].videosByMonth[0]).toBe(25);
-    expect(result.current.clients[0].staticsByMonth[0]).toBe(5);
+    // Ground News plus the 10 pipeline rows derived from the stored config.
+    await waitFor(() => expect(result.current.clients.length).toBeGreaterThan(0));
+    const gn = result.current.clients.find((c) => c.name === "Ground News")!;
+    expect(gn.videosByMonth[0]).toBe(25);
+    expect(gn.staticsByMonth[0]).toBe(5);
     expect(update).not.toHaveBeenCalled();
   });
 
@@ -175,7 +203,7 @@ describe("useScenario", () => {
   it("still saves a real edit", async () => {
     vi.useFakeTimers();
     const { result } = renderHook(() => useScenario(plans, "jess@fireteam.is"));
-    await vi.waitFor(() => expect(result.current.clients).toHaveLength(1));
+    await vi.waitFor(() => expect(result.current.clients.length).toBeGreaterThan(0));
     act(() => {
       result.current.update(result.current.clients[0].id, {
         videosByMonth: new Array(12).fill(18),

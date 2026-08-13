@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { HORIZON_MONTHS, emptyCostConfig, type ClientPlan, type ScenarioClient, type CostConfig } from "@/lib/forecast/types";
 import { mergeScenario } from "@/lib/forecast/mergeScenario";
+import { generatePipelineClients, replaceGeneratedRows } from "@/lib/forecast/pipeline";
 import { reconcileScenario, reconcileCost, scenarioSignature } from "@/lib/forecast/reconcileScenario";
 
 let idCounter = 0;
@@ -123,7 +124,10 @@ export function useScenario(
   useEffect(() => {
     if (seededRef.current) return;
     if (!loaded || !plansReady || plans.length === 0) return;
-    const seeded = mergeScenario(plans, savedClients ?? [], HORIZON_MONTHS, nextId);
+    // Pipeline rows are derived from the loaded config, deterministically, INSIDE the seed —
+    // same rule as the client plans: generating them must never read as an edit.
+    const generated = generatePipelineClients(costConfig.pipeline, HORIZON_MONTHS, new Date());
+    const seeded = mergeScenario(plans, savedClients ?? [], HORIZON_MONTHS, nextId, generated);
     setClients(seeded);
     // Baseline for the 3-way merge is the raw remote row (what edits diverge from).
     baselineClientsRef.current = savedClients ?? [];
@@ -233,6 +237,23 @@ export function useScenario(
     }, AUTOSAVE_MS);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clients, costConfig, userEmail]);
+
+  // 3b) When the pipeline CONFIG changes after seeding (someone edits the panel), regenerate
+  //     the pipeline rows in place. Non-pipeline rows are untouched; a pipeline row with
+  //     pinned volumes keeps them. updateCost already marked the session dirty, so the
+  //     resulting rows persist through the normal autosave.
+  const pipelineSigRef = useRef<string | null>(null);
+  useEffect(() => {
+    const sig = JSON.stringify(costConfig.pipeline ?? null);
+    if (!seededRef.current) {
+      pipelineSigRef.current = sig;
+      return;
+    }
+    if (pipelineSigRef.current === sig) return;
+    pipelineSigRef.current = sig;
+    const fresh = generatePipelineClients(costConfig.pipeline, HORIZON_MONTHS, new Date());
+    setClients((cs) => replaceGeneratedRows(cs, fresh));
+  }, [costConfig.pipeline]);
 
   // 4) Realtime: when another tab/partner writes the row, merge it into local
   //    state (local edits preserved) so an open tab never shows or saves stale data.

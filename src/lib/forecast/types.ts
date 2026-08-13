@@ -152,6 +152,12 @@ export interface ScenarioClient {
    * scenarioSignature().
    */
   manualVolumes?: boolean;
+  /**
+   * True for rows synthesized from PipelineConfig. They regenerate from the config on every
+   * load, so the row's ✕ is hidden: removing one means unchecking `enabled` (which persists)
+   * or changing the config. A hand-edited pipeline row is pinned exactly like a real client.
+   */
+  pipeline?: boolean;
   /** Pipeline status: true = prospective new business, false/undefined = signed client. Display/sort only; does not affect math. */
   newBusiness?: boolean;
   pricing?: ClientPricing;
@@ -192,6 +198,48 @@ export interface ForecastResult {
   /** role -> first monthIndex where demand exceeds peak, or null if never. */
   hireByRole: Record<ForecastRoleKey, number | null>;
 }
+
+/**
+ * The standing new-business assumption: leads arrive predictably, so instead of hand-adding a
+ * hypothetical client when one appears, this stamps out future pipeline clients on a cadence.
+ * Derived into ScenarioClient rows at load — never stored as rows — so the config is the only
+ * thing persisted (inside cost_config, written only when edited).
+ */
+export interface PipelineConfig {
+  enabled: boolean;
+  /** One new client every N months. */
+  everyNMonths: number;
+  /** Month index (0 = this month) of the first expected signing. */
+  firstMonthIndex: number;
+  videosPerMonth: number;
+  staticsPerMonth: number;
+  /** Monthly fee each pipeline client bills (flat; editable per row afterwards). */
+  minFee: number;
+}
+
+/** Converts role demand into fractional hires: what ONE new hire adds per week. */
+export interface RunwayConfig {
+  /** Per-role weekly output of a standard hire. Missing keys use RUNWAY_DEFAULT_HIRE_UNITS. */
+  hireUnitPerWeek?: Partial<Record<ForecastRoleKey, number>>;
+  /** Weeks from posting a req to a productive hire; backs the "post req by" date off the first deficit. */
+  hireLeadWeeks?: number;
+}
+
+/** One standard hire's weekly output, from the caps ops actually assigns (Angelia, 2026-08-13). */
+export const RUNWAY_DEFAULT_HIRE_UNITS: Record<ForecastRoleKey, number> = {
+  Account: 1, // placeholder; Account is excluded from the runway until the client-count model
+  "CD Review": 33,
+  "AM Review": 20,
+  Copywriters: 10,
+  Casting: 13,
+  Design: 10,
+  Video: 8,
+};
+
+export const DEFAULT_HIRE_LEAD_WEEKS = 6;
+
+/** Gap (in heads) at which "absorb it" becomes "post a req". */
+export const HIRE_TRIGGER_HEADS = 0.5;
 
 /** A pricing tier; upTo is the upper bound of MANAGED spend for this bracket (null = "and above"). rate is a percent. */
 export interface PricingTier {
@@ -245,6 +293,10 @@ export interface CostConfig {
   overheadLines?: OverheadLine[];
   /** Per-role tasks-per-deliverable multipliers; falls back to DEFAULT_ROLE_RATES when unset. */
   roleRates?: RoleRates;
+  /** Standing new-business assumption; absent = no pipeline rows generated. */
+  pipeline?: PipelineConfig;
+  /** Hire-unit sizes and lead time for the runway table. */
+  runway?: RunwayConfig;
   /** @deprecated legacy single overhead row; used only when overheadLines is absent/empty. */
   overheadByMonth?: number[];
   costPerDeliverableByMonth?: number[]; // legacy, unused

@@ -21,6 +21,8 @@ export function mergeScenario(
   saved: ScenarioClient[],
   horizon: number,
   makeId: () => string,
+  /** Rows synthesized from PipelineConfig; [] when the pipeline is off. */
+  pipelineRows: ScenarioClient[] = [],
 ): ScenarioClient[] {
   const key = (s: string) => s.trim().toLowerCase();
   const savedByName = new Map(saved.map((c) => [key(c.name), c]));
@@ -64,9 +66,34 @@ export function mergeScenario(
     };
   });
 
-  const seededNames = new Set(seeded.map((s) => key(s.name)));
+  // Pipeline rows: generated from config, but a saved row with the same name carries a
+  // person's edits (pinned volumes, changed pricing, unchecked enabled) and wins field by
+  // field. Saved-but-no-longer-generated pipeline rows fall through to the hypothetical
+  // carry-over below ONLY if they were pinned — an unpinned generated row that the config
+  // window moved past just disappears, which is what a rolling assumption should do.
+  const pipelined: ScenarioClient[] = pipelineRows.map((gen) => {
+    const prior = savedByName.get(key(gen.name));
+    if (!prior) return gen;
+    const manual =
+      !!prior.manualVolumes && goodLen(prior.videosByMonth) && goodLen(prior.staticsByMonth);
+    return {
+      ...gen,
+      enabled: prior.enabled,
+      manualVolumes: manual ? true : undefined,
+      videosByMonth: manual ? prior.videosByMonth : gen.videosByMonth,
+      staticsByMonth: manual ? prior.staticsByMonth : gen.staticsByMonth,
+      pricing: prior.pricing ?? gen.pricing,
+      adSpendByMonth: goodLen(prior.adSpendByMonth) ? prior.adSpendByMonth : undefined,
+      agencyPctByMonth: goodLen(prior.agencyPctByMonth) ? prior.agencyPctByMonth : undefined,
+      oneOffsByMonth: goodLen(prior.oneOffsByMonth) ? prior.oneOffsByMonth : undefined,
+      oneOffLabelsByMonth: goodLabels(prior.oneOffLabelsByMonth) ? prior.oneOffLabelsByMonth : undefined,
+    };
+  });
+
+  const seededNames = new Set([...seeded, ...pipelined].map((s) => key(s.name)));
   const hypotheticals = saved
     .filter((c) => c.hypothetical && !seededNames.has(key(c.name)))
+    .filter((c) => !c.pipeline || c.manualVolumes)
     .map((c) => ({
       id: makeId(),
       name: c.name,
@@ -75,6 +102,7 @@ export function mergeScenario(
       enabled: c.enabled,
       hypothetical: true,
       manualVolumes: c.manualVolumes,
+      pipeline: c.pipeline,
       newBusiness: c.newBusiness,
       pricing: c.pricing,
       adSpendByMonth: goodLen(c.adSpendByMonth) ? c.adSpendByMonth : undefined,
@@ -85,5 +113,5 @@ export function mergeScenario(
       endMonthIndex: c.endMonthIndex,
     }));
 
-  return [...seeded, ...hypotheticals];
+  return [...seeded, ...pipelined, ...hypotheticals];
 }
