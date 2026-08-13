@@ -136,7 +136,7 @@ describe("resolveRoleSupply", () => {
 describe("flatSupply", () => {
   it("holds each figure constant across the horizon", () => {
     const peaks: RolePeaks = {
-      Account: 9, "Creative Review": 8, Copywriters: 7, Casting: 4, Design: 6, Video: 5,
+      Account: 9, "CD Review": 8, "AM Review": 8, Copywriters: 7, Casting: 4, Design: 6, Video: 5,
     };
     expect(flatSupply(peaks, 3).Design).toEqual([6, 6, 6]);
   });

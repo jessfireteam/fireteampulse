@@ -92,7 +92,8 @@ function PersonRow({ name, row, taskLabel, revisionRow, showRevisions }: { name:
 
 const ROLE_LABELS: Record<RoleGroup['role'], { label: string; taskLabel: string }> = {
   Account: { label: 'Account', taskLabel: 'Briefs Sent' },
-  'Creative Review': { label: 'Creative Review', taskLabel: 'Creative Review' },
+  'CD Review': { label: 'CD Review', taskLabel: 'Creative Review' },
+  'AM Review': { label: 'AM Review', taskLabel: 'Creative Review' },
   Copywriters: { label: 'Copywriters', taskLabel: 'Brief Work' },
   Casting: { label: 'Casting', taskLabel: 'Cast Creator' },
   Design: { label: 'Design', taskLabel: 'Design' },

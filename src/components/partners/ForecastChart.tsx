@@ -5,29 +5,42 @@ import { SectionHeader } from "@/components/dashboard/SectionHeader";
 
 const COLORS: Record<string, string> = {
   Account: "#60a5fa",
-  "Creative Review": "#f59e0b",
+  "CD Review": "#f59e0b",
+  "AM Review": "#fbbf24",
   Copywriters: "#a78bfa",
+  Casting: "#f472b6",
   Design: "#34d399",
   Video: "#fb7185",
 };
 
 export function ForecastChart({ result }: { result: ForecastResult }) {
-  const data = result.months.map((m) => {
+  // Infinite utilization = demand against a zero-capacity role. Pegged to the top of the
+  // chart rather than dropped, so the worst state stays visible instead of vanishing.
+  const raw = result.months.map((m) => {
     const row: Record<string, number | string> = { label: m.label };
     FORECAST_ROLES.forEach((role) => {
-      row[role.key] = Math.round(m.roles[role.key].utilization * 100);
+      const u = m.roles[role.key].utilization;
+      row[role.key] = Number.isFinite(u) ? Math.round(u * 100) : Number.POSITIVE_INFINITY;
     });
     return row;
   });
 
-  const maxUtil = data.reduce((max, row) => {
-    const rowMax = FORECAST_ROLES.reduce(
-      (m, role) => Math.max(m, (row[role.key] as number) ?? 0),
-      0,
-    );
+  const maxUtil = raw.reduce((max, row) => {
+    const rowMax = FORECAST_ROLES.reduce((m, role) => {
+      const v = row[role.key] as number;
+      return Number.isFinite(v) ? Math.max(m, v) : m;
+    }, 0);
     return Math.max(max, rowMax);
   }, 0);
   const domainMax = Math.max(110, Math.ceil((maxUtil + 10) / 10) * 10);
+  const data = raw.map((row) => {
+    const out: Record<string, number | string> = { label: row.label };
+    FORECAST_ROLES.forEach((role) => {
+      const v = row[role.key] as number;
+      out[role.key] = Number.isFinite(v) ? v : domainMax;
+    });
+    return out;
+  });
 
   return (
     <div className="space-y-3">

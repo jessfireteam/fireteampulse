@@ -4,7 +4,7 @@ import { flatSupply } from "../supply";
 import type { ScenarioClient, RolePeaks } from "../types";
 
 const peaks: RolePeaks = {
-  Account: 100, "Creative Review": 100, Copywriters: 100, Casting: 100, Design: 2, Video: 2,
+  Account: 100, "CD Review": 100, "AM Review": 100, Copywriters: 100, Casting: 100, Design: 2, Video: 2,
 };
 const sup = flatSupply(peaks, 12);
 function client(videos: number[], statics: number[], over: Partial<ScenarioClient> = {}): ScenarioClient {
@@ -28,13 +28,27 @@ describe("runForecast", () => {
     expect(result.hireByRole.Video).toBe(0);
   });
 
-  it("casting demand comes from videos only, at the share of videos that need a cast", () => {
-    // 43.45 videos/mo ~ 10/wk. Casting's default rate of 0.5 says half of them need a creator
-    // cast, so 5/wk. Statics generate no casting demand at all.
+  it("casting demand comes from videos only, at the measured share needing a cast", () => {
+    // 43.45 videos/mo ~ 10/wk. Casting's measured default of 0.8 (51 casts / 64 videos) gives
+    // 8/wk. Statics generate no casting demand at all.
     const videoOnly = runForecast([client(flat(43.45), flat(0))], sup, 6, ref);
-    expect(videoOnly.months[0].roles.Casting.demandPerWeek).toBeCloseTo(5, 2);
+    expect(videoOnly.months[0].roles.Casting.demandPerWeek).toBeCloseTo(8, 2);
     const staticOnly = runForecast([client(flat(0), flat(43.45))], sup, 6, ref);
     expect(staticOnly.months[0].roles.Casting.demandPerWeek).toBe(0);
+  });
+
+  it("reports a zero-capacity role with demand as OVER, never as clear", () => {
+    // The Casting bug: a role with real demand and a ceiling of zero used to read as 0%
+    // utilization — the most dangerous state rendered as the safest.
+    const noCasting = { ...sup, Casting: [0, 0, 0, 0, 0, 0] };
+    const r = runForecast([client(flat(43.45), flat(0))], noCasting, 6, ref);
+    expect(r.months[0].roles.Casting.status).toBe("over");
+    expect(r.months[0].roles.Casting.utilization).toBe(Number.POSITIVE_INFINITY);
+    expect(r.hireByRole.Casting).toBe(0);
+    // No demand against no capacity stays quiet.
+    const empty = runForecast([client(flat(0), flat(0))], noCasting, 6, ref);
+    expect(empty.months[0].roles.Casting.status).toBe("ok");
+    expect(empty.months[0].roles.Casting.utilization).toBe(0);
   });
 
   it("video volume drives Video role; static volume drives Design role", () => {
@@ -90,12 +104,16 @@ describe("runForecast", () => {
     );
   });
 
-  it("defaults halve Copywriters and double Creative Review vs old flat-1", () => {
-    // old flat-1 demand for videos at 43.45/mo ~ 10/wk
+  it("default rates are the measured ones: copy 1.5x, CD review 1.0x, AM review 1.8x", () => {
     const r = runForecast([client(flat(43.45), flat(0))], sup, 6, ref);
-    const flatOne = (43.45 / 4.345) * 1; // ~10/wk, old behavior
-    expect(r.months[0].roles.Copywriters.demandPerWeek).toBeCloseTo(flatOne * 0.5, 5);
-    expect(r.months[0].roles["Creative Review"].demandPerWeek).toBeCloseTo(flatOne * 2, 5);
+    const flatOne = 43.45 / 4.345; // ~10/wk at a rate of 1
+    expect(r.months[0].roles.Copywriters.demandPerWeek).toBeCloseTo(flatOne * 1.5, 5);
+    expect(r.months[0].roles["CD Review"].demandPerWeek).toBeCloseTo(flatOne * 1.0, 5);
+    expect(r.months[0].roles["AM Review"].demandPerWeek).toBeCloseTo(flatOne * 1.8, 5);
+    // The split must sum to the measured total review load (~2.8 per deliverable).
+    expect(
+      r.months[0].roles["CD Review"].demandPerWeek + r.months[0].roles["AM Review"].demandPerWeek,
+    ).toBeCloseTo(flatOne * 2.8, 5);
   });
 
   it("labels months forward from the reference month", () => {
