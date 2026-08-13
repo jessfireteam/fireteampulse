@@ -17,12 +17,13 @@ export function StuckWorkStrip({ stages }: Props) {
   const worst = Math.max(1, ...stages.map((s) => s.count));
   return (
     <div className="space-y-3">
-      <SectionHeader title="Where the work is stuck" />
+      <SectionHeader title="Where projects are stuck" />
       <p className="text-xs text-muted-foreground max-w-3xl">
-        Open tasks past their due date, by pipeline stage, left to right in the order work
-        flows. Unassigned means the task is late and nobody owns it yet. Median days late
-        separates fresh slippage from long-dead chains that need cancelling. Looks back 3
-        months, so anything older than that has fallen off this view entirely.
+        Each live project counts once, at the stage of its earliest late task — the thing
+        actually blocking it. Lateness that cascades downstream is not re-counted, so a late
+        brief no longer makes Deliverable QC look jammed (the ops tab's true-vs-inherited
+        distinction, applied per project). Unassigned means the blocking task has no owner;
+        waiting on client means the blocker is a client approval. Looks back 3 months.
       </p>
       <div className="grid gap-2 w-full" style={{ gridTemplateColumns: `repeat(${stages.length}, minmax(0, 1fr))` }}>
         {stages.map((s, i) => (
@@ -40,9 +41,12 @@ export function StuckWorkStrip({ stages }: Props) {
             <div className={cn("text-xl font-mono", s.count === 0 ? "text-muted-foreground/40" : s.count === worst ? "text-red-500" : "text-foreground")}>
               {s.count}
             </div>
-            <div className="text-[10px] leading-4 min-h-8">
+            <div className="text-[10px] leading-4 min-h-12">
               {s.unassigned > 0 && (
                 <div className="text-red-500">{s.unassigned} unassigned</div>
+              )}
+              {s.clientCourt > 0 && (
+                <div className="text-sky-500">{s.clientCourt} waiting on client</div>
               )}
               {s.count > 0 && (
                 <div className="text-muted-foreground/60">~{s.medianDaysLate}d late</div>
