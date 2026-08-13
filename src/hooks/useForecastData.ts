@@ -8,6 +8,7 @@ import { activeClientNames, filterActiveHistories } from "@/lib/forecast/activeC
 import { computeClientHistory } from "@/lib/forecast/history";
 import { deriveClientPlans } from "@/lib/forecast/plan";
 import { ACTUAL_WINDOW_WEEKS, type MeasuredPerson } from "@/lib/forecast/supply";
+import { computeStuckWork, type StuckStage } from "@/lib/forecast/stuck";
 import { FORECAST_ROLES, HISTORY_MONTHS, type ClientHistory, type ClientPlan, type ForecastRoleKey } from "@/lib/forecast/types";
 
 const FORECAST_ROLE_KEYS = new Set<string>(FORECAST_ROLES.map((r) => r.key));
@@ -19,6 +20,8 @@ export interface ForecastData {
   histories: ClientHistory[];
   /** Current per-client plan derived from Fibery; drives the editable months. */
   plans: ClientPlan[];
+  /** Overdue open tasks bucketed by pipeline stage, for the where-work-is-stuck strip. */
+  stuckStages: StuckStage[];
   isLoading: boolean;
   error: unknown;
 }
@@ -81,11 +84,13 @@ export function useForecastData(): ForecastData {
       };
     });
     const plans = deriveClientPlans(withPlans, histories);
+    const stuckStages = computeStuckWork(tasks, now);
 
     return {
       measuredPeople,
       histories,
       plans,
+      stuckStages,
       // clientPlansQuery.isLoading is included so the grid doesn't flash run-rate numbers
       // before the plan arrives. Its error deliberately is NOT — a plan-fetch failure
       // degrades to run-rate rather than failing the page.
