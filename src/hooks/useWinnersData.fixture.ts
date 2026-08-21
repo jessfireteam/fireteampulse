@@ -20,6 +20,10 @@ function project(
   typeName: string,
   winner: boolean,
   assigns: Assign[],
+  // Overrides the default fully-matured September date. Only the trend fixture
+  // uses it — the accuracy fixture deliberately keeps every row on one date so
+  // maturity weights stay at exactly 1.
+  doneISO?: string,
 ) {
   seq += 1;
   const internal = assigns.filter((a) => !a.external);
@@ -27,8 +31,8 @@ function project(
   return {
     id: `p${seq}`,
     name: `Proj ${seq}`,
-    creationDate: "2025-09-10T00:00:00.000Z",
-    doneDate: "2025-09-20T00:00:00.000Z", // ~10 months old -> fully mature
+    creationDate: doneISO ?? "2025-09-10T00:00:00.000Z",
+    doneDate: doneISO ?? "2025-09-20T00:00:00.000Z", // default is fully mature
     status: { name: "Completed" },
     client: { id: clientId, name: clientName },
     type: { name: typeName },
@@ -45,7 +49,7 @@ function project(
       {
         id: `v${seq}`,
         name: `v${seq}`,
-        winnerDate: winner ? "2025-11-01T00:00:00.000Z" : null,
+        winnerDate: winner ? (doneISO ?? "2025-11-01T00:00:00.000Z") : null,
         tags: winner ? [{ id: `t${seq}`, name: `Winner - ${clientName}` }] : [],
       },
     ],
@@ -106,6 +110,57 @@ export function buildFixtureProjects() {
 
   return rows;
 }
+
+// ---------------------------------------------------------------------------
+// Trend fixture — projects spread across months so the rolling-window W Index
+// has something to trend. Pin the clock to 2026-06-15 when using it.
+//
+// Alpha has two copywriters. Peer writes 10 projects a month Sep '25-Mar '26 and
+// wins exactly 1 each month, so Trend's leave-one-out baseline is exactly 10%.
+// Trend writes 10 a month over the same span, winning 3 a month for the first
+// three months and 0 after -> a clean fall from an index of 300 to 0. Trend also
+// has 6 projects finished five days before the pinned clock, which is what the
+// maturity gate has to keep out of the published windows.
+export const TREND_FIXTURE_NOW = "2026-06-15T12:00:00.000Z";
+const trendWriter: Person = { id: "u-trend", name: "Trend Writer" };
+const peerWriter: Person = { id: "u-peer", name: "Peer Writer" };
+const soloWriter: Person = { id: "u-solo", name: "Solo Writer" };
+
+const MONTHS = [
+  "2025-09-10", "2025-10-10", "2025-11-10", "2025-12-10",
+  "2026-01-10", "2026-02-10", "2026-03-10",
+];
+
+export function buildTrendFixtureProjects() {
+  seq = 0;
+  const rows: ReturnType<typeof project>[] = [];
+  const A = "cA";
+  MONTHS.forEach((day, mi) => {
+    const iso = `${day}T00:00:00.000Z`;
+    const trendWins = mi < 3 ? 3 : 0;
+    for (let i = 0; i < 10; i++) {
+      rows.push(project(A, "Alpha", "VIDEO - LoFi", i < trendWins, [{ person: trendWriter, role: CW }], iso));
+      rows.push(project(A, "Alpha", "VIDEO - LoFi", i < 1, [{ person: peerWriter, role: CW }], iso));
+    }
+  });
+  // Finished five days before the pinned clock -> maturity ~0.14, so the window
+  // holding them must not be published yet.
+  for (let i = 0; i < 6; i++) {
+    rows.push(project(A, "Alpha", "VIDEO - LoFi", false, [{ person: trendWriter, role: CW }], "2026-06-10T00:00:00.000Z"));
+  }
+  // Sole contributor on their own client -> no independent baseline, so no
+  // headline index and no trend either.
+  for (let i = 0; i < 12; i++) {
+    rows.push(project("cB", "Beta", "VIDEO - LoFi", i < 2, [{ person: soloWriter, role: CW }], MONTHS[i % MONTHS.length] + "T00:00:00.000Z"));
+  }
+  return rows;
+}
+
+export const TREND_FIXTURE_NAMES = {
+  trend: trendWriter.name,
+  peer: peerWriter.name,
+  solo: soloWriter.name,
+};
 
 export const FIXTURE_NAMES = {
   star: star.name,

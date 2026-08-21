@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { SectionHeader } from "@/components/dashboard/SectionHeader";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { ROLE_LABELS } from "@/hooks/useWinnersData";
-import type { Contributor, ClientStat } from "@/hooks/useWinnersData";
+import type { Contributor, ClientStat, WindexTrendPoint } from "@/hooks/useWinnersData";
 
 interface Props {
   contributors: Contributor[];
@@ -26,13 +26,23 @@ function indexColor(pi: number | null): string {
   return "bg-red-500/15 text-red-400";
 }
 
-// Rolling-window sparkline. One AM quarter is 5-15 winners, so any single
-// index swings ±50 on noise alone — the shape across windows is the real
-// signal, and showing it stops a reader treating one point as a verdict.
-// Bars are centred on 100: above the midline is over-expectation, below is
-// under. Clamped to 0-200 so one 300 doesn't flatten the rest.
-function AmTrendSparkline({ series }: { series: NonNullable<Contributor["amTrend"]>["series"] }) {
-  const points = series.filter((s) => s.index !== null);
+// One bar of a rolling-window sparkline.
+interface SparkPoint {
+  label: string;
+  value: number | null; // index, or null for a window with no measurable work
+  emphasis?: boolean; // statistically unlikely to be noise
+  faint?: boolean; // window still settling — the value can still move
+  tooltip: string;
+}
+
+// Rolling-window sparkline, shared by the AM Book Trend and the craft-role W
+// Index trend. One window holds 5-15 winners, so any single index swings ±50 on
+// noise alone — the shape across windows is the real signal, and showing it
+// stops a reader treating one point as a verdict. Bars are centred on 100:
+// above the midline is over-expectation, below is under. Clamped so one 300
+// doesn't flatten the rest.
+function TrendSparkline({ series, ariaLabel }: { series: SparkPoint[]; ariaLabel: string }) {
+  const points = series.filter((s) => s.value !== null);
   if (points.length < 2) return null;
 
   // Scale, not size, was what made the first version illegible. Mapping the
@@ -50,21 +60,21 @@ function AmTrendSparkline({ series }: { series: NonNullable<Contributor["amTrend
       viewBox={`0 0 ${W} ${H}`}
       className="overflow-visible"
       role="img"
-      aria-label={`Book trend over the last ${points.length} windows: ${points.map((p) => `${p.label}: ${p.index}`).join(", ")}`}
+      aria-label={ariaLabel}
     >
       {/* The 100 line — expectation. Above/below it is the entire signal, so it
           has to stay legible at 20px tall; anything fainter disappears. */}
       <line x1={0} y1={MID} x2={W} y2={MID} className="stroke-muted-foreground/60" strokeWidth={1} />
       {series.map((s, i) => {
         const x = i * (bw + GAP);
-        if (s.index === null) {
+        if (s.value === null) {
           return (
             <rect key={i} x={x} y={MID - 0.75} width={bw} height={1.5} className="fill-muted-foreground/20">
-              <title>{`${s.label}: no data`}</title>
+              <title>{s.tooltip}</title>
             </rect>
           );
         }
-        const delta = s.index - 100;
+        const delta = s.value - 100;
         const clamped = Math.abs(delta) > DOMAIN;
         // Floor of 2px so "at expectation" still reads as a bar rather than
         // vanishing into the midline.
@@ -77,9 +87,13 @@ function AmTrendSparkline({ series }: { series: NonNullable<Contributor["amTrend
               y={up ? MID - h : MID}
               width={bw}
               height={h}
-              className={up ? "fill-emerald-400/85" : "fill-red-400/85"}
+              className={
+                s.faint
+                  ? up ? "fill-emerald-400/35" : "fill-red-400/35"
+                  : up ? "fill-emerald-400/85" : "fill-red-400/85"
+              }
             >
-              <title>{`${s.label}: ${s.index}${s.significant ? " ★" : ""}`}</title>
+              <title>{s.tooltip}</title>
             </rect>
             {/* Off-scale marker so a clamped bar isn't mistaken for the cap. */}
             {clamped && (
@@ -91,7 +105,7 @@ function AmTrendSparkline({ series }: { series: NonNullable<Contributor["amTrend
                 className={up ? "fill-emerald-200" : "fill-red-200"}
               />
             )}
-            {s.significant && (
+            {s.emphasis && (
               <circle cx={x + bw / 2} cy={up ? MID - h - 2.5 : MID + h + 2.5} r={1.4} className="fill-foreground/70" />
             )}
           </Fragment>
@@ -110,55 +124,79 @@ function AmTrendCell({ trend }: { trend: NonNullable<Contributor["amTrend"]> }) 
     );
   }
   const smallSample = trend.projects < 20;
-  const history = trend.series
-    .map((s) => `${s.label}: ${s.index ?? "n/a"}${s.significant ? " ★" : ""}`)
-    .join("\n");
   return (
-    <div className="flex items-center gap-2">
-      <div className="flex flex-col gap-0.5">
-        <span
-          className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-sm font-semibold w-fit ${indexColor(trend.index)}`}
-          title={`Book Trend: ${trend.scoreLabel} book scored against its own ${trend.baselineLabel} baseline (client difficulty cancels; agency-drift adjusted). ${trend.actual} winners on ${trend.projects} projects. ★ = unlikely to be noise.`}
-        >
-          {trend.index}
-          {trend.significant && <span>★</span>}
-        </span>
-        <span className="text-[10px] text-muted-foreground/70 px-1.5">
-          trend{smallSample ? " · thin" : ""}
-        </span>
-      </div>
-      <div title={`Rolling 3-month windows, oldest to newest:\n${history}`}>
-        <AmTrendSparkline series={trend.series} />
-      </div>
+    <div className="flex flex-col gap-0.5">
+      <span
+        className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-sm font-semibold w-fit ${indexColor(trend.index)}`}
+        title={`Book Trend: ${trend.scoreLabel} book scored against its own ${trend.baselineLabel} baseline (client difficulty cancels; agency-drift adjusted). ${trend.actual} winners on ${trend.projects} projects. ★ = unlikely to be noise.`}
+      >
+        {trend.index}
+        {trend.significant && <span>★</span>}
+      </span>
+      <span className="text-[10px] text-muted-foreground/70 px-1.5">
+        trend{smallSample ? " · thin" : ""}
+      </span>
     </div>
   );
 }
 
-function clientRateColor(rate: number): string {
-  if (rate > 0.04) return "bg-emerald-500";
-  if (rate > 0.025) return "bg-yellow-500";
-  if (rate > 0.015) return "bg-orange-500";
-  if (rate > 0) return "bg-red-500";
-  return "bg-muted-foreground/40";
-}
+// The Trend column. Both series answer the same question — is this person
+// winning more or less than they used to — so they share one column and one
+// visual language even though they are built differently underneath.
+function TrendCell({ c }: { c: Contributor }) {
+  if (c.amTrend) {
+    const series: SparkPoint[] = c.amTrend.series.map((s) => ({
+      label: s.label,
+      value: s.index,
+      emphasis: s.significant,
+      tooltip: s.index === null ? `${s.label}: no data` : `${s.label}: ${s.index}${s.significant ? " ★" : ""}`,
+    }));
+    const history = c.amTrend.series
+      .map((s) => `${s.label}: ${s.index ?? "n/a"}${s.significant ? " ★" : ""}`)
+      .join("\n");
+    return (
+      <div title={`Book trend, rolling 3-month windows, oldest to newest:\n${history}`}>
+        <TrendSparkline
+          series={series}
+          ariaLabel={`Book trend across ${series.length} rolling windows: ${series
+            .filter((s) => s.value !== null)
+            .map((s) => `${s.label}: ${s.value}`)
+            .join(", ")}`}
+        />
+      </div>
+    );
+  }
 
-function ClientMixBar({ breakdown, total }: { breakdown: Record<string, { total: number; clientRate: number }>; total: number }) {
-  const entries = Object.entries(breakdown).sort((a, b) => b[1].total - a[1].total);
+  const trend = c.windexTrend;
+  if (!trend || trend.filter((p) => p.adjIndex !== null).length < 2) {
+    return (
+      <span className="text-muted-foreground/50 text-xs" title="Not enough completed work across windows to plot a trend.">
+        —
+      </span>
+    );
+  }
+  const series: SparkPoint[] = trend.map((p) => ({
+    label: p.label,
+    value: p.adjIndex,
+    faint: p.settling,
+    tooltip: describeTrendPoint(p),
+  }));
   return (
-    <div className="flex h-4 w-full min-w-[100px] max-w-[180px] overflow-hidden rounded-sm" title="Client mix">
-      {entries.map(([name, data]) => {
-        const pct = (data.total / total) * 100;
-        return (
-          <div
-            key={name}
-            className={`${clientRateColor(data.clientRate)} opacity-80`}
-            style={{ width: `${pct}%`, minWidth: pct > 0 ? "2px" : 0 }}
-            title={`${name}: ${data.total} projects (${(data.clientRate * 100).toFixed(0)}% client rate)`}
-          />
-        );
-      })}
+    <div title={`Rolling 3-month W Index (noise-adjusted), oldest to newest:\n${trend.map(describeTrendPoint).join("\n")}`}>
+      <TrendSparkline
+        series={series}
+        ariaLabel={`W Index across ${series.length} rolling 3-month windows: ${series
+          .filter((s) => s.value !== null)
+          .map((s) => `${s.label}: ${s.value}`)
+          .join(", ")}`}
+      />
     </div>
   );
+}
+
+function describeTrendPoint(p: WindexTrendPoint): string {
+  if (p.adjIndex === null) return `${p.label}: no measurable work`;
+  return `${p.label}: ${p.adjIndex} (raw ${p.index}) — ${p.winners} winner${p.winners === 1 ? "" : "s"} on ${p.projects} ad${p.projects === 1 ? "" : "s"}, ${p.expected.toFixed(1)} expected${p.settling ? " · still settling" : ""}`;
 }
 
 const ROLE_ORDER = ["11", "1", "6", "8", "9"]; // CW, VE, GD, AM, CD
@@ -198,6 +236,13 @@ function RoleTable({ roleId, contributors }: { roleId: string; contributors: Con
   const [sortKey, setSortKey] = useState<"pi" | "winners" | "projects">("pi");
   const sorted = useMemo(() => sortContributors(contributors, sortKey), [contributors, sortKey]);
 
+  // Every contributor shares one window list, so the first non-empty one names
+  // the span for the whole table.
+  const trendSpan = useMemo(() => {
+    const t = contributors.find((c) => c.windexTrend?.length)?.windexTrend;
+    return t && t.length > 1 ? { first: t[0].label, last: t[t.length - 1].label } : null;
+  }, [contributors]);
+
   if (contributors.length === 0) return null;
 
   return (
@@ -216,13 +261,22 @@ function RoleTable({ roleId, contributors }: { roleId: string; contributors: Con
           {sorted[0]?.amTrend?.series.length ?? 5} rolling windows: read the shape, not the number.
         </p>
       )}
+      {roleId !== "8" && trendSpan && (
+        <p className="text-xs text-muted-foreground px-1 -mt-1">
+          <span className="font-medium">Trend</span> is the same W Index cut into rolling 3-month
+          windows of completed work, {trendSpan.first} through {trendSpan.last}. A window holding
+          only a few ads is pulled toward 100, because one ad and no winner is not yet a bad month.
+          The more work in a window, the closer its bar sits to the raw ratio. The windows stop
+          short of this month because a winner tag lands about two months after the work ships, and
+          a faded bar means that window can still move.
+        </p>
+      )}
       <div className="rounded-lg border border-border/50 bg-card/50 backdrop-blur-sm overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead className="w-8"></TableHead>
               <TableHead>Name</TableHead>
-              <TableHead>Client Mix</TableHead>
               <TableHead className="cursor-pointer hover:text-foreground" onClick={() => setSortKey("projects")}>
                 Ads{sortKey === "projects" ? " ↓" : ""}
               </TableHead>
@@ -230,8 +284,11 @@ function RoleTable({ roleId, contributors }: { roleId: string; contributors: Con
                 Winners{sortKey === "winners" ? " ↓" : ""}
               </TableHead>
               <TableHead>Expected</TableHead>
-              <TableHead className="cursor-pointer hover:text-foreground" onClick={() => setSortKey("pi")} title="Raw W Index (actual ÷ expected winners), with the shrunk, noise-adjusted value below. ★ = difference from 100 is unlikely to be noise (~90% confidence).">
+              <TableHead className="cursor-pointer hover:text-foreground" onClick={() => setSortKey("pi")} title="Raw W Index (actual ÷ expected winners). The adj value below is the same index with small samples pulled toward 100, so a lucky 2-of-3 doesn't outrank a proven 20-of-160. ★ = difference from 100 is unlikely to be noise (~90% confidence).">
                 W Index{sortKey === "pi" ? " ↓" : ""}
+              </TableHead>
+              <TableHead title="W Index over rolling 3-month windows of completed work, oldest to newest. Bars run up from the 100 line when the person beat expectation in that window and down when they missed it. Hover a bar for its numbers.">
+                Trend
               </TableHead>
               <TableHead>Win %</TableHead>
             </TableRow>
@@ -285,9 +342,6 @@ function RoleTable({ roleId, contributors }: { roleId: string; contributors: Con
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell>
-                      <ClientMixBar breakdown={c.clientBreakdown} total={c.totalProjects} />
-                    </TableCell>
                     <TableCell>{adsDisplay}</TableCell>
                     <TableCell>{winnersDisplay}</TableCell>
                     <TableCell>
@@ -312,12 +366,15 @@ function RoleTable({ roleId, contributors }: { roleId: string; contributors: Con
                             )}
                           </span>
                           {!insufficientData && c.shrunkIndex !== null && (
-                            <span className="text-[10px] text-muted-foreground/70 px-1.5" title="Noise-adjusted (shrunk toward 100 for small samples)">
+                            <span className="text-[10px] text-muted-foreground/70 px-1.5" title="The same index with small samples pulled toward 100, so a thin book can't outrank a proven one">
                               adj: {c.shrunkIndex}
                             </span>
                           )}
                         </div>
                       )}
+                    </TableCell>
+                    <TableCell>
+                      <TrendCell c={c} />
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
                       {(winRateDisplay * 100).toFixed(1)}%
@@ -394,6 +451,51 @@ function RoleTable({ roleId, contributors }: { roleId: string; contributors: Con
                   {isExpanded && !amWindow && (
                     <TableRow>
                       <TableCell colSpan={8} className="bg-muted/20 px-8 py-3">
+                        {c.windexTrend && c.windexTrend.length > 1 && (
+                          <div className="mb-4">
+                            <p className="text-[11px] text-muted-foreground mb-1">
+                              By window — the bars in the Trend column, as numbers. Adj is what the
+                              bar plots: the index with thin windows pulled toward 100, so a single
+                              ad can't read as a verdict.
+                            </p>
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="text-muted-foreground">
+                                  <th className="text-left py-1 pr-4">Window</th>
+                                  <th className="text-left py-1 pr-4">Ads</th>
+                                  <th className="text-left py-1 pr-4">Winners</th>
+                                  <th className="text-left py-1 pr-4">Expected</th>
+                                  <th className="text-left py-1 pr-4">Index</th>
+                                  <th className="text-left py-1">Adj</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {c.windexTrend.map((p) => (
+                                  <tr key={p.label} className={p.settling ? "opacity-60" : undefined}>
+                                    <td className="py-1 pr-4 font-medium whitespace-nowrap">
+                                      {p.label}
+                                      {p.settling && (
+                                        <span className="ml-1.5 text-amber-400/90" title="Some work in this window hasn't had time to be tagged yet, so the value can still move.">
+                                          settling
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className="py-1 pr-4">{p.projects}</td>
+                                    <td className="py-1 pr-4">{p.winners}</td>
+                                    <td className="py-1 pr-4">{p.expected.toFixed(1)}</td>
+                                    <td className="py-1 pr-4">{p.index ?? "—"}</td>
+                                    <td className={`py-1 font-medium ${p.adjIndex === null ? "text-muted-foreground" : p.adjIndex >= 100 ? "text-emerald-400" : "text-red-400"}`}>
+                                      {p.adjIndex ?? "—"}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                        <p className="text-[11px] text-muted-foreground mb-1">
+                          By client — all-time, and where the headline index comes from.
+                        </p>
                         <table className="w-full text-xs">
                           <thead>
                             <tr className="text-muted-foreground">
