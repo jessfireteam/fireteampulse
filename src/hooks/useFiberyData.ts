@@ -203,7 +203,7 @@ export const EXCLUDED_MEMBERS = new Set(['riteesh@fireteam.is']);
 // Keys are the Fibery user display name (`user/name`), NOT the email — that's
 // what the edge function returns as `assignee.name`. Keep in sync with Fibery
 // display names; if a teammate is renamed there, update here too.
-const ROLE_ASSIGNMENTS: Record<string, { role: RoleType; primaryTaskType: string }[]> = {
+export const ROLE_ASSIGNMENTS: Record<string, { role: RoleType; primaryTaskType: string }[]> = {
   // Account
   'Niki Brazier': [{ role: 'Account', primaryTaskType: 'Briefs Sent' }, { role: 'AM Review', primaryTaskType: 'Creative Review' }],
   'Emily Peter': [{ role: 'Account', primaryTaskType: 'Briefs Sent' }, { role: 'AM Review', primaryTaskType: 'Creative Review' }],
