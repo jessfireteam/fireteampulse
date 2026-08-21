@@ -94,6 +94,25 @@ export interface AmTrendClient {
   baselineWinners: number;
 }
 
+// One rolling window of a contributor's W Index. The windows are the same for
+// every contributor in the table (see publishableTrendWindows) so the bars line
+// up across rows and can be read down a column.
+export interface WindexTrendPoint {
+  label: string; // e.g. "Apr '26–Jun '26"
+  projects: number; // the person's own projects completed in the window
+  winners: number;
+  expected: number;
+  index: number | null; // raw actual ÷ expected
+  // Shrunk toward 100 exactly like the headline `shrunkIndex`. This is what the
+  // sparkline plots: one window holds ~5-9 expected winners for a busy editor
+  // and under 1 for a light one, so the raw ratio produces 600s off a single
+  // lucky tag. Shrinkage is what makes the windows comparable to each other.
+  adjIndex: number | null;
+  // The window still has projects whose winner tags haven't landed yet, so it
+  // can move. Rendered fainter.
+  settling: boolean;
+}
+
 export interface Contributor {
   name: string;
   role: string;
@@ -121,6 +140,11 @@ export interface Contributor {
   clientBreakdown: Record<string, ClientBreakdown>;
   // Populated only for Account Managers (rolePublicId "8"); see AmTrend.
   amTrend?: AmTrend;
+  // Rolling W Index history, oldest window first. Present only when the
+  // headline index is measurable — a trend built on the same sliver that makes
+  // the headline "n/a" would be worse, not better. Undefined for AMs, who have
+  // their own Book Trend series.
+  windexTrend?: WindexTrendPoint[];
 }
 
 export interface MonthlyWinners {
@@ -259,6 +283,74 @@ const AM_TREND_SERIES_WINDOWS = 5;
 // baseline is thin (or missing — new clients fall back to the agency rate).
 const AM_TREND_SHRINK = 15;
 const AM_ROLE_ID = "8";
+
+// ---------------------------------------------------------------------------
+// Craft-role W Index trend (VE / GD / CW)
+// ---------------------------------------------------------------------------
+// Same construction as the headline index — the person's winners against a
+// leave-one-out client baseline — but with THEIR side of the ratio cut into
+// trailing done-date windows. The client baselines stay frozen over the whole
+// tracked period, so the windows decompose the headline number by time instead
+// of being a second, differently-built metric. (Windowing the baseline too
+// would mean scoring a person against ~their own peers' 3 months of work, which
+// is too thin to be a baseline.)
+const TREND_WINDOW_MONTHS = 3;
+// A window is only published once the work in it has had time to be tagged.
+// Winner tags arrive in a monthly batch, median 65 days after creation, so a
+// window measured as 63% matured (Jun–Aug on 2026-08-21) reads as a spike
+// rather than a result: the tagged winners count in full while the untagged
+// denominator is discounted. Gate on measured maturity rather than a fixed
+// month lag so the newest window appears as soon as it can be read (about
+// three weeks after the month closes) instead of on a guessed schedule.
+const TREND_MIN_MATURITY = 0.85;
+// Above this, less than a twentieth of the window's expectation is still
+// pending, which is close enough that flagging it would cry wolf every month.
+const TREND_SETTLED_MATURITY = 0.95;
+
+export interface TrendWindow {
+  start: number; // inclusive month index
+  end: number; // inclusive month index
+  label: string;
+  settling: boolean;
+}
+
+// The shared x-axis for every contributor sparkline: trailing
+// TREND_WINDOW_MONTHS-month windows stepped one month at a time, oldest first,
+// dropping the newest ones until the work in them is mature enough to read.
+export function publishableTrendWindows(
+  completed: WinnersProject[],
+  nowMs: number
+): TrendWindow[] {
+  const count = new Map<number, number>();
+  const weight = new Map<number, number>();
+  completed.forEach((p) => {
+    const idx = trendMonthIndex(p);
+    if (idx === null) return;
+    count.set(idx, (count.get(idx) ?? 0) + 1);
+    weight.set(idx, (weight.get(idx) ?? 0) + maturityWeight(daysSinceDone(p, nowMs)));
+  });
+
+  const firstEnd = monthIndexOfISO(WINNERS_TRACKING_START) + TREND_WINDOW_MONTHS - 1;
+  const out: TrendWindow[] = [];
+  for (let end = firstEnd; end <= monthIndexNow(nowMs); end++) {
+    let n = 0;
+    let w = 0;
+    for (let m = end - (TREND_WINDOW_MONTHS - 1); m <= end; m++) {
+      n += count.get(m) ?? 0;
+      w += weight.get(m) ?? 0;
+    }
+    if (n === 0) continue;
+    const maturity = w / n;
+    if (maturity < TREND_MIN_MATURITY) continue;
+    out.push({
+      start: end - (TREND_WINDOW_MONTHS - 1),
+      end,
+      label: `${labelForMonthIndex(end - (TREND_WINDOW_MONTHS - 1))}–${labelForMonthIndex(end)}`,
+      settling: maturity < TREND_SETTLED_MATURITY,
+    });
+  }
+  return out;
+}
 
 function getWinnerDate(project: WinnersProject): string | null {
   for (const version of project.internalVersions ?? []) {
@@ -598,6 +690,9 @@ export function processWinnersData(
     bucket: "overall" | "video" | "static";
     // client_id -> own weighted agg + client name + all-project counts
     perClient: Record<string, { clientName: string; own: WeightedAgg; total: number; winners: number }>;
+    // One row per project, kept so the same aggregates can be re-cut by
+    // done-month for the trend series.
+    entries: Array<{ month: number; clientId: string; weight: number; win: boolean }>;
     // recent (last-90d by doneDate) descriptive counts
     recentProjects: number;
     recentWinners: number;
@@ -619,6 +714,7 @@ export function processWinnersData(
     type,
     bucket: bucketForRole(roleId),
     perClient: {},
+    entries: [],
     recentProjects: 0,
     recentWinners: 0,
     recentWeight: 0,
@@ -633,6 +729,8 @@ export function processWinnersData(
   ) => {
     const cid = project.client?.id ?? "unknown";
     const cn = project.client?.name ?? "Unknown";
+    const month = trendMonthIndex(project);
+    if (month !== null) c.entries.push({ month, clientId: cid, weight, win: isWin });
     if (!c.perClient[cid]) c.perClient[cid] = { clientName: cn, own: newAgg(), total: 0, winners: 0 };
     const pc = c.perClient[cid];
     pc.own.weightSum += weight;
@@ -689,6 +787,9 @@ export function processWinnersData(
   // AM Book-Trend index (fixed rolling windows, independent of dateFilter).
   const amTrendMap = computeAmTrend(projects, retiredClients, nowMs);
 
+  // Shared window list for the craft-role trend sparklines.
+  const trendWindows = publishableTrendWindows(filtered.filter(isProjectComplete), nowMs);
+
   // Step 4: Finalize each contributor with leave-one-out baselines, EB
   // shrinkage, and a significance flag.
   const contributors: Contributor[] = Object.values(contributorsMap).map((c) => {
@@ -701,6 +802,8 @@ export function processWinnersData(
     let totalWinners = 0;
 
     const clientBreakdown: Record<string, ClientBreakdown> = {};
+    // Frozen leave-one-out baseline per client, reused by the trend windows.
+    const baselineByClient = new Map<string, number>();
 
     Object.entries(c.perClient).forEach(([cid, pc]) => {
       totalProjects += pc.total;
@@ -725,6 +828,7 @@ export function processWinnersData(
           baseline = Math.max(0, looWinners / looWeight);
           expectedC = baseline * pc.own.weightSum;
           measurable = true;
+          baselineByClient.set(cid, baseline);
           expected += expectedC;
           measurableActual += pc.winners;
           measurableWeight += pc.own.weightSum;
@@ -768,10 +872,44 @@ export function processWinnersData(
       significant = Math.abs(z) >= SIGNIFICANCE_Z;
     }
 
+    const avgBaselineAll = measurableWeight > 1e-6 ? expected / measurableWeight : 0;
+
+    // Rolling W Index history. Projects on clients with no independent baseline
+    // are skipped here exactly as they are in the headline, so the windows and
+    // the headline are the same measurement over different slices of time.
+    let windexTrend: WindexTrendPoint[] | undefined;
+    if (hasCoverage && c.rolePublicId !== AM_ROLE_ID) {
+      const prior = SHRINK_STRENGTH * avgBaselineAll;
+      windexTrend = trendWindows.map((w) => {
+        let wExpected = 0;
+        let wWinners = 0;
+        let wProjects = 0;
+        c.entries.forEach((e) => {
+          if (e.month < w.start || e.month > w.end) return;
+          const baseline = baselineByClient.get(e.clientId);
+          if (baseline === undefined) return;
+          wExpected += baseline * e.weight;
+          wProjects += 1;
+          if (e.win) wWinners += 1;
+        });
+        const usable = wExpected > 1e-6;
+        return {
+          label: w.label,
+          projects: wProjects,
+          winners: wWinners,
+          expected: wExpected,
+          index: usable ? Math.round((wWinners / wExpected) * 100) : null,
+          adjIndex: usable
+            ? Math.round(((wWinners + prior) / (wExpected + prior)) * 100)
+            : null,
+          settling: w.settling,
+        };
+      });
+    }
+
     // Recent (90d) index — kept for continuity; baselined the same way but at
     // the portfolio-average rate (recent samples are too thin per client for
     // per-client LOO). Deprecated in the UI in favor of the shrunk index.
-    const avgBaselineAll = measurableWeight > 1e-6 ? expected / measurableWeight : 0;
     const recentExpected = c.recentWeight * avgBaselineAll;
     const recentPerformanceIndex =
       recentExpected > 1e-6 ? Math.round((c.recentWinners / recentExpected) * 100) : null;
@@ -795,6 +933,7 @@ export function processWinnersData(
       recentPerformanceIndex,
       clientBreakdown,
       amTrend: c.rolePublicId === AM_ROLE_ID ? amTrendMap.get(c.personId) : undefined,
+      windexTrend,
     };
   });
 

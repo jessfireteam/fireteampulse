@@ -1,7 +1,12 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { processWinnersData } from "@/hooks/useWinnersData";
-import { buildFixtureProjects } from "@/hooks/useWinnersData.fixture";
+import {
+  buildFixtureProjects,
+  buildTrendFixtureProjects,
+  TREND_FIXTURE_NAMES,
+  TREND_FIXTURE_NOW,
+} from "@/hooks/useWinnersData.fixture";
 import { ContributorTable } from "./ContributorTable";
 import { WinnersSummary } from "./WinnersSummary";
 import type { Contributor } from "@/hooks/useWinnersData";
@@ -82,7 +87,7 @@ describe("Winners UI renders", () => {
     expect(screen.getByText(/completed in/i)).toBeTruthy();
     // The rolling-window sparkline renders, with a bar per window (the null
     // window included, drawn flat on the midline).
-    const spark = screen.getByRole("img", { name: /Book trend over the last/i });
+    const spark = screen.getByRole("img", { name: /Book trend across/i });
     // One bar per window; the null window draws a flat marker on the midline.
     expect(spark.querySelectorAll("rect").length).toBe(5);
   });
@@ -113,9 +118,69 @@ describe("Winners UI renders", () => {
     expect(caption).toContain("Nov '25–Feb '26");
   });
 
+  it("drops the client-mix column in favour of the trend column", () => {
+    render(<ContributorTable contributors={data.contributors} clientStats={data.clientStats} />);
+    expect(screen.queryByText("Client Mix")).toBeNull();
+    expect(screen.getAllByText("Trend").length).toBeGreaterThan(0);
+  });
+
   it("WinnersSummary mounts and names a top performer with an adjusted index", () => {
     render(<WinnersSummary data={data} contributors={data.contributors} />);
     expect(screen.getByText("Top Performer")).toBeTruthy();
     expect(screen.getAllByText(/W Index .*adj/).length).toBeGreaterThan(0);
+  });
+});
+
+// A craft-role row's Trend column is a hand-rolled SVG, so a mount test is the
+// only thing that catches a shape mistake before it white-screens the page.
+describe("craft-role W Index trend renders", () => {
+  beforeAll(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(TREND_FIXTURE_NOW));
+  });
+  afterAll(() => {
+    vi.useRealTimers();
+  });
+
+  const trendData = () => processWinnersData(buildTrendFixtureProjects(), "all", new Set<string>());
+
+  it("draws a bar per published window and names the span above the table", () => {
+    const d = trendData();
+    render(<ContributorTable contributors={d.contributors} clientStats={d.clientStats} />);
+    const spark = screen.getAllByRole("img", { name: /W Index across/i })[0];
+    const windows = d.contributors.find((c) => c.name === TREND_FIXTURE_NAMES.trend)!.windexTrend!;
+    expect(spark.querySelectorAll("rect").length).toBeGreaterThanOrEqual(windows.length);
+    // The window span is stated once for the table rather than per row.
+    expect(screen.getByText(/rolling 3-month/i).textContent).toContain("Sep '25–Nov '25");
+    expect(screen.getByText(/rolling 3-month/i).textContent).toContain("Mar '26–May '26");
+  });
+
+  it("expanding a row shows the windows as numbers that match the bars", () => {
+    const d = trendData();
+    render(<ContributorTable contributors={d.contributors} clientStats={d.clientStats} />);
+    fireEvent.click(screen.getByText(TREND_FIXTURE_NAMES.trend).closest("tr")!);
+
+    const table = screen.getByText("Sep '25–Nov '25").closest("table")!;
+    // `tbody tr` would also match this table's header row: the selector is
+    // resolved against the document and only then filtered to descendants, and
+    // the whole table sits inside the outer shadcn <tbody>. Filter on cells.
+    const rows = [...table.querySelectorAll("tr")]
+      .map((tr) => [...tr.querySelectorAll("td")].map((td) => td.textContent))
+      .filter((row) => row.length > 0);
+    // Window, ads, winners, expected, raw index, adjusted index.
+    expect(rows[0]).toEqual(["Sep '25–Nov '25", "30", "9", "3.0", "300", "220"]);
+    expect(rows[rows.length - 1]).toEqual(["Mar '26–May '26", "10", "0", "1.0", "0", "67"]);
+    // The all-time per-client breakdown is still there below it.
+    expect(screen.getAllByText("Delta").length).toBeGreaterThan(0);
+  });
+
+  it("shows a dash, not an empty cell, when there is no measurable trend", () => {
+    const d = trendData();
+    const solo = d.contributors.find((c) => c.name === TREND_FIXTURE_NAMES.solo)!;
+    render(<ContributorTable contributors={[solo]} clientStats={d.clientStats} />);
+    // The Expected column also renders an em dash, so identify the trend cell
+    // by its explanation rather than by the glyph.
+    const cell = screen.getByTitle(/Not enough completed work across windows/i);
+    expect(cell.textContent).toBe("\u2014");
   });
 });
