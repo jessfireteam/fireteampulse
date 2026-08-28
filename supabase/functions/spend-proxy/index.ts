@@ -57,7 +57,12 @@ const ALLOWED_EMAIL_DOMAIN = '@fireteam.is'
 const MACHINE_TOKEN_SHA256 =
   '7c82805b8781faff3c0afbd4463cc753e3c3503d0d708032824ec1b776b2acc6'
 
-const REST_TABLES = new Set(['fb_ad_spend', 'account_client', 'fb_ad_creative'])
+const REST_TABLES = new Set([
+  'fb_ad_spend',       // Pulse Movement, friday-flashback, buddy-spend
+  'account_client',    // Pulse Movement (account_id → client map)
+  'fb_ad_creative',    // Pulse Movement (thumbnail path lookup)
+  'client_daily_spend' // buddy-spend (per-client-per-day aggregate view)
+])
 const RPC_FUNCTIONS = new Set([
   'get_monthly_spend_by_client',
   'get_monthly_fee_by_client',
