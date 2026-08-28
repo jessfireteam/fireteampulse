@@ -1,9 +1,34 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
-// FB Ads Supabase project — read-only anon key (public, safe to include here)
-// Project: ojqdhqbynccwgowbzhir (Facebook ad spend data)
-const FB_ADS_SUPABASE_URL = 'https://ojqdhqbynccwgowbzhir.supabase.co'
-const FB_ADS_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qcWRocWJ5bmNjd2dvd2J6aGlyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwOTU1MzYsImV4cCI6MjA5MzY3MTUzNn0.nuN06cCiUSvbjco5ZH8Ka1D9WJBK43zlHH1O0R26QYQ'
+// FB Ads Supabase project (ojqdhqbynccwgowbzhir). Anonymous access to it was
+// revoked 2026-08-28; reads go through its spend-proxy edge function, which
+// re-verifies the caller's JWT we forward. See supabase/functions/spend-proxy.
+const SPEND_PROXY_URL = 'https://ojqdhqbynccwgowbzhir.supabase.co/functions/v1/spend-proxy'
+
+// Calls one of spend-proxy's whitelisted read-only RPCs, forwarding the JWT of
+// the user this request is being served for. Mirrors supabase-js's rpc()
+// return shape so the call sites read the same as they did with a direct client.
+async function spendProxyRpc(
+  fn: string,
+  args: Record<string, number>,
+  authHeader: string,
+): Promise<{ data: unknown; error: { message: string } | null }> {
+  try {
+    const res = await fetch(`${SPEND_PROXY_URL}/rpc/${fn}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: authHeader },
+      body: JSON.stringify(args),
+    })
+    if (!res.ok) {
+      const detail = (await res.text()).slice(0, 120)
+      return { data: null, error: { message: `spend-proxy ${fn}: ${res.status} ${detail}` } }
+    }
+    return { data: await res.json(), error: null }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    return { data: null, error: { message: `spend-proxy ${fn} unreachable: ${message}` } }
+  }
+}
 
 // Allowed origins for CORS - restrict to known domains
 const ALLOWED_ORIGINS = [
@@ -312,9 +337,8 @@ Deno.serve(async (req) => {
     // is sparsely populated and misses most clients. Supabase has full history.
     if (queryType === 'client-weeks') {
       try {
-        const fbClient = createClient(FB_ADS_SUPABASE_URL, FB_ADS_ANON_KEY)
-        const { data: weekRows, error: weekError } = await fbClient
-          .rpc('get_weekly_spend_by_client', { weeks_back: 12 })
+        const { data: weekRows, error: weekError } = await spendProxyRpc(
+          'get_weekly_spend_by_client', { weeks_back: 12 }, authHeader)
 
         if (weekError) {
           console.error('Weekly spend fetch error:', weekError.message)
@@ -414,10 +438,9 @@ Deno.serve(async (req) => {
       let spendLookup: Record<string, { total_spend: number; ft_spend: number }> = {}
       let feeLookup: Record<string, number> = {}
       try {
-        const fbClient = createClient(FB_ADS_SUPABASE_URL, FB_ADS_ANON_KEY)
         const [spendResult, feeResult] = await Promise.all([
-          fbClient.rpc('get_monthly_spend_by_client', { months_back: 7 }),
-          fbClient.rpc('get_monthly_fee_by_client', { months_back: 7 }),
+          spendProxyRpc('get_monthly_spend_by_client', { months_back: 7 }, authHeader),
+          spendProxyRpc('get_monthly_fee_by_client', { months_back: 7 }, authHeader),
         ])
         if (spendResult.error) {
           console.error('FB Ads spend fetch error:', spendResult.error.message)

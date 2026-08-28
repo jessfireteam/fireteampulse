@@ -2,3 +2,10 @@ project_id = "bmuqjchslhgnxgiugoyx"
 
 [functions.fibery-proxy]
 verify_jwt = false
+
+# spend-proxy deploys to the FB Ads project (ojqdhqbynccwgowbzhir), NOT to
+# this project — pass --project-ref explicitly. verify_jwt must stay false:
+# callers present fireteam-pulse JWTs, which that gateway cannot verify;
+# the function verifies them in code. See its header comment.
+[functions.spend-proxy]
+verify_jwt = false
