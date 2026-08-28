@@ -11,12 +11,18 @@
  * Fetched separately from the spend rows rather than folded into
  * `useMovementData`, so the numbers paint immediately and the images fill in.
  * Spend is the thing being read; a thumbnail arriving 200ms later costs nothing.
+ *
+ * The `fb_ad_creative` lookup goes through spend-proxy (JWT-gated) since direct
+ * anon access to the FB Ads project was revoked; the resolved images still load
+ * straight from that project's PUBLIC `ad-thumbnails` bucket, which is a public
+ * image CDN by design and unaffected by the table/RPC lockdown.
  */
+import { spendFetch, spendRestUrl, SPEND_PROXY_BASE } from "./spendClient";
 
-const URL_BASE = import.meta.env.VITE_SPEND_SUPABASE_URL;
-const KEY = import.meta.env.VITE_SPEND_SUPABASE_KEY;
-
-const PUBLIC_BUCKET = `${URL_BASE}/storage/v1/object/public/ad-thumbnails`;
+// Origin of the FB Ads project, derived from the proxy URL, for building the
+// public bucket image URLs (these are `<img>` srcs, not proxied reads).
+const FB_ADS_ORIGIN = new URL(SPEND_PROXY_BASE).origin;
+const PUBLIC_BUCKET = `${FB_ADS_ORIGIN}/storage/v1/object/public/ad-thumbnails`;
 
 /**
  * Ad ids per request. PostgREST takes the id list in the query string and
@@ -42,7 +48,7 @@ interface CreativeRow {
  */
 export async function fetchThumbnails(adIds: string[]): Promise<Map<string, string>> {
   const out = new Map<string, string>();
-  if (!URL_BASE || !KEY || adIds.length === 0) return out;
+  if (adIds.length === 0) return out;
 
   const unique = [...new Set(adIds)];
   const chunks: string[][] = [];
@@ -53,14 +59,15 @@ export async function fetchThumbnails(adIds: string[]): Promise<Map<string, stri
     for (;;) {
       const chunk = chunks[next++];
       if (!chunk) return;
-      const url =
-        `${URL_BASE}/rest/v1/fb_ad_creative` +
+      const url = spendRestUrl(
+        "fb_ad_creative",
         `?select=ad_id,thumb_path&thumb_path=not.is.null` +
-        `&ad_id=in.(${chunk.join(",")})`;
-      const res = await fetch(url, { headers: { apikey: KEY, Authorization: `Bearer ${KEY}` } });
+          `&ad_id=in.(${chunk.join(",")})`
+      );
       // A thumbnail is decoration. If the lookup fails the page still reports
       // the spend correctly, so this must never surface as a page-level error.
-      if (!res.ok) continue;
+      const res = await spendFetch(url).catch(() => null);
+      if (!res || !res.ok) continue;
       for (const row of (await res.json()) as CreativeRow[]) {
         if (row.thumb_path) out.set(row.ad_id, `${PUBLIC_BUCKET}/${row.thumb_path}`);
       }

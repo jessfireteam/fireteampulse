@@ -3,10 +3,10 @@
  * Supabase project from the rest of Pulse.
  *
  * It is the table the daily `fb-spend-daily-pull` n8n workflow writes and that
- * friday-flashback already reads. Access is the publishable (anon) key against
- * an `anon_read_fb_ad_spend` SELECT policy — read-only, no write power, safe in
- * the bundle. That is why this page needs no serverless function and Pulse
- * stays the pure client-side app it is.
+ * friday-flashback also reads. Direct anon access to that project was revoked
+ * 2026-08-28 (the anon key shipped in this bundle and read per-client spend for
+ * the whole roster), so reads now go through its `spend-proxy` edge function,
+ * which checks the caller's Pulse session JWT. See ./spendClient.
  *
  * PAGES GO OUT IN PARALLEL, AND THAT IS THE WHOLE PERFORMANCE STORY.
  * PostgREST caps a page at 1000 rows and silently clips anything larger, so two
@@ -16,9 +16,7 @@
  * Measured against production: 7.54s sequential, 1.79s at six in flight, 1.69s
  * at twelve. Eight is the middle of that plateau.
  */
-
-const URL_BASE = import.meta.env.VITE_SPEND_SUPABASE_URL;
-const KEY = import.meta.env.VITE_SPEND_SUPABASE_KEY;
+import { spendFetch, spendRestUrl } from "./spendClient";
 
 const PAGE = 1000; // PostgREST max-rows; larger pages are silently clipped
 const IN_FLIGHT = 8;
@@ -33,42 +31,34 @@ export interface SpendRow {
   spend: number | null;
 }
 
-function headers(extra: Record<string, string> = {}): Record<string, string> {
-  if (!URL_BASE || !KEY) {
-    throw new Error(
-      "VITE_SPEND_SUPABASE_URL and VITE_SPEND_SUPABASE_KEY must be set to read ad spend"
-    );
-  }
-  return { apikey: KEY, Authorization: `Bearer ${KEY}`, ...extra };
-}
-
 function range(start: string, end: string): string {
   return `report_date=gte.${start}&and=(report_date.lte.${end})`;
 }
 
 /** The newest date that actually has rows. Never compute the window from today. */
 export async function latestReportDate(): Promise<string | null> {
-  const url =
-    `${URL_BASE}/rest/v1/fb_ad_spend` +
-    `?select=report_date&order=report_date.desc&limit=1`;
-  const res = await fetch(url, { headers: headers() });
+  const url = spendRestUrl(
+    "fb_ad_spend",
+    `?select=report_date&order=report_date.desc&limit=1`
+  );
+  const res = await spendFetch(url);
   if (!res.ok) throw new Error(`fb_ad_spend unreachable (${res.status})`);
   const rows = (await res.json()) as { report_date: string }[];
   return rows.length ? rows[0].report_date : null;
 }
 
 export async function accountMap(): Promise<Map<string, string>> {
-  const url = `${URL_BASE}/rest/v1/account_client?select=account_id,client`;
-  const res = await fetch(url, { headers: headers() });
+  const url = spendRestUrl("account_client", `?select=account_id,client`);
+  const res = await spendFetch(url);
   if (!res.ok) throw new Error(`account_client unreachable (${res.status})`);
   const rows = (await res.json()) as { account_id: string; client: string }[];
   return new Map(rows.map((r) => [r.account_id, r.client]));
 }
 
 async function countRows(start: string, end: string): Promise<number> {
-  const url = `${URL_BASE}/rest/v1/fb_ad_spend?select=id&${range(start, end)}`;
-  const res = await fetch(url, {
-    headers: headers({ Prefer: "count=exact", "Range-Unit": "items", Range: "0-0" }),
+  const url = spendRestUrl("fb_ad_spend", `?select=id&${range(start, end)}`);
+  const res = await spendFetch(url, {
+    headers: { Prefer: "count=exact", "Range-Unit": "items", Range: "0-0" },
   });
   if (!res.ok) throw new Error(`fb_ad_spend count failed (${res.status})`);
   const header = res.headers.get("content-range") ?? "";
@@ -77,10 +67,12 @@ async function countRows(start: string, end: string): Promise<number> {
 }
 
 async function fetchPage(start: string, end: string, page: number): Promise<SpendRow[]> {
-  const url =
-    `${URL_BASE}/rest/v1/fb_ad_spend?select=${COLUMNS}&${range(start, end)}` +
-    `&order=id.asc&limit=${PAGE}&offset=${page * PAGE}`;
-  const res = await fetch(url, { headers: headers() });
+  const url = spendRestUrl(
+    "fb_ad_spend",
+    `?select=${COLUMNS}&${range(start, end)}` +
+      `&order=id.asc&limit=${PAGE}&offset=${page * PAGE}`
+  );
+  const res = await spendFetch(url);
   if (!res.ok) throw new Error(`fb_ad_spend page ${page} failed (${res.status})`);
   return (await res.json()) as SpendRow[];
 }
