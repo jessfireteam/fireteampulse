@@ -81,15 +81,13 @@ export function usePacingData(): PacingChartData {
     const shippedCurrentDaily: number[] = new Array(maxDays).fill(0);
     const shippedPreviousDaily: number[] = new Array(maxDays).fill(0);
 
+    // The proxy already filters by task name on Fibery's side; this second pass
+    // is a cheap guard so a change there can't silently start counting every
+    // done task as a shipped ad.
     const tasks = shippedData?.findProjectSpecificTasks || [];
     const sendAdTasks = tasks.filter((t) =>
       t.name?.toLowerCase().includes("send ad to client")
     );
-
-    console.log(`[Pacing] Total "send ad to client" tasks found: ${sendAdTasks.length}`);
-    sendAdTasks.forEach((t) => {
-      console.log(`[Pacing] Shipped task: "${t.name}" doneDate=${t.doneDate} project="${t.project?.name}"`);
-    });
 
     sendAdTasks.forEach((t) => {
       if (!t.doneDate) return;

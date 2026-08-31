@@ -191,6 +191,19 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3)
   throw new Error('Max retries exceeded');
 }
 
+// Fibery never says "I truncated your result" — it just hands back exactly as
+// many rows as you asked for and stays quiet, so any total derived from it reads
+// low and nothing looks broken. A single-shot query that comes back holding
+// precisely its own limit is therefore treated as truncated until proven
+// otherwise. Returns the offending "field=count" pairs, empty if clean.
+function detectTruncatedCollections(query: string, data: unknown): string[] {
+  const limits = [...query.matchAll(/limit:\s*(\d+)/g)].map((m) => Number(m[1]))
+  if (!limits.length || !data || typeof data !== 'object') return []
+  return Object.entries(data as Record<string, unknown>)
+    .filter(([, value]) => Array.isArray(value) && limits.includes(value.length))
+    .map(([field, value]) => `${field}=${(value as unknown[]).length}`)
+}
+
 Deno.serve(async (req) => {
   const origin = req.headers.get('origin')
   const corsHeaders = getCorsHeaders(origin)
@@ -548,7 +561,19 @@ Deno.serve(async (req) => {
       }`
     }
 
-    // Dynamic query for shipped-tasks: find "send ad to client" tasks done in last 2 months
+    // Dynamic query for shipped-tasks: find "send ad to client" tasks done since
+    // the start of last month.
+    //
+    // The name filter has to run here, on Fibery's side, not in the browser.
+    // Until 2026-08-31 this asked for EVERY done task in the window and let the
+    // client keep the tenth of them that are sends. But each project carries
+    // eight to ten tasks, so the window held 3600+ rows against Fibery's 3000
+    // cap, and with no orderBy Fibery returns oldest-created-first — so the cap
+    // dropped every task created after roughly the 16th of last month. August
+    // 2026 read 90 sends on the dashboard against 189 in Fibery. Filtering here
+    // takes two months down to ~365 rows. orderBy is belt-and-braces: if volume
+    // ever does pass the cap, the rows that survive are the newest ones rather
+    // than an arbitrary slice.
     if (queryType === 'shipped-tasks') {
       const now = new Date()
       const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
@@ -558,6 +583,8 @@ Deno.serve(async (req) => {
           limit: 3000
           done: { is: true }
           doneDate: { greater: "${prevMonthStartDate}" }
+          name: { contains: "send ad to client" }
+          orderBy: { doneDate: DESC }
         ) {
           name
           doneDate
@@ -898,6 +925,18 @@ Deno.serve(async (req) => {
     }
 
     const responseData = JSON.parse(responseText)
+
+    // Row caps have quietly wrecked numbers on this dashboard more than once, so
+    // say so in the logs the moment a result comes back full to the brim. The
+    // flag rides along in the payload too, for a consumer that wants to warn
+    // instead of drawing a number it cannot stand behind (none read it yet).
+    const truncated = detectTruncatedCollections(query, responseData?.data)
+    if (truncated.length) {
+      console.error(
+        `Row cap hit: queryType=${queryType} ${truncated.join(' ')} — result is truncated, totals derived from it read low`
+      )
+      responseData.truncated = truncated
+    }
 
     return new Response(JSON.stringify(responseData), {
       headers: {
