@@ -1,7 +1,14 @@
 import { Flame } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
+import { useAuth } from "@/hooks/useAuth";
+import { isPartner } from "@/lib/partners";
 
 export function DashboardHeader() {
+  // New Biz holds prospect-confidential figures, so the link only appears for
+  // partners. The route and the table's RLS both enforce it independently.
+  const { user } = useAuth();
+  const showNewBiz = isPartner(user?.email);
+
   return (
     <header className="mb-8 flex items-center justify-between">
       <div className="flex items-center gap-3">
@@ -64,6 +71,15 @@ export function DashboardHeader() {
         >
           Accounts
         </NavLink>
+        {showNewBiz && (
+          <NavLink
+            to="/new-biz"
+            className="px-3 py-1.5 rounded-md text-sm text-muted-foreground transition-colors hover:text-foreground"
+            activeClassName="bg-primary/20 text-primary font-medium"
+          >
+            New Biz
+          </NavLink>
+        )}
       </nav>
     </header>
   );
