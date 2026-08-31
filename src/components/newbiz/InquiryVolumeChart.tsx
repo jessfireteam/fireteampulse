@@ -1,4 +1,4 @@
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import type { MonthPoint } from "@/hooks/useNewBizLeads";
 
 // Single series, so no legend: the section title names it.
@@ -40,11 +40,15 @@ export function InquiryVolumeChart({ months }: { months: MonthPoint[] }) {
             width={28}
           />
           <Tooltip content={<VolumeTooltip />} cursor={{ fill: "hsl(var(--muted) / 0.3)" }} />
-          <Bar dataKey="inquiries" radius={[4, 4, 0, 0]} maxBarSize={28}>
-            {months.map((m) => (
-              <Cell key={m.key} fill={BAR} />
-            ))}
-          </Bar>
+          {/* One colour for every bar, so fill goes on the Bar - per-bar <Cell>
+              children here intermittently render no rectangles at all. */}
+          <Bar
+            dataKey="inquiries"
+            fill={BAR}
+            radius={[4, 4, 0, 0]}
+            maxBarSize={28}
+            isAnimationActive={false}
+          />
         </BarChart>
       </ResponsiveContainer>
     </div>

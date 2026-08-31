@@ -115,6 +115,44 @@ describe("NewBiz page", () => {
     expect(screen.getByText(/wants to revisit/)).toBeTruthy();
   });
 
+  it("puts our own ball above a longer silence on theirs", async () => {
+    // Regression: a their-turn lead quiet for weeks used to outrank a lead we
+    // had not answered, which is backwards - we can only act on our own side.
+    rows.current = [
+      lead({
+        thread_id: "stale-theirs", brand: "TWS", status: "their-turn",
+        first_contact_at: "2026-08-05T16:46:39Z", first_reply_at: "2026-08-05T20:00:00Z",
+        last_msg_at: "2026-08-06T22:04:51Z", last_msg_from: "us",
+      }),
+      lead({
+        thread_id: "fresh-ours", brand: "BugMD (eJam)", status: "our-turn",
+        first_contact_at: "2026-08-28T17:16:22Z",
+        last_msg_at: "2026-08-28T17:16:22Z", last_msg_from: "prospect",
+      }),
+    ];
+    await mount();
+    const bodyRows = screen.getAllByRole("row").slice(1);
+    expect(within(bodyRows[0]).getByText("BugMD (eJam)")).toBeTruthy();
+    expect(within(bodyRows[1]).getByText("TWS")).toBeTruthy();
+  });
+
+  it("counts the waiting clock from a call booked off-thread", async () => {
+    // Regression: Lux's email thread ended 2026-08-13 but the call happened on
+    // the 28th, so the page claimed 13 days of silence on a lead we had just
+    // spoken to. The clock runs from the most recent contact of any kind.
+    rows.current = [
+      lead({
+        thread_id: "lux", brand: "Lux.com", status: "proposal",
+        first_contact_at: "2026-07-29T01:09:12Z", first_reply_at: "2026-07-30T18:20:14Z",
+        last_msg_at: "2026-08-13T02:43:41Z", last_msg_from: "us",
+        call_at: "2026-08-28T14:30:00Z",
+      }),
+    ];
+    await mount();
+    const bodyRows = screen.getAllByRole("row").slice(1);
+    expect(within(bodyRows[0]).getByText("1d")).toBeTruthy();
+  });
+
   it("shows the all-clear when no lead is waiting on us", async () => {
     rows.current = [
       lead({

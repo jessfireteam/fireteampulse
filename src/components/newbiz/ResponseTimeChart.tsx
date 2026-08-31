@@ -48,21 +48,25 @@ export function ResponseTimeChart({ months }: { months: MonthPoint[] }) {
             tickLine={false}
             axisLine={false}
             width={38}
-            tickFormatter={(v: number) => (v >= 48 ? `${Math.round(v / 24)}d` : `${v}h`)}
+            // One unit for the whole axis: mixing "0h" with "13d" on the same
+            // scale makes the reader do a conversion to compare two ticks.
+            tickFormatter={(v: number) => (max >= 48 ? `${Math.round(v / 24)}d` : `${Math.round(v)}h`)}
           />
           <Tooltip content={<ReplyTooltip />} cursor={{ fill: "hsl(var(--muted) / 0.3)" }} />
           <ReferenceLine
             y={REPLY_TARGET_HOURS}
             stroke="hsl(var(--muted-foreground))"
             strokeDasharray="4 4"
+            // Left, not right: the newest months are on the right and are the
+            // tallest, so a right-anchored label lands on top of a bar.
             label={{
               value: `${REPLY_TARGET_HOURS}h target`,
-              position: "insideTopRight",
+              position: "insideTopLeft",
               fill: "hsl(var(--muted-foreground))",
               fontSize: 10,
             }}
           />
-          <Bar dataKey="hours" radius={[4, 4, 0, 0]} maxBarSize={28}>
+          <Bar dataKey="hours" radius={[4, 4, 0, 0]} maxBarSize={28} isAnimationActive={false}>
             {data.map((d) => (
               <Cell key={d.key} fill={d.hours > REPLY_TARGET_HOURS ? OVER_TARGET : ON_TARGET} />
             ))}

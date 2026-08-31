@@ -132,20 +132,30 @@ export function useNewBizLeads(): NewBizData {
     const attention: AttentionItem[] = leads
       .filter((l) => OPEN_STATUSES.includes(l.status as (typeof OPEN_STATUSES)[number]))
       .map((l) => {
-        const last = l.last_msg_at ? new Date(l.last_msg_at) : null;
+        // Calls are booked off-thread, so the newest email is not always the
+        // newest contact. Lux's thread looked 13 days cold while the call had
+        // happened the previous Friday - clock from whichever came last.
+        const stamps = [l.last_msg_at, l.call_at]
+          .filter(Boolean)
+          .map((s) => new Date(s as string))
+          .filter((d) => !isNaN(d.getTime()) && d <= now);
+        const last = stamps.length ? new Date(Math.max(...stamps.map((d) => d.getTime()))) : null;
         const waitingDays = last ? businessDaysBetween(last, now) : 0;
 
+        // Anything where WE owe the next move outranks everything else, however
+        // long a prospect has been quiet. A one-day-old unanswered inquiry is
+        // more urgent than a three-week silence on their side.
         let reason = "";
         let severity: 0 | 1 | 2 = 2;
         if (l.status === "our-turn") {
           reason = waitingDays === 0 ? "Came in today, needs a reply" : `Waiting on us ${waitingDays} business ${waitingDays === 1 ? "day" : "days"}`;
-          severity = waitingDays >= 2 ? 0 : 1;
+          severity = 0;
         } else if (l.status === "proposal") {
           reason = "Proposal or scope owed";
-          severity = waitingDays >= 2 ? 0 : 1;
+          severity = 0;
         } else if (l.status === "their-turn") {
           reason = waitingDays >= STALE_AFTER_DAYS ? `Quiet ${waitingDays} business days, worth a bump` : `Waiting on them (${waitingDays}d)`;
-          severity = waitingDays >= STALE_AFTER_DAYS * 3 ? 1 : 2;
+          severity = waitingDays >= STALE_AFTER_DAYS ? 1 : 2;
         } else {
           reason = l.call_at ? "Call booked" : "In progress";
           severity = 2;
