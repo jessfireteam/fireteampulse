@@ -16,15 +16,16 @@ describe("runForecast", () => {
   const ref = new Date(2026, 5, 1);
 
   it("respects a ceiling that steps up mid-horizon when a hire starts", () => {
-    // Steady 10 videos/wk against a Video ceiling that goes 2 -> 20 in month 3. Overloaded
-    // until the hire lands, comfortable afterwards, and the hire signal points at month 0 (the
-    // first month it breaks), not at the month it gets fixed.
-    const stepped = { ...sup, Video: [2, 2, 2, 20, 20, 20] };
+    // Steady 10 videos/wk (= 18 edit tasks/wk at the 1.8 rate, revisions included) against a
+    // Video ceiling that goes 2 -> 40 in month 3. Overloaded until the hire lands, comfortable
+    // afterwards, and the hire signal points at month 0 (the first month it breaks), not at
+    // the month it gets fixed.
+    const stepped = { ...sup, Video: [2, 2, 2, 40, 40, 40] };
     const result = runForecast([client(flat(43.45), flat(0))], stepped, 6, ref);
     expect(result.months[0].roles.Video.status).toBe("over");
     expect(result.months[2].roles.Video.status).toBe("over");
-    expect(result.months[3].roles.Video.status).toBe("ok"); // 10/wk vs 20
-    expect(result.months[3].roles.Video.peak).toBe(20);
+    expect(result.months[3].roles.Video.status).toBe("ok"); // 18 tasks/wk vs 40
+    expect(result.months[3].roles.Video.peak).toBe(40);
     expect(result.hireByRole.Video).toBe(0);
   });
 
@@ -104,16 +105,21 @@ describe("runForecast", () => {
     );
   });
 
-  it("default rates are the measured ones: copy 1.5x, CD review 1.0x, AM review 1.8x", () => {
-    const r = runForecast([client(flat(43.45), flat(0))], sup, 6, ref);
-    const flatOne = 43.45 / 4.345; // ~10/wk at a rate of 1
-    expect(r.months[0].roles.Copywriters.demandPerWeek).toBeCloseTo(flatOne * 1.5, 5);
-    expect(r.months[0].roles["CD Review"].demandPerWeek).toBeCloseTo(flatOne * 1.0, 5);
-    expect(r.months[0].roles["AM Review"].demandPerWeek).toBeCloseTo(flatOne * 1.8, 5);
-    // The split must sum to the measured total review load (~2.8 per deliverable).
+  it("default rates are the measured totals including revisions: copy 1.3x, CD 1.0x, AM 1.8x, video 1.8x, design 1.8x", () => {
+    // Measured over 13 weeks Jun–Aug 2026 (490 deliverables), tasks counted by Task Template
+    // Role, revision rounds included — the same unit the supply side now counts in.
+    const r = runForecast([client(flat(43.45), flat(43.45))], sup, 6, ref);
+    const perTypeWk = 43.45 / 4.345; // ~10/wk of each deliverable type at a rate of 1
+    expect(r.months[0].roles.Copywriters.demandPerWeek).toBeCloseTo(perTypeWk * 2 * 1.3, 5);
+    expect(r.months[0].roles["CD Review"].demandPerWeek).toBeCloseTo(perTypeWk * 2 * 1.0, 5);
+    expect(r.months[0].roles["AM Review"].demandPerWeek).toBeCloseTo(perTypeWk * 2 * 1.8, 5);
+    // Video applies to videos only, Design to statics only.
+    expect(r.months[0].roles.Video.demandPerWeek).toBeCloseTo(perTypeWk * 1.8, 5);
+    expect(r.months[0].roles.Design.demandPerWeek).toBeCloseTo(perTypeWk * 1.8, 5);
+    // The review split must sum to the measured total review load (~2.8 per deliverable).
     expect(
       r.months[0].roles["CD Review"].demandPerWeek + r.months[0].roles["AM Review"].demandPerWeek,
-    ).toBeCloseTo(flatOne * 2.8, 5);
+    ).toBeCloseTo(perTypeWk * 2 * 2.8, 5);
   });
 
   it("labels months forward from the reference month", () => {

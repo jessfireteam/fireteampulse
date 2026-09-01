@@ -156,7 +156,7 @@ function PartnersInner() {
           <div className="rounded-lg border p-4 space-y-3">
             <h3 className="text-sm font-semibold">Tasks per deliverable (by role)</h3>
             <p className="text-xs text-muted-foreground">
-              How many of each role's tasks one deliverable generates - check monthly against the Pulse Role Capacity actuals.
+              How many of each role's tasks one deliverable generates, revision rounds included - check monthly against the Pulse Role Capacity actuals.
             </p>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
               {FORECAST_ROLES.map((role) => (

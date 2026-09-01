@@ -8,15 +8,17 @@ const H = 6;
 const REF = new Date(2026, 7, 1);
 const monthLabels = ["Aug", "Sep", "Oct", "Nov", "Dec", "Jan"];
 
-// This week's real shape, simplified: editors capped at 30/wk total, Nicolle alone on
-// casting at 13/wk, designers 20/wk, Jess reviewing ~33/wk, copy partially set (blocked).
+// This week's real shape, simplified. Maxes are TOTAL tasks/wk including revision rounds —
+// the unit everything counts in now: editors capped at 56/wk total, Nicolle alone on casting
+// at 13/wk (casts have no revisions), designers 36/wk, Jess reviewing ~33/wk, copy partially
+// set (blocked).
 const team: ProductionPerson[] = [
-  { id: "v1", name: "Vaiv", side: "video", monthlyCost: 0, startMonthIndex: 0, role: "Video", capacityPerWeek: 8 },
-  { id: "v2", name: "Sanchit", side: "video", monthlyCost: 0, startMonthIndex: 0, role: "Video", capacityPerWeek: 8 },
-  { id: "v3", name: "Khushboo", side: "video", monthlyCost: 0, startMonthIndex: 0, role: "Video", capacityPerWeek: 8 },
-  { id: "v4", name: "Ike", side: "video", monthlyCost: 0, startMonthIndex: 0, role: "Video", capacityPerWeek: 6 },
-  { id: "d1", name: "Erik", side: "static", monthlyCost: 0, startMonthIndex: 0, role: "Design", capacityPerWeek: 10 },
-  { id: "d2", name: "Reynelle", side: "static", monthlyCost: 0, startMonthIndex: 0, role: "Design", capacityPerWeek: 10 },
+  { id: "v1", name: "Vaiv", side: "video", monthlyCost: 0, startMonthIndex: 0, role: "Video", capacityPerWeek: 15 },
+  { id: "v2", name: "Sanchit", side: "video", monthlyCost: 0, startMonthIndex: 0, role: "Video", capacityPerWeek: 15 },
+  { id: "v3", name: "Khushboo", side: "video", monthlyCost: 0, startMonthIndex: 0, role: "Video", capacityPerWeek: 15 },
+  { id: "v4", name: "Ike", side: "video", monthlyCost: 0, startMonthIndex: 0, role: "Video", capacityPerWeek: 11 },
+  { id: "d1", name: "Erik", side: "static", monthlyCost: 0, startMonthIndex: 0, role: "Design", capacityPerWeek: 18 },
+  { id: "d2", name: "Reynelle", side: "static", monthlyCost: 0, startMonthIndex: 0, role: "Design", capacityPerWeek: 18 },
   { id: "c1", name: "Nicolle", side: "video", monthlyCost: 0, startMonthIndex: 0, role: "Casting", capacityPerWeek: 13 },
   { id: "r1", name: "Jess", side: "both", monthlyCost: 0, startMonthIndex: 0, role: "CD Review", capacityPerWeek: 33 },
   { id: "w1", name: "John", side: "both", monthlyCost: 0, startMonthIndex: 0, role: "Copywriters", capacityPerWeek: 10 },
@@ -50,10 +52,11 @@ const row = (roles: ReturnType<typeof build>, key: string) => roles.find((r) => 
 describe("computeRunway", () => {
   it("prices each role in fractional hires, one decimal", () => {
     const video = row(build(), "Video");
-    // Plan: 125/mo videos = 28.8/wk; team 30/wk; unit 8 -> have 3.75, need 3.6 -> +0.2 (rounded).
-    expect(video.monthGaps[0]).toBeCloseTo(0.2, 1);
-    // Now: 64/mo = 14.7/wk -> need 1.8 heads; have 3.75 -> +1.9.
-    expect(video.nowGap).toBeCloseTo(1.9, 1);
+    // Plan: 125/mo videos = 28.8/wk x 1.8 = 51.8 edit tasks/wk; team 56/wk; unit 15
+    // -> have 3.73, need 3.45 -> +0.3 (rounded).
+    expect(video.monthGaps[0]).toBeCloseTo(0.3, 1);
+    // Now: 64/mo = 14.7/wk x 1.8 = 26.5 tasks/wk -> need 1.8 heads; have 3.73 -> +2.0.
+    expect(video.nowGap).toBeCloseTo(2.0, 1);
   });
 
   it("shows the editors relaxed at today's flow and tight at plan — the Angelia reconciliation", () => {
@@ -111,8 +114,8 @@ describe("computeRunway", () => {
 
 describe("hireUnitFor", () => {
   it("derives the unit from the median of the role's typed maxes", () => {
-    // Editors 8/8/8/6 -> median 8. The unit follows the team's ceilings, not their output.
-    expect(hireUnitFor("Video", team).unit).toBe(8);
+    // Editors 15/15/15/11 -> median 15. The unit follows the team's ceilings, not their output.
+    expect(hireUnitFor("Video", team).unit).toBe(15);
     expect(hireUnitFor("Video", team).source).toBe("team");
   });
 
@@ -148,8 +151,8 @@ describe("clientFootprint", () => {
     const roles = build();
     const fp = clientFootprint(12, 0.75, roles); // 9v / 3s per month
     const video = fp.rows.find((r) => r.role === "Video")!;
-    // 9/mo videos = 2.07/wk / 8 per hire = 0.26 heads.
-    expect(video.heads).toBeCloseTo(0.26, 2);
+    // 9/mo videos = 2.07/wk x 1.8 = 3.7 edit tasks/wk / 15 per hire = 0.25 heads.
+    expect(video.heads).toBeCloseTo(0.25, 2);
     // Casting is already 0.77 heads under water at plan, so it breaks first.
     expect(fp.firstToBreak?.role).toBe("Casting");
   });
