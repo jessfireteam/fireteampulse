@@ -71,22 +71,34 @@ export type RolePeaks = Record<ForecastRoleKey, number>;
  */
 export type RoleSupply = Record<ForecastRoleKey, number[]>;
 
-/** tasks-per-deliverable multiplier per role; reality isn't a flat 1 (copy ~0.5, creative review ~2). */
+/** tasks-per-deliverable multiplier per role; reality isn't a flat 1 (video ~1.8, creative review ~2.8 combined). */
 export type RoleRates = Partial<Record<ForecastRoleKey, number>>;
+/**
+ * These rates INCLUDE revision rounds: a "REVISION n:" re-run is counted as another task of
+ * its base type. Supply is counted the same way (getTaskCategory buckets revision tasks by
+ * base name), so any capacity box someone fills in (Max/wk on the roster) must also be TOTAL
+ * tasks per week including revisions — a first-passes-only number there will read as a
+ * shortage that isn't real.
+ *
+ * Measured over the 13 weeks Jun–Aug 2026: 490 deliverables (261 videos / 229 statics),
+ * tasks counted by Task Template Role in Fibery, revision rounds included.
+ */
 export const DEFAULT_ROLE_RATES: Record<ForecastRoleKey, number> = {
   Account: 1,
-  // Measured: 372 review tasks against 133 deliverables in 4 weeks — 1.01 by the CD (Jess),
-  // 1.79 by the AMs. The two must sum to total review load per deliverable (~2.8).
+  // The CD (Jess) reviews everything that ships once; his revision reviews are negligible.
   "CD Review": 1,
+  // 883 AM review tasks / 490 deliverables = 1.8. CD + AM must sum to total review load per
+  // deliverable (~2.8).
   "AM Review": 1.8,
-  // Measured: 202 brief-writing tasks against 133 deliverables in the same window (1.52).
-  Copywriters: 1.5,
-  // Only creator-led videos need a cast, not every video. Measured: 51 casts against 64
-  // completed videos in the 4 weeks to 2026-08-13 (0.80). Tune on the "Tasks per
-  // deliverable" dial, not in code.
+  // 636 brief tasks / 490 deliverables = 1.3. The supply unit stays briefs/wk.
+  Copywriters: 1.3,
+  // Only creator-led videos need a cast, not every video (0.8 of videos). Casts have no
+  // revision rounds. Tune on the "Tasks per deliverable" dial, not in code.
   Casting: 0.8,
-  Design: 1,
-  Video: 1,
+  // 408 design tasks / 229 statics = 1.8, revision rounds included.
+  Design: 1.8,
+  // 477 video-edit tasks / 261 videos = 1.8, revision rounds included.
+  Video: 1.8,
 };
 
 /** Months of read-only historical actuals shown left of the editable future. */
@@ -267,9 +279,11 @@ export interface ProductionPerson {
   role?: ForecastRoleKey;
   /**
    * Declared throughput in this role's own task unit per week: videos for Video, statics for
-   * Design, reviews for Creative Review, and BRIEFS for Copywriters (one brief already covers
-   * ~2 deliverables via DEFAULT_ROLE_RATES.Copywriters = 0.5, so this is briefs written, not
-   * deliverables covered). Absent = fall back to this person's measured busiest week.
+   * Design, reviews for Creative Review, and BRIEFS for Copywriters (brief tasks, which run
+   * ~1.3 per deliverable via DEFAULT_ROLE_RATES.Copywriters — briefs written, not deliverables
+   * covered). TOTAL tasks including revision rounds, because demand rates and measured actuals
+   * both count revisions — a first-passes-only max here undercounts the person. Absent = fall
+   * back to this person's measured recent actual.
    */
   capacityPerWeek?: number;
   /** Classification only. Production cost counts ALL producers regardless; "salary" producers are subtracted from the dedicated Non-production salary line so each person is counted once. */

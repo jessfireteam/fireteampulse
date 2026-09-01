@@ -55,21 +55,23 @@ export function useForecastData(): ForecastData {
         g.people
           .filter((p) => !isExcludedMember(p.name))
           .map((p) => {
-            const avg = (row?: { weekCounts: number[] }) => {
-              const recent = row?.weekCounts.slice(-ACTUAL_WINDOW_WEEKS) ?? [];
+            const avg = (counts?: number[]) => {
+              const recent = counts?.slice(-ACTUAL_WINDOW_WEEKS) ?? [];
               return recent.length
                 ? Math.round((recent.reduce((s, n) => s + n, 0) / recent.length) * 10) / 10
                 : 0;
             };
             const primary = p.taskTypes.find((t) => t.taskType === p.primaryTaskType) ?? p.subtotal;
-            // Their REVISION-prefixed completions, whatever kind — a reviewer's are review
-            // rounds, an editor's are edit rounds. Shown beside the actual, never added to it.
-            const revisions = p.taskTypes.find((t) => t.taskType === "Revisions");
             return {
               name: p.name,
               role: g.role as ForecastRoleKey,
-              actualPerWeek: avg(primary),
-              revisionsPerWeek: avg(revisions),
+              // TOTAL tasks of their primary type per week — getTaskCategory buckets
+              // "REVISION n:" tasks by base name, so revision rounds are in here. This is
+              // the unit capacity math runs in; it matches the DEFAULT_ROLE_RATES basis.
+              actualPerWeek: avg(primary.weekCounts),
+              // The revision-round share of that same total (NOT the pooled Revisions
+              // bucket, which also holds revision approvals etc.). Display split only.
+              revisionsPerWeek: avg(primary.revisionWeekCounts),
             };
           }),
       );

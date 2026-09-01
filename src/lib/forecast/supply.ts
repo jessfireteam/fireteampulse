@@ -19,12 +19,17 @@ export const ACTUAL_WINDOW_WEEKS = 4;
 export interface MeasuredPerson {
   name: string;
   role: ForecastRoleKey;
+  /**
+   * TOTAL tasks of their primary type per week, revision rounds INCLUDED. A revision pass
+   * is the same work as a first pass, and the demand rates (DEFAULT_ROLE_RATES) are measured
+   * including revisions — counting supply first-pass-only put demand and supply in different
+   * units, which is the bug this replaced.
+   */
   actualPerWeek: number;
   /**
-   * REVISION-prefixed completions per week, shown beside the actual and never folded into it.
-   * The split has now produced the same confusion three times (editors "at half capacity",
-   * the video rate dial, Niki's 15-vs-26 reviews): the actual counts first-round work only,
-   * so the revision half must be visible or someone re-derives it monthly.
+   * The revision-round share of actualPerWeek — already inside it, never add the two.
+   * Kept visible because the base/revision split has produced the same confusion three
+   * times (editors "at half capacity", the video rate dial, Niki's 15-vs-26 reviews).
    */
   revisionsPerWeek?: number;
 }
@@ -37,9 +42,9 @@ export interface PersonSupplyRow {
   startMonthIndex: number;
   /** The max we set for them. Undefined means we haven't decided and are following actuals. */
   desiredMax?: number;
-  /** Recent actual per week, or null when no Fibery history matched them. */
+  /** Recent actual per week (total, revision rounds included), or null when no Fibery history matched them. */
   actualPerWeek: number | null;
-  /** Their revision-round completions per week, alongside — display only. */
+  /** The revision-round share of the actual — already included in it, display only. */
   revisionsPerWeek: number | null;
   /** What counts toward the ceiling. */
   effective: number;

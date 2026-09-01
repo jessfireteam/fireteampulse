@@ -71,9 +71,9 @@ export function CapacityRoster({ team, resolved, monthLabels, onUpdatePerson, on
           {row?.revisionsPerWeek ? (
             <span
               className="text-muted-foreground/60"
-              title="Revision-round completions per week — counted separately from the actual, which is first-round work only"
+              title="Revision-round completions per week — already included in the actual, which counts total tasks"
             >
-              {" "}(+{fmt(row.revisionsPerWeek)} rev)
+              {" "}(incl. {fmt(row.revisionsPerWeek)} rev)
             </span>
           ) : null}
         </td>
@@ -125,9 +125,11 @@ export function CapacityRoster({ team, resolved, monthLabels, onUpdatePerson, on
       <SectionHeader title="Team capacity — actual vs the max we set" />
       <p className="text-xs text-muted-foreground">
         Actual is the average per week over the last {ACTUAL_WINDOW_WEEKS} completed weeks, from
-        Fibery. Max is ours to set: the most we're willing to run someone at, not their record
-        week. Leave Max blank and that person's own actual is used instead. People marked Not
-        production carry cost on the P&amp;L and no capacity here.
+        Fibery, counting every round — a revision pass is a task like any other. Max is ours to
+        set in the same unit: total tasks per week including revisions, the most we're willing
+        to run someone at, not their record week. Leave Max blank and that person's own actual
+        is used instead. People marked Not production carry cost on the P&amp;L and no capacity
+        here.
       </p>
       <p className="text-xs text-muted-foreground">
         Actuals attach by name, automatically: type the name the way Fibery shows the person

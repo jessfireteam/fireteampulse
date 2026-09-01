@@ -56,9 +56,10 @@ function DataCell({ value }: { value: number }) {
   );
 }
 
-function PersonRow({ name, row, taskLabel, revisionRow, showRevisions }: { name: string; row: TaskTypeRow; taskLabel?: string; revisionRow?: TaskTypeRow; showRevisions?: boolean }) {
+function PersonRow({ name, row, taskLabel, showRevisions }: { name: string; row: TaskTypeRow; taskLabel?: string; showRevisions?: boolean }) {
   const avg7d = row.avg30Day / 4.3;
-  const revAvg7d = revisionRow ? revisionRow.avg30Day / 4.3 : 0;
+  // The revision-round share of this row's own totals — already inside avg7d, shown as a split.
+  const revAvg7d = row.revisions30Day / 4.3;
   
   return (
     <TableRow className="border-border/30 hover:bg-muted/20">
@@ -125,7 +126,10 @@ export function RoleCapacityCard({ group }: RoleCapacityCardProps) {
               <TableHead className="text-center text-muted-foreground font-semibold text-xs px-2 w-10">30d</TableHead>
               <TableHead className="text-center text-muted-foreground font-semibold text-xs px-2 w-12">7d Avg</TableHead>
               {showRevisions && (
-                <TableHead className="text-center text-muted-foreground font-semibold text-xs px-2 w-12">Rev 7d</TableHead>
+                <TableHead
+                  className="text-center text-muted-foreground font-semibold text-xs px-2 w-12"
+                  title="Revision rounds per week — already included in 7d Avg, shown as a split"
+                >Rev 7d</TableHead>
               )}
               <TableHead className="text-center text-muted-foreground font-semibold text-xs px-1 w-20">Trend</TableHead>
               <TableHead className="text-center text-muted-foreground font-semibold text-xs px-2 w-14">
@@ -144,18 +148,13 @@ export function RoleCapacityCard({ group }: RoleCapacityCardProps) {
               const primaryRow = person.taskTypes.find(
                 t => t.taskType === person.primaryTaskType
               ) || person.subtotal;
-              
-              const revisionRow = showRevisions
-                ? person.taskTypes.find(t => t.taskType === 'Revisions')
-                : undefined;
-              
+
               return (
-                <PersonRow 
+                <PersonRow
                   key={person.name}
                   name={person.name}
                   row={primaryRow}
                   taskLabel={group.role === 'Other' ? person.primaryTaskType : undefined}
-                  revisionRow={revisionRow}
                   showRevisions={showRevisions}
                 />
               );

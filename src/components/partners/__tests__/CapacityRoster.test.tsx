@@ -50,11 +50,11 @@ describe("CapacityRoster", () => {
     expect(onUpdatePerson).toHaveBeenCalledWith("m", { name: "Mark Datola" });
   });
 
-  it("shows revision-round completions beside the actual, never folded into it", () => {
+  it("shows the revision-round share beside the actual, which already includes it", () => {
     renderRoster();
     const vaiv = rowFor("Vaiv");
-    // First-round actual stays 6; the revision half is visible instead of re-derivable.
-    expect(within(vaiv).getByText("(+3 rev)")).toBeTruthy();
+    // The actual (6) is total tasks; 3 of those were revision rounds — a split, not an add-on.
+    expect(within(vaiv).getByText("(incl. 3 rev)")).toBeTruthy();
     // Khushboo has no revisions in the window: no suffix at all.
     expect(within(rowFor("Khushboo")).queryByText(/rev\)/)).toBeNull();
   });
