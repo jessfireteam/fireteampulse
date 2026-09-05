@@ -30,10 +30,17 @@ function designWeek(who: string, weeksAgo: number, count: number): Task[] {
   );
 }
 
-function peakFor(groups: ReturnType<typeof processTasksForCapacity>, role: RoleType, who: string) {
+function rowFor(groups: ReturnType<typeof processTasksForCapacity>, role: RoleType, who: string) {
   const person = groups.find((g) => g.role === role)?.people.find((p) => p.name === who);
-  const row = person?.taskTypes.find((t) => t.taskType === person.primaryTaskType);
-  return row?.maxWeek26 ?? 0;
+  return person?.taskTypes.find((t) => t.taskType === person.primaryTaskType);
+}
+
+function peakFor(groups: ReturnType<typeof processTasksForCapacity>, role: RoleType, who: string) {
+  return rowFor(groups, role, who)?.maxWeek26 ?? 0;
+}
+
+function ceilingFor(groups: ReturnType<typeof processTasksForCapacity>, role: RoleType, who: string) {
+  return rowFor(groups, role, who)?.ceilingTop3of13 ?? 0;
 }
 
 describe("Role Capacity ceiling", () => {
@@ -75,6 +82,65 @@ describe("Role Capacity ceiling", () => {
     ];
 
     expect(peakFor(processTasksForCapacity(tasks, "all"), "Design", "Erik Furtado")).toBe(6);
+  });
+});
+
+describe("ceilingTop3of13", () => {
+  it("averages the three best weeks instead of taking the single best", () => {
+    const tasks = [
+      ...designWeek("Erik Furtado", 1, 9),
+      ...designWeek("Erik Furtado", 2, 7),
+      ...designWeek("Erik Furtado", 3, 5),
+      ...designWeek("Erik Furtado", 4, 4),
+      ...designWeek("Erik Furtado", 5, 3),
+    ];
+
+    const groups = processTasksForCapacity(tasks, "all");
+    expect(peakFor(groups, "Design", "Erik Furtado")).toBe(9); // (9+7+5)/3
+    expect(ceilingFor(groups, "Design", "Erik Furtado")).toBe(7);
+  });
+
+  it("does not let one freak week set the ceiling on its own", () => {
+    const steady = [4, 5, 4, 5, 4, 5, 4, 5].flatMap((n, i) =>
+      designWeek("Erik Furtado", i + 1, n),
+    );
+    const withSpike = [...steady, ...designWeek("Erik Furtado", 9, 20)];
+
+    const before = processTasksForCapacity(steady, "all");
+    const after = processTasksForCapacity(withSpike, "all");
+
+    // A single 20-week quadruples the max. It moves the ceiling by a third of
+    // that, because the other two slots are still ordinary good weeks.
+    expect(peakFor(before, "Design", "Erik Furtado")).toBe(5);
+    expect(peakFor(after, "Design", "Erik Furtado")).toBe(20);
+    expect(ceilingFor(before, "Design", "Erik Furtado")).toBe(5);
+    expect(ceilingFor(after, "Design", "Erik Furtado")).toBe(10);
+  });
+
+  it("ignores anything older than 13 weeks", () => {
+    const tasks = [
+      ...designWeek("Erik Furtado", 1, 4),
+      ...designWeek("Erik Furtado", 2, 4),
+      ...designWeek("Erik Furtado", 3, 4),
+      ...designWeek("Erik Furtado", 20, 30), // outside the window entirely
+    ];
+
+    const groups = processTasksForCapacity(tasks, "all");
+    expect(peakFor(groups, "Design", "Erik Furtado")).toBe(30); // max still sees 26w
+    expect(ceilingFor(groups, "Design", "Erik Furtado")).toBe(4);
+  });
+
+  it("uses only the weeks a new starter has actually worked", () => {
+    // Someone four weeks in has nine zero-weeks inside the 13-week window. A mean
+    // would divide by those and understate them; taking the top 3 does not.
+    const tasks = [
+      ...designWeek("Reynelle Reid", 1, 6),
+      ...designWeek("Reynelle Reid", 2, 6),
+      ...designWeek("Reynelle Reid", 3, 3),
+      ...designWeek("Reynelle Reid", 4, 3),
+    ];
+
+    expect(ceilingFor(processTasksForCapacity(tasks, "all"), "Design", "Reynelle Reid")).toBe(5);
   });
 });
 
