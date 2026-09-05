@@ -147,9 +147,17 @@ const QUERIES: Record<QueryType, string> = {
 
 // Fibery rejects any limit above 3000 ("limit is out of range 0, 3001"), so
 // that is the page size, and MAX_PAGES is a runaway guard rather than a real
-// ceiling (24k projects is years of headroom at current volume).
-const WINNERS_PAGE_SIZE = 3000
-const WINNERS_MAX_PAGES = 8
+// ceiling (24k rows is years of headroom at current volume).
+//
+// Any query whose result set can plausibly exceed 3000 rows MUST go through the
+// paged path below. A single-shot query does not error when it overflows — it
+// silently returns the newest 3000 rows, which reads downstream as "that is all
+// the history there is". The `tasks` query lost 14,608 of 17,608 rows this way
+// and quietly turned a 26-week capacity ceiling into a 4-week one.
+const PAGE_SIZE = 3000
+// 12 pages = 36k rows. `tasks` is already ~17.6k, so this is roughly a year of
+// headroom on the largest query rather than the several years it buys `winners`.
+const MAX_PAGES = 12
 
 // Map query types to their Fibery endpoints
 const QUERY_ENDPOINTS: Record<QueryType, string> = {
@@ -273,18 +281,29 @@ Deno.serve(async (req) => {
 
     let query = QUERIES[queryType as QueryType]
     const url = QUERY_ENDPOINTS[queryType as QueryType]
-    // Set by the winners branch below; when non-null the request is served by
-    // the paged loop instead of the single-shot fetch at the end.
-    let paginateWinners: ((offset: number) => string) | null = null
+    // Set by the query branches below; when non-null the request is served by
+    // the paged loop instead of the single-shot fetch at the end. `field` is the
+    // GraphQL root field to merge across pages, so the client sees exactly the
+    // same response shape it would have got from a single call.
+    let paginate: { field: string; build: (offset: number) => string } | null = null
 
-    // Dynamic query for tasks: fetch completed tasks from last 7 months (covers 26-week peak calc)
+    // Dynamic query for tasks: completed tasks from the last 7 months, which is
+    // what the 26-week capacity ceiling needs.
+    //
+    // This MUST page. FireTeam completes roughly 2,500 tasks a month, so seven
+    // months is ~17.5k rows against a 3000-row hard cap — the single-shot
+    // version of this query was returning only the four most recent weeks and
+    // no error, which silently collapsed every Role Capacity denominator.
     if (queryType === 'tasks') {
       const now = new Date()
       const sevenMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 7, 1)
       const sevenMonthsAgoDate = sevenMonthsAgo.toISOString().split('T')[0]
-      query = `{
+      paginate = {
+        field: 'findProjectSpecificTasks',
+        build: (offset: number) => `{
         findProjectSpecificTasks(
-          limit: 3000
+          limit: ${PAGE_SIZE}
+          offset: ${offset}
           done: { is: true }
           doneDate: { greater: "${sevenMonthsAgoDate}" }
           orderBy: { doneDate: DESC }
@@ -296,23 +315,30 @@ Deno.serve(async (req) => {
           dueDate
           assignee { name }
           taskTemplateRole { name }
-          project { 
-            name 
+          project {
+            name
             client { name }
             status { name }
           }
         }
-      }`
+      }`,
+      }
     }
 
-    // Dynamic query for pending-tasks: fetch all undone tasks with due dates
+    // Dynamic query for pending-tasks: all undone tasks with due dates.
+    // Comfortably under 3000 today, but paged anyway — the failure mode when it
+    // does cross the cap is silent truncation, not an error, so there would be
+    // no signal to come back and fix it.
     if (queryType === 'pending-tasks') {
       const now = new Date()
       const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, 1)
       const threeMonthsAgoDate = threeMonthsAgo.toISOString().split('T')[0]
-      query = `{
+      paginate = {
+        field: 'findProjectSpecificTasks',
+        build: (offset: number) => `{
         findProjectSpecificTasks(
-          limit: 3000
+          limit: ${PAGE_SIZE}
+          offset: ${offset}
           done: { is: false }
           dueDate: { greater: "${threeMonthsAgoDate}" }
           orderBy: { dueDate: DESC }
@@ -324,13 +350,14 @@ Deno.serve(async (req) => {
           dueDate
           assignee { name }
           taskTemplateRole { name }
-          project { 
-            name 
+          project {
+            name
             client { name }
             status { name }
           }
         }
-      }`
+      }`,
+      }
     }
 
     // client-weeks: pull directly from FB Ads Supabase — Fibery's ClientWeeks entity
@@ -641,11 +668,13 @@ Deno.serve(async (req) => {
     // to the tracking window — keep the date in step with WINNERS_TRACKING_START
     // in src/hooks/useWinnersData.ts.
     if (queryType === 'winners') {
-      paginateWinners = (offset: number) => `{
+      paginate = {
+        field: 'findProjects',
+        build: (offset: number) => `{
         findProjects(
           orderBy: { creationDate: DESC }
           creationDate: { greater: "2025-08-31" }
-          limit: ${WINNERS_PAGE_SIZE}
+          limit: ${PAGE_SIZE}
           offset: ${offset}
         ) {
           id
@@ -693,7 +722,8 @@ Deno.serve(async (req) => {
             }
           }
         }
-      }`
+      }`,
+      }
     }
 
     // Dynamic query for revision-stats: fetch completed projects with version send-to-client counts
@@ -834,20 +864,20 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Paged path (winners only): keep asking for the next page until Fibery
-    // returns a short one, then hand back a single merged findProjects array so
-    // the client sees exactly the same shape as before.
-    if (paginateWinners) {
+    // Paged path: keep asking for the next page until Fibery returns a short
+    // one, then hand back a single merged array under the same root field, so
+    // the client sees exactly the shape it would have got from one call.
+    if (paginate) {
       const merged: unknown[] = []
-      for (let page = 0; page < WINNERS_MAX_PAGES; page++) {
+      for (let page = 0; page < MAX_PAGES; page++) {
         const pageRes = await fetchWithRetry(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Token ${FIBERY_TOKEN}` },
-          body: JSON.stringify({ query: paginateWinners(page * WINNERS_PAGE_SIZE) })
+          body: JSON.stringify({ query: paginate.build(page * PAGE_SIZE) })
         })
         const pageText = await pageRes.text()
         if (!pageRes.ok) {
-          console.error(`External API error: status=${pageRes.status}, body=${pageText.substring(0, 500)}, queryType=winners, page=${page}`)
+          console.error(`External API error: status=${pageRes.status}, body=${pageText.substring(0, 500)}, queryType=${queryType}, page=${page}`)
           return new Response(
             JSON.stringify({ error: 'External API error', status: pageRes.status, detail: pageText.substring(0, 200) }),
             { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -855,22 +885,22 @@ Deno.serve(async (req) => {
         }
         const pageData = JSON.parse(pageText)
         if (pageData.errors?.length) {
-          console.error(`Fibery GraphQL error on winners page ${page}: ${JSON.stringify(pageData.errors).substring(0, 300)}`)
+          console.error(`Fibery GraphQL error on ${queryType} page ${page}: ${JSON.stringify(pageData.errors).substring(0, 300)}`)
           return new Response(JSON.stringify(pageData), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           })
         }
-        const rows = pageData?.data?.findProjects ?? []
+        const rows = pageData?.data?.[paginate.field] ?? []
         merged.push(...rows)
-        if (rows.length < WINNERS_PAGE_SIZE) break
-        if (page === WINNERS_MAX_PAGES - 1) {
+        if (rows.length < PAGE_SIZE) break
+        if (page === MAX_PAGES - 1) {
           // Better a loud log than a silently truncated dataset — this is the
           // exact failure the pagination was added to remove.
-          console.error(`winners pagination hit WINNERS_MAX_PAGES (${WINNERS_MAX_PAGES}); dataset may be truncated at ${merged.length} projects`)
+          console.error(`${queryType} pagination hit MAX_PAGES (${MAX_PAGES}); dataset may be truncated at ${merged.length} rows`)
         }
       }
-      console.log(`winners: returned ${merged.length} projects`)
-      return new Response(JSON.stringify({ data: { findProjects: merged } }), {
+      console.log(`${queryType}: returned ${merged.length} rows across pages`)
+      return new Response(JSON.stringify({ data: { [paginate.field]: merged } }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }

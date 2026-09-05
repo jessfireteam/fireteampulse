@@ -1,6 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { SectionHeader } from "./SectionHeader";
-import { useTasksData, processTasksForCapacity, isExcludedMember } from "@/hooks/useFiberyData";
+import { useTasksData, processTasksForCapacity, isExcludedMember, type RoleType } from "@/hooks/useFiberyData";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
@@ -10,20 +10,30 @@ interface RoleBar {
   peak: number;
 }
 
+// Role key -> display label, in the order the bars render.
+//
+// These keys MUST exist in ROLE_ASSIGNMENTS' RoleType union in useFiberyData.ts.
+// A key that matches nothing does not warn — the bar just silently stops
+// rendering, which is how the old "Creative Review" entry survived here for
+// weeks after that role was split into CD Review and AM Review.
+export const ROLE_BARS: Array<[RoleType, string]> = [
+  ["Account", "Account"],
+  ["CD Review", "CD Review"],
+  ["AM Review", "AM Review"],
+  ["Copywriters", "Copywriting"],
+  ["Design", "Design"],
+  ["Video", "Video Editing"],
+];
+
 function computeRoleBars(tasks: any[]): RoleBar[] {
   const roleGroups = processTasksForCapacity(tasks, "all");
+  const byRole = new Map(roleGroups.map((g) => [g.role as string, g]));
 
-  const ROLE_MAP: Record<string, string> = {
-    Account: "Account",
-    "Creative Review": "Creative Review",
-    Copywriters: "Copywriting",
-    Design: "Design",
-    Video: "Video Editing",
-  };
-
-  return roleGroups
-    .filter((g) => ROLE_MAP[g.role])
-    .map((g) => {
+  return ROLE_BARS.flatMap(([key, label]) => {
+    const g = byRole.get(key);
+    return g ? [{ group: g, label }] : [];
+  })
+    .map(({ group: g, label }) => {
       let peakSum = 0;
       let currentSum = 0;
 
@@ -46,7 +56,7 @@ function computeRoleBars(tasks: any[]): RoleBar[] {
         });
 
       return {
-        role: ROLE_MAP[g.role]!,
+        role: label,
         current: Math.round(currentSum * 10) / 10,
         peak: peakSum,
       };
