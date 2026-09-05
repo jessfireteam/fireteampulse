@@ -140,11 +140,30 @@ function getWeekBoundaries(referenceDate: Date, weeksAgo: number) {
   return { start: weekStart, end: weekEnd };
 }
 
-// Categorize task by name keywords
+// Matches the standard revision-round prefix Fibery stamps on re-run tasks: "REVISION 1: Edit video".
+export const REVISION_PREFIX = /^revision\s+\d+:\s*/i;
+
+/** True for a standard revision-round task ("REVISION 1: ..."). */
+export function isRevisionTask(taskName: string): boolean {
+  return REVISION_PREFIX.test(taskName ?? '');
+}
+
+// Categorize task by name keywords.
+//
+// A revision round is the same work as the first pass, done by the same person, so
+// REVISION-prefixed tasks bucket by their BASE name: "REVISION 1: Edit video" is Video
+// Editing. Everything downstream of these buckets (Actual/wk, maxWeek26, the roster
+// auto-fill, the drift badge) therefore counts TOTAL tasks including revision rounds —
+// the same unit the demand rates in DEFAULT_ROLE_RATES are measured in. The revision
+// share is tracked separately (TaskTypeRow.revisionWeekCounts) for display splits only.
 export function getTaskCategory(taskName: string): string {
-  const name = taskName?.toLowerCase() || '';
+  const raw = taskName?.toLowerCase() || '';
+  const name = raw.replace(REVISION_PREFIX, '');
   if (name.includes('approve and send brief')) return 'Briefs Sent';
   if (name.includes('write brief') || name.includes('write the brief') || name.includes('draft brief')) return 'Brief Work';
+  // Only non-prefixed mentions land here ("Send revisions to client") — prefixed tasks had
+  // the word stripped above. Prefixed work whose base matches no category (revision
+  // approvals etc.) also pools under Revisions, via the fallthrough at the bottom.
   if (name.includes('revision')) return 'Revisions';
   if (name.includes('review creative')) return 'Creative Review';
   if (name.includes('review')) return 'Review';
@@ -157,14 +176,21 @@ export function getTaskCategory(taskName: string): string {
   if (name.includes('upload')) return 'Upload';
   if (name.includes('cast creator')) return 'Cast Creator';
   if (name.includes('footage') || name.includes('pull')) return 'Footage/Assets';
+  // A revision round of something we can't categorize stays visible as revision work
+  // rather than vanishing into Other.
+  if (name !== raw) return 'Revisions';
   return 'Other';
 }
 
 export interface TaskTypeRow {
   taskType: string;
   avg30Day: number;
+  /** REVISION-round share of avg30Day. Already included in it — display split only, never re-add. */
+  revisions30Day: number;
   weekCounts: number[]; // 8 weeks, index 0 = oldest (week -8), index 7 = most recent (week -1)
-  maxWeek26: number; // highest single-week completions over last 26 weeks
+  /** REVISION-round share of weekCounts, parallel array. Already included — display split only. */
+  revisionWeekCounts: number[];
+  maxWeek26: number; // highest single-week completions over last 26 weeks (revision rounds included)
   ceilingTop3of13: number; // mean of the 3 best weeks in the last 13 — see CEILING_* below
   inheritedOverdue: number;
   trueOverdue: number;
@@ -371,12 +397,14 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
 
   const personData: Record<string, Record<string, {
     weekCounts: number[];
+    revisionWeekCounts: number[];
     weekCounts26: number[];
     inheritedOverdue: number;
     trueOverdue: number;
     due7Days: number;
     due30Days: number;
     last30DaysTotal: number;
+    revisions30DaysTotal: number;
   }>> = {};
 
   filteredTasks.forEach((task) => {
@@ -391,16 +419,19 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
     if (!personData[assigneeName][taskType]) {
       personData[assigneeName][taskType] = {
         weekCounts: [0, 0, 0, 0, 0, 0, 0, 0],
+        revisionWeekCounts: [0, 0, 0, 0, 0, 0, 0, 0],
         weekCounts26: new Array(26).fill(0),
         inheritedOverdue: 0,
         trueOverdue: 0,
         due7Days: 0,
         due30Days: 0,
         last30DaysTotal: 0,
+        revisions30DaysTotal: 0,
       };
     }
 
     const data = personData[assigneeName][taskType];
+    const isRevision = isRevisionTask(task.name);
 
     if (task.done && task.doneDate) {
       const doneDate = parseTaskDate(task.doneDate);
@@ -408,11 +439,13 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
 
       if (doneDate >= last30Days && doneDate <= today) {
         data.last30DaysTotal++;
+        if (isRevision) data.revisions30DaysTotal++;
       }
-      
+
       weeks.forEach((week, index) => {
         if (isWithinInterval(doneDate, { start: week.start, end: week.end })) {
           data.weekCounts[index]++;
+          if (isRevision) data.revisionWeekCounts[index]++;
         }
       });
       weeks26.forEach((week, index) => {
@@ -456,7 +489,9 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
       .map(([taskType, data]) => ({
         taskType,
         avg30Day: data.last30DaysTotal,
+        revisions30Day: data.revisions30DaysTotal,
         weekCounts: [...data.weekCounts].reverse(),
+        revisionWeekCounts: [...data.revisionWeekCounts].reverse(),
         maxWeek26: Math.max(...data.weekCounts26),
         ceilingTop3of13: ceilingFrom(data.weekCounts26),
         inheritedOverdue: data.inheritedOverdue,
@@ -473,7 +508,9 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
     const subtotal: TaskTypeRow = {
       taskType: 'Subtotal',
       avg30Day: Math.round(taskTypeRows.reduce((sum, r) => sum + r.avg30Day, 0) * 10) / 10,
+      revisions30Day: taskTypeRows.reduce((sum, r) => sum + r.revisions30Day, 0),
       weekCounts: Array.from({ length: 8 }, (_, i) => taskTypeRows.reduce((sum, r) => sum + r.weekCounts[i], 0)),
+      revisionWeekCounts: Array.from({ length: 8 }, (_, i) => taskTypeRows.reduce((sum, r) => sum + r.revisionWeekCounts[i], 0)),
       maxWeek26: Math.max(...taskTypeRows.map(r => r.maxWeek26)),
       // Fallback row, only reached when a person has no row for their primary
       // task type. Their busiest single stream stands in for the whole person
