@@ -140,30 +140,11 @@ function getWeekBoundaries(referenceDate: Date, weeksAgo: number) {
   return { start: weekStart, end: weekEnd };
 }
 
-// Matches the standard revision-round prefix Fibery stamps on re-run tasks: "REVISION 1: Edit video".
-export const REVISION_PREFIX = /^revision\s+\d+:\s*/i;
-
-/** True for a standard revision-round task ("REVISION 1: ..."). */
-export function isRevisionTask(taskName: string): boolean {
-  return REVISION_PREFIX.test(taskName ?? '');
-}
-
-// Categorize task by name keywords.
-//
-// A revision round is the same work as the first pass, done by the same person, so
-// REVISION-prefixed tasks bucket by their BASE name: "REVISION 1: Edit video" is Video
-// Editing. Everything downstream of these buckets (Actual/wk, maxWeek26, the roster
-// auto-fill, the drift badge) therefore counts TOTAL tasks including revision rounds —
-// the same unit the demand rates in DEFAULT_ROLE_RATES are measured in. The revision
-// share is tracked separately (TaskTypeRow.revisionWeekCounts) for display splits only.
+// Categorize task by name keywords
 export function getTaskCategory(taskName: string): string {
-  const raw = taskName?.toLowerCase() || '';
-  const name = raw.replace(REVISION_PREFIX, '');
+  const name = taskName?.toLowerCase() || '';
   if (name.includes('approve and send brief')) return 'Briefs Sent';
   if (name.includes('write brief') || name.includes('write the brief') || name.includes('draft brief')) return 'Brief Work';
-  // Only non-prefixed mentions land here ("Send revisions to client") — prefixed tasks had
-  // the word stripped above. Prefixed work whose base matches no category (revision
-  // approvals etc.) also pools under Revisions, via the fallthrough at the bottom.
   if (name.includes('revision')) return 'Revisions';
   if (name.includes('review creative')) return 'Creative Review';
   if (name.includes('review')) return 'Review';
@@ -176,25 +157,49 @@ export function getTaskCategory(taskName: string): string {
   if (name.includes('upload')) return 'Upload';
   if (name.includes('cast creator')) return 'Cast Creator';
   if (name.includes('footage') || name.includes('pull')) return 'Footage/Assets';
-  // A revision round of something we can't categorize stays visible as revision work
-  // rather than vanishing into Other.
-  if (name !== raw) return 'Revisions';
   return 'Other';
 }
 
 export interface TaskTypeRow {
   taskType: string;
   avg30Day: number;
-  /** REVISION-round share of avg30Day. Already included in it — display split only, never re-add. */
-  revisions30Day: number;
   weekCounts: number[]; // 8 weeks, index 0 = oldest (week -8), index 7 = most recent (week -1)
-  /** REVISION-round share of weekCounts, parallel array. Already included — display split only. */
-  revisionWeekCounts: number[];
-  maxWeek26: number; // highest single-week completions over last 26 weeks (revision rounds included)
+  maxWeek26: number; // highest single-week completions over last 26 weeks
+  ceilingTop3of13: number; // mean of the 3 best weeks in the last 13 — see CEILING_* below
   inheritedOverdue: number;
   trueOverdue: number;
   due7Days: number;
   due30Days: number;
+}
+
+// How much one person's role can absorb in a week.
+//
+// This is deliberately NOT `maxWeek26`. A max is an extreme-value statistic: it
+// reports the single most abnormal week in the window and nothing about whether
+// that week is repeatable. Every account manager's best week runs 2.4x to 2.6x
+// their median week, so summing personal bests produced a team ceiling that has
+// never once been hit, and the bars read as though there were slack that was
+// not there. Amanda's best Account week was 20 briefs sent against a median of
+// 8; that one week set a third of the whole Account ceiling.
+//
+// Shortening the window does not fix that — a 6-week max is still a max, it just
+// picks a different outlier, and it makes the ceiling jumpier: backtested over
+// the last 12 Mondays, a 6-week max swung 21% on average with nothing changing
+// underneath, against 16% for this and 14% for the 26-week max it replaces.
+//
+// Averaging the three best weeks in a quarter needs three good weeks to move, so
+// one week of covering for someone out sick cannot set the number on its own.
+// Reads out loud as: the average of your three best weeks last quarter.
+const CEILING_TOP_N = 3;
+const CEILING_WINDOW_WEEKS = 13;
+
+// weekCounts26 runs most-recent-first (index 0 = last complete week).
+function ceilingFrom(weekCounts26: number[]): number {
+  const top = [...weekCounts26.slice(0, CEILING_WINDOW_WEEKS)]
+    .sort((a, b) => b - a)
+    .slice(0, CEILING_TOP_N);
+  if (!top.length) return 0;
+  return Math.round((top.reduce((s, n) => s + n, 0) / top.length) * 10) / 10;
 }
 
 export type RoleType = 'Account' | 'CD Review' | 'AM Review' | 'Copywriters' | 'Casting' | 'Design' | 'Video' | 'Other';
@@ -366,14 +371,12 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
 
   const personData: Record<string, Record<string, {
     weekCounts: number[];
-    revisionWeekCounts: number[];
     weekCounts26: number[];
     inheritedOverdue: number;
     trueOverdue: number;
     due7Days: number;
     due30Days: number;
     last30DaysTotal: number;
-    revisions30DaysTotal: number;
   }>> = {};
 
   filteredTasks.forEach((task) => {
@@ -388,19 +391,16 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
     if (!personData[assigneeName][taskType]) {
       personData[assigneeName][taskType] = {
         weekCounts: [0, 0, 0, 0, 0, 0, 0, 0],
-        revisionWeekCounts: [0, 0, 0, 0, 0, 0, 0, 0],
         weekCounts26: new Array(26).fill(0),
         inheritedOverdue: 0,
         trueOverdue: 0,
         due7Days: 0,
         due30Days: 0,
         last30DaysTotal: 0,
-        revisions30DaysTotal: 0,
       };
     }
 
     const data = personData[assigneeName][taskType];
-    const isRevision = isRevisionTask(task.name);
 
     if (task.done && task.doneDate) {
       const doneDate = parseTaskDate(task.doneDate);
@@ -408,13 +408,11 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
 
       if (doneDate >= last30Days && doneDate <= today) {
         data.last30DaysTotal++;
-        if (isRevision) data.revisions30DaysTotal++;
       }
-
+      
       weeks.forEach((week, index) => {
         if (isWithinInterval(doneDate, { start: week.start, end: week.end })) {
           data.weekCounts[index]++;
-          if (isRevision) data.revisionWeekCounts[index]++;
         }
       });
       weeks26.forEach((week, index) => {
@@ -458,10 +456,9 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
       .map(([taskType, data]) => ({
         taskType,
         avg30Day: data.last30DaysTotal,
-        revisions30Day: data.revisions30DaysTotal,
         weekCounts: [...data.weekCounts].reverse(),
-        revisionWeekCounts: [...data.revisionWeekCounts].reverse(),
         maxWeek26: Math.max(...data.weekCounts26),
+        ceilingTop3of13: ceilingFrom(data.weekCounts26),
         inheritedOverdue: data.inheritedOverdue,
         trueOverdue: data.trueOverdue,
         due7Days: data.due7Days,
@@ -476,10 +473,12 @@ export function processTasksForCapacity(tasks: Task[], roleFilter: string): Role
     const subtotal: TaskTypeRow = {
       taskType: 'Subtotal',
       avg30Day: Math.round(taskTypeRows.reduce((sum, r) => sum + r.avg30Day, 0) * 10) / 10,
-      revisions30Day: taskTypeRows.reduce((sum, r) => sum + r.revisions30Day, 0),
       weekCounts: Array.from({ length: 8 }, (_, i) => taskTypeRows.reduce((sum, r) => sum + r.weekCounts[i], 0)),
-      revisionWeekCounts: Array.from({ length: 8 }, (_, i) => taskTypeRows.reduce((sum, r) => sum + r.revisionWeekCounts[i], 0)),
       maxWeek26: Math.max(...taskTypeRows.map(r => r.maxWeek26)),
+      // Fallback row, only reached when a person has no row for their primary
+      // task type. Their busiest single stream stands in for the whole person
+      // rather than summing streams they cannot actually run in parallel.
+      ceilingTop3of13: Math.max(...taskTypeRows.map(r => r.ceilingTop3of13)),
       inheritedOverdue: taskTypeRows.reduce((sum, r) => sum + r.inheritedOverdue, 0),
       trueOverdue: taskTypeRows.reduce((sum, r) => sum + r.trueOverdue, 0),
       due7Days: taskTypeRows.reduce((sum, r) => sum + r.due7Days, 0),

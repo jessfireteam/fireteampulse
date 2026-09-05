@@ -25,7 +25,7 @@ export const ROLE_BARS: Array<[RoleType, string]> = [
   ["Video", "Video Editing"],
 ];
 
-function computeRoleBars(tasks: any[]): RoleBar[] {
+export function computeRoleBars(tasks: any[]): RoleBar[] {
   const roleGroups = processTasksForCapacity(tasks, "all");
   const byRole = new Map(roleGroups.map((g) => [g.role as string, g]));
 
@@ -45,20 +45,20 @@ function computeRoleBars(tasks: any[]): RoleBar[] {
         currentSum += primaryRow.avg30Day / 4.3;
       });
 
-      // Peak excludes departed members (they can't produce anymore)
+      // Ceiling excludes departed members (they can't produce anymore)
       g.people
         .filter((person) => !isExcludedMember(person.name))
         .forEach((person) => {
           const primaryRow =
             person.taskTypes.find((t) => t.taskType === person.primaryTaskType) ||
             person.subtotal;
-          peakSum += primaryRow.maxWeek26;
+          peakSum += primaryRow.ceilingTop3of13;
         });
 
       return {
         role: label,
         current: Math.round(currentSum * 10) / 10,
-        peak: peakSum,
+        peak: Math.round(peakSum),
       };
     })
     .filter((r) => r.peak > 0);
@@ -171,6 +171,10 @@ export function RoleCapacitySummary() {
       <SectionHeader title="Role Capacity" />
       <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
         <CardContent className="p-6 space-y-5">
+          <p className="text-xs text-muted-foreground">
+            Current output per week against the ceiling, by role. Ceiling is the
+            average of each person's three best weeks last quarter, added up.
+          </p>
           {bars.length === 0 ? (
             <p className="text-center text-muted-foreground">No capacity data</p>
           ) : (
